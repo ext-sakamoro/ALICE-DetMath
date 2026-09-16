@@ -77,6 +77,16 @@ pub mod ops;
 pub mod simd;
 pub mod single;
 
+/// The `f32` kernel constants (Cephes / musl), for code generators that must
+/// emit the *same* law elsewhere (a JIT, a shader) and be checked against
+/// these functions bit for bit.
+pub mod consts {
+    pub use crate::single::{
+        COS_P, EXP_HI, EXP_LO, EXP_P, FRAC_2_PI, LG1, LG2, LG3, LG4, LN2_HI, LN2_LO, LOG2E, PIO2_1,
+        PIO2_2, PIO2_3, SIN_P, SQRT2_BITS,
+    };
+}
+
 pub use double::{acos64, asin64, atan2_64, atan64, exp64, ln64, powf64};
 pub use ops::{round, round64, sqrt, sqrt64};
 pub use single::{

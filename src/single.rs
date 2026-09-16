@@ -9,15 +9,19 @@ use crate::ops::{round, sqrt};
 
 /// π/2 split into three single-precision pieces (Cephes `DP1..3` × 2) so
 /// `x - k·π/2` is computed with ~24 extra bits for `|k| < 2^24`.
-pub(crate) const PIO2_1: f32 = 1.570_312_5;
-pub(crate) const PIO2_2: f32 = 4.837_512_969_970_703_125e-4;
-pub(crate) const PIO2_3: f32 = 7.549_789_948_768_648e-8;
-pub(crate) const FRAC_2_PI: f32 = core::f32::consts::FRAC_2_PI;
+/// First piece of π/2 (Cephes `DP1`×2).
+pub const PIO2_1: f32 = 1.570_312_5;
+/// Second piece of π/2.
+pub const PIO2_2: f32 = 4.837_512_969_970_703_125e-4;
+/// Third piece of π/2.
+pub const PIO2_3: f32 = 7.549_789_948_768_648e-8;
+/// `2/π`, the range-reduction multiplier.
+pub const FRAC_2_PI: f32 = core::f32::consts::FRAC_2_PI;
 
 /// Cephes `sinf` polynomial coefficients on `[-π/4, π/4]`.
-pub(crate) const SIN_P: [f32; 3] = [-1.951_529_589_1e-4, 8.332_160_873_6e-3, -1.666_665_461_1e-1];
+pub const SIN_P: [f32; 3] = [-1.951_529_589_1e-4, 8.332_160_873_6e-3, -1.666_665_461_1e-1];
 /// Cephes `cosf` polynomial coefficients on `[-π/4, π/4]`.
-pub(crate) const COS_P: [f32; 3] = [
+pub const COS_P: [f32; 3] = [
     2.443_315_711_809_948e-5,
     -1.388_731_625_493_765e-3,
     4.166_664_568_298_827e-2,
@@ -117,11 +121,14 @@ pub fn sin_cos(x: f32) -> (f32, f32) {
     (canon(s), canon(c))
 }
 
-pub(crate) const LOG2E: f32 = core::f32::consts::LOG2_E;
-pub(crate) const LN2_HI: f32 = 0.693_145_751_953_125;
-pub(crate) const LN2_LO: f32 = 1.428_606_765_330_187e-6;
+/// `log2(e)`, the `exp` range-reduction multiplier.
+pub const LOG2E: f32 = core::f32::consts::LOG2_E;
+/// `ln 2` split: high part (exact in 12 bits).
+pub const LN2_HI: f32 = 0.693_145_751_953_125;
+/// `ln 2` split: low part.
+pub const LN2_LO: f32 = 1.428_606_765_330_187e-6;
 /// Cephes `expf` polynomial for `e^r`, `|r| ≤ ln2/2` (highest degree first).
-pub(crate) const EXP_P: [f32; 5] = [
+pub const EXP_P: [f32; 5] = [
     1.987_569_150_0e-4,
     1.398_199_950_7e-3,
     8.333_451_907_3e-3,
@@ -129,9 +136,9 @@ pub(crate) const EXP_P: [f32; 5] = [
     1.666_666_545_9e-1,
 ];
 /// `exp` overflows to `+inf` above this and underflows to `0` below [`EXP_LO`].
-pub(crate) const EXP_HI: f32 = 88.722_84;
+pub const EXP_HI: f32 = 88.722_84;
 /// See [`EXP_HI`].
-pub(crate) const EXP_LO: f32 = -103.972_08;
+pub const EXP_LO: f32 = -103.972_08;
 
 /// Build `2^k` for `-126 ≤ k ≤ 127` directly from the exponent bits.
 #[inline(always)]
@@ -176,13 +183,16 @@ pub fn exp(x: f32) -> f32 {
     }
 }
 
-// musl `logf` coefficients.
-pub(crate) const LG1: f32 = 0.666_666_626_93;
-pub(crate) const LG2: f32 = 0.400_009_721_52;
-pub(crate) const LG3: f32 = 0.284_987_866_88;
-pub(crate) const LG4: f32 = 0.242_790_788_41;
+/// musl `logf` coefficient.
+pub const LG1: f32 = 0.666_666_626_93;
+/// musl `logf` coefficient.
+pub const LG2: f32 = 0.400_009_721_52;
+/// musl `logf` coefficient.
+pub const LG3: f32 = 0.284_987_866_88;
+/// musl `logf` coefficient.
+pub const LG4: f32 = 0.242_790_788_41;
 /// Mantissa bit pattern of `sqrt(2)` used to fold `m` into `[√2/2, √2)`.
-pub(crate) const SQRT2_BITS: u32 = 0x3fb5_04f3;
+pub const SQRT2_BITS: u32 = 0x3fb5_04f3;
 
 /// Deterministic natural logarithm `ln(x)`.
 ///

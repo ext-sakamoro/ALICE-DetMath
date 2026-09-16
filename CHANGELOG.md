@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-16
+
+### Added
+
+- `consts` module: the `f32` kernel constants (`SIN_P`, `COS_P`, `PIO2_*`,
+  `EXP_P`, `LG*`, …) for code generators that emit the same law elsewhere
+  (alice-sdf's Cranelift JIT) and are checked against these functions bit
+  for bit.
+
 ## [0.1.0] - 2026-09-16
 
 Extracted from `alice-physics` 1.2.0 `det_math` (bit-for-bit: the pins in
@@ -44,5 +53,6 @@ Extracted from `alice-physics` 1.2.0 `det_math` (bit-for-bit: the pins in
   were finite before are bit-identical, `cbrt(f32::MAX)` is now correct.
 - `asin64` / `acos64` are public (they were private kernels).
 
-[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ext-sakamoro/ALICE-DetMath/releases/tag/v0.1.0
