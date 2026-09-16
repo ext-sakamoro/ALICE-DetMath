@@ -93,7 +93,7 @@ fn check(name: &str, got: &str, want: &str) {
 const GOLDEN: &[(&str, &str)] = &[
     (
         "sin",
-        "9b545f9598c2addf93c87ff1f6e2edb8b4a38b5e6d36c7b6a0d0e3e9c1fd6c13",
+        "5a30c19aa45a4d09629879b301f5cd2430482fd4de1bd11463335d589503b884",
     ),
     (
         "cos",
@@ -101,7 +101,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "sin_cos",
-        "0b0f1dad59747b1597ad3511f00214186cc97d6cc390e857cd3dd866da176ca5",
+        "4220632ccae1ae46983326dfca07cf7bbc90520b685eb09a3225996e9c843db9",
     ),
     (
         "exp",
@@ -121,7 +121,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "cbrt",
-        "53e3d47fcc4c2aaf93b89bdeaa4fe37e847b7d6efdb4c0c785cfa276e5be7885",
+        "b363cc6aa6be74c982b4351f0db1700a31d65ef68a00ab60503f495a9278ea65",
     ),
     (
         "hypot",

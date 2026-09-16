@@ -186,6 +186,17 @@ if [[ "$(uname -m)" == "x86_64" ]]; then
   ( export RUSTFLAGS="-C target-feature=-avx2,-avx,-fma,-sse4.1" ALL_FEATURES="std,simd"; cargo test --features "$ALL_FEATURES" --target-dir target/sse2 )
   step "ci.yml / simd-paths: Test (avx2-fma)"
   ( export RUSTFLAGS="-C target-feature=+avx2,+fma" ALL_FEATURES="std,simd"; cargo test --features "$ALL_FEATURES" --target-dir target/avx2 )
+elif [[ "$(uname -s)" == "Darwin" ]] && arch -x86_64 /usr/bin/true 2>/dev/null; then
+  # Apple Silicon: Rosetta runs a real x86_64 build, which is what caught the
+  # x86-vs-ARM default-NaN sign difference before it was a CI red twice over
+  step "ci.yml / test (x86_64 via Rosetta): golden + simd_parity + accuracy"
+  for t in golden simd_parity accuracy; do
+    bin=$(cargo test --features std,simd --target x86_64-apple-darwin --test "$t" --no-run 2>&1 | grep -oE "target/x86_64-apple-darwin/debug/deps/${t}-[a-f0-9]+" | head -1)
+    arch -x86_64 "$bin"
+  done
+  step "ci.yml / test (x86_64 via Rosetta, no_std software sqrt): golden"
+  bin=$(cargo test --no-default-features --features simd --target x86_64-apple-darwin --test golden --no-run 2>&1 | grep -oE "target/x86_64-apple-darwin/debug/deps/golden-[a-f0-9]+" | head -1)
+  arch -x86_64 "$bin"
 else
   echo "skip: sse2-only / avx2-fma lanes need an x86_64 host (CI runs them)"
 fi

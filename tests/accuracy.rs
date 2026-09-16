@@ -178,6 +178,11 @@ fn cbrt_within_1_ulp_of_correctly_rounded() {
     assert_eq!(cbrt(8.0), 2.0);
     assert_eq!(cbrt(-27.0), -3.0);
     assert!(ulp_diff32(cbrt(1.0e-40), r32(f64::cbrt)(1.0e-40)) <= 1);
+    // huge inputs: the Newton step's y³ must not overflow (was inf/inf = NaN)
+    for &x in &[f32::MAX, 3.168_086_2e38, 1.0e37, 7.922_816_3e28, -f32::MAX] {
+        assert!(cbrt(x).is_finite(), "cbrt({x:e}) = {}", cbrt(x));
+        assert!(ulp_diff32(cbrt(x), r32(f64::cbrt)(x)) <= 1, "cbrt({x:e})");
+    }
 }
 
 #[test]
@@ -365,5 +370,37 @@ fn nan_inputs_yield_canonical_or_pass_through_nan() {
             );
         }
         assert_eq!(round64(x).to_bits(), b, "round64 passes NaN through");
+    }
+}
+
+/// Beyond the single-precision reduction (`|x| > 2^24`) the trig functions
+/// produce `±inf` / NaN by arithmetic; the NaN must be the canonical one, not
+/// the platform default NaN (whose sign differs between `x86` and `AArch64` —
+/// found by the `x86_64` golden lanes).
+#[test]
+fn huge_arguments_never_leak_a_platform_nan() {
+    for &b in &[
+        0x6b11_d792u32,
+        0xeb11_d792,
+        0x7f7f_ffff,
+        0xff7f_ffff,
+        0x4f00_0000,
+        0x5f00_0000,
+        0x6f00_0000,
+    ] {
+        let x = f32::from_bits(b);
+        for (name, v) in [
+            ("sin", sin(x)),
+            ("cos", cos(x)),
+            ("sin_cos.0", sin_cos(x).0),
+            ("sin_cos.1", sin_cos(x).1),
+            ("tan", tan(x)),
+        ] {
+            assert!(
+                !v.is_nan() || v.to_bits() == f32::NAN.to_bits(),
+                "{name}({b:#010x}) = {:#010x} is a non-canonical NaN",
+                v.to_bits()
+            );
+        }
     }
 }

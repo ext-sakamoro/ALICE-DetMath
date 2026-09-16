@@ -35,6 +35,13 @@ Extracted from `alice-physics` 1.2.0 `det_math` (bit-for-bit: the pins in
   propagating through arithmetic (whose payload / sign rules differ between
   aarch64, x86 and wasm — found by the wasm32 golden lane). Non-NaN inputs are
   unchanged.
+- `sin` / `cos` / `sin_cos` / `tan`: for `|x| > 2^24` (beyond the reduction)
+  a NaN produced by the arithmetic is replaced by the canonical NaN — the
+  platform default NaN's sign differs between x86 (negative) and AArch64
+  (positive). Finite results are unchanged.
+- `cbrt`: inputs above 2^96 are scaled down by 2^24 before the Newton steps
+  (`y³` overflowed near `f32::MAX` and produced `inf / inf`); results that
+  were finite before are bit-identical, `cbrt(f32::MAX)` is now correct.
 - `asin64` / `acos64` are public (they were private kernels).
 
 [Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.0...HEAD

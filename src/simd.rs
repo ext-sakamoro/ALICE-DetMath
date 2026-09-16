@@ -110,7 +110,15 @@ pub fn sin(x: f32x8) -> f32x8 {
     let s = sin_poly(r);
     let c = cos_poly(r);
     let v = m0.blend(s, m1.blend(c, m2.blend(neg(s), neg(c))));
-    x.is_finite().blend(v, splat(f32::NAN))
+    canon(x, v)
+}
+
+/// Scalar `!x.is_finite() → NaN` plus `single::canon` (a NaN produced by the
+/// arithmetic on a huge argument gets the platform's default NaN sign).
+#[inline(always)]
+fn canon(x: f32x8, v: f32x8) -> f32x8 {
+    let nan = splat(f32::NAN);
+    (v.is_nan() | !x.is_finite()).blend(nan, v)
 }
 
 /// Deterministic `cos` per lane (`NaN` for non-finite lanes).
@@ -121,7 +129,7 @@ pub fn cos(x: f32x8) -> f32x8 {
     let s = sin_poly(r);
     let c = cos_poly(r);
     let v = m0.blend(c, m1.blend(neg(s), m2.blend(neg(c), s)));
-    x.is_finite().blend(v, splat(f32::NAN))
+    canon(x, v)
 }
 
 /// Deterministic `(sin, cos)` per lane from one range reduction.
@@ -133,9 +141,7 @@ pub fn sin_cos(x: f32x8) -> (f32x8, f32x8) {
     let c = cos_poly(r);
     let sv = m0.blend(s, m1.blend(c, m2.blend(neg(s), neg(c))));
     let cv = m0.blend(c, m1.blend(neg(s), m2.blend(neg(c), s)));
-    let finite = x.is_finite();
-    let nan = splat(f32::NAN);
-    (finite.blend(sv, nan), finite.blend(cv, nan))
+    (canon(x, sv), canon(x, cv))
 }
 
 /// `2^k` per lane from the exponent bits; `k` must be in `[-126, 127]`

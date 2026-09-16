@@ -51,34 +51,51 @@ fn reduce_pio2(x: f32) -> (i32, f32) {
     (k, r)
 }
 
+/// A NaN produced *by arithmetic* (`inf - inf` in the range reduction of an
+/// astronomically large argument) carries the platform's default NaN, whose
+/// sign bit differs between `x86` (negative) and `AArch64` (positive). Replace
+/// it with the canonical NaN; finite results pass through untouched.
+#[inline(always)]
+pub(crate) fn canon(v: f32) -> f32 {
+    if v.is_nan() {
+        f32::NAN
+    } else {
+        v
+    }
+}
+
 /// Deterministic `sin(x)`.
+///
+/// `|x| > 2^24` is beyond the single-precision reduction: the result is
+/// deterministic but meaningless (`±inf` or the canonical NaN), as with
+/// Cephes `sinf` (which returns 0 there) — reduce the argument first.
 #[must_use]
 pub fn sin(x: f32) -> f32 {
     if !x.is_finite() {
         return f32::NAN;
     }
     let (k, r) = reduce_pio2(x);
-    match k {
+    canon(match k {
         0 => sin_poly(r),
         1 => cos_poly(r),
         2 => -sin_poly(r),
         _ => -cos_poly(r),
-    }
+    })
 }
 
-/// Deterministic `cos(x)`.
+/// Deterministic `cos(x)` (see [`sin`] for the `|x| > 2^24` caveat).
 #[must_use]
 pub fn cos(x: f32) -> f32 {
     if !x.is_finite() {
         return f32::NAN;
     }
     let (k, r) = reduce_pio2(x);
-    match k {
+    canon(match k {
         0 => cos_poly(r),
         1 => -sin_poly(r),
         2 => -cos_poly(r),
         _ => sin_poly(r),
-    }
+    })
 }
 
 /// Deterministic `(sin(x), cos(x))` from one range reduction; bit-identical
@@ -91,12 +108,13 @@ pub fn sin_cos(x: f32) -> (f32, f32) {
     let (k, r) = reduce_pio2(x);
     let s = sin_poly(r);
     let c = cos_poly(r);
-    match k {
+    let (s, c) = match k {
         0 => (s, c),
         1 => (c, -s),
         2 => (-s, -c),
         _ => (-c, s),
-    }
+    };
+    (canon(s), canon(c))
 }
 
 pub(crate) const LOG2E: f32 = core::f32::consts::LOG2_E;
@@ -273,9 +291,15 @@ pub fn cbrt(x: f32) -> f32 {
     }
     let ax = x.abs();
     // Subnormals: scale up by 2^24 (an exact cube-friendly power, 2^(3·8)),
-    // take the root, scale back by 2^8.
+    // take the root, scale back by 2^8. Above 2^96 scale *down* by 2^24 the
+    // same way: the Newton step forms `y³`, which overflows near `f32::MAX`
+    // and would leave `inf / inf` = a platform-signed NaN. Power-of-two
+    // scaling is exact and the bit-hack estimate scales with it, so every
+    // result that was finite before is bit-identical.
     let (ax, post) = if ax.to_bits() < 0x0080_0000 {
         (ax * 16_777_216.0, 1.0 / 256.0)
+    } else if ax.to_bits() >= 0x6f80_0000 {
+        (ax * (1.0 / 16_777_216.0), 256.0)
     } else {
         (ax, 1.0)
     };
@@ -373,7 +397,7 @@ pub fn tan(x: f32) -> f32 {
     let (s, c) = (k_sin64(r), k_cos64(r));
     // tan(x + kπ/2): even k → sin/cos, odd k → -cos/sin
     let t = if k & 1 == 0 { s / c } else { -c / s };
-    t as f32
+    canon(t as f32)
 }
 
 /// Deterministic `tanh(x)`.
