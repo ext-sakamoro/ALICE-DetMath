@@ -1,0 +1,38 @@
+[package]
+name = "alice-det-math-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+wide = "0.7"
+
+[dependencies.alice-det-math]
+path = ".."
+features = ["std", "simd"]
+
+
+[[bin]]
+name = "fuzz_simd_parity"
+path = "fuzz_targets/fuzz_simd_parity.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_accuracy"
+path = "fuzz_targets/fuzz_accuracy.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_round_exact"
+path = "fuzz_targets/fuzz_round_exact.rs"
+test = false
+doc = false
+bench = false

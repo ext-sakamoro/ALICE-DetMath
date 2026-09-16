@@ -1,0 +1,80 @@
+[package]
+name = "alice-det-math"
+version = "0.1.0"
+edition = "2021"
+# MSRV-aware dependency resolution (cargo 1.84+): `cargo update` never picks
+# a dep whose rust-version exceeds ours, so the lockfile cannot drift from the
+# declared MSRV.
+resolver = "3"
+# Everything is built from IEEE 754 basic operations on `core`; the MSRV is
+# the oldest toolchain the CI `msrv` job compiles the no_std rlib with.
+rust-version = "1.85"
+authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
+description = "Cross-platform bit-exact f32/f64 transcendentals (sin, cos, exp, ln, atan2, ...) — scalar and SIMD, no_std"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ext-sakamoro/ALICE-DetMath"
+documentation = "https://docs.rs/alice-det-math"
+readme = "README.md"
+keywords = ["deterministic", "bit-exact", "libm", "no_std", "simd"]
+categories = ["mathematics", "no-std", "game-development", "simulation"]
+exclude = ["/.github", "/scripts", "/fuzz", "/deny.toml"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# `simd`: f32x8 versions of the f32 kernels, lane-for-lane bit-identical to
+# the scalar ones (same operation order, no `mul_add`).
+wide = { version = "0.7", optional = true, default-features = false }
+bytemuck = { version = "1", optional = true }
+
+[features]
+default = ["std"]
+# `std`: hardware `sqrt` (IEEE correctly rounded, so bit-identical to the
+# software fallback used without it). Nothing else in the crate needs std.
+std = []
+simd = ["dep:wide", "dep:bytemuck"]
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+# Coefficients are quoted with their source (Cephes / fdlibm / musl) precision;
+# some are also f32/f64 constants that clippy wants spelled via `consts`, but
+# the point of this crate is that the exact literal is the law.
+excessive_precision = "allow"
+unreadable_literal = "allow"
+approx_constant = "allow"
+# Bit-level exponent construction and lane conversions are the algorithm.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+cast_lossless = "allow"
+# Range-reduction + polynomial code is inherently long and branchy.
+too_many_lines = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+# `x * a + b` must stay two roundings: `mul_add` would change the bits on
+# targets with FMA and not on the others.
+suboptimal_flops = "allow"
+imprecise_flops = "allow"
+# Runtime-dependent conditions; making these `const fn` is not the goal.
+missing_const_for_fn = "allow"
+# Special cases (`x == 0.0`, `x == 1.0`, `ax == 1.0`) are exact IEEE tests by
+# design, as in the fdlibm / musl sources.
+float_cmp = "allow"
+# The formulas are quoted from fdlibm / musl verbatim; `midpoint` would
+# change the operation sequence (and therefore the bits).
+manual_midpoint = "allow"
+# The kernels were written with `#[inline(always)]` in alice-physics 1.1;
+# kept so the extraction is a byte-for-byte move of the law.
+inline_always = "allow"

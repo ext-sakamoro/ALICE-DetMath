@@ -1,0 +1,162 @@
+name: Security & Hygiene
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'deny.toml'
+      - 'fuzz/Cargo.toml'
+      - '.github/workflows/security-audit.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'deny.toml'
+      - 'fuzz/Cargo.toml'
+      - '.github/workflows/security-audit.yml'
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: "5"
+  CARGO_HTTP_MULTIPLEXING: "false"
+
+jobs:
+  audit:
+    name: cargo audit (RustSec CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        run: cargo audit --deny yanked
+
+  deny:
+    name: cargo-deny (license + advisories + bans + sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny
+      - name: cargo deny (all features)
+        run: cargo deny --all-features check all
+
+  unused-deps:
+    name: cargo-machete (unused dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: bnjbvr/cargo-machete@main
+
+  stub-guard:
+    name: Stub / mock / dbg / libm guard (grep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Detect todo! / unimplemented! / panic!(STUB)
+        run: |
+          set -eo pipefail
+          hits=$(grep -rnE 'todo!\(|unimplemented!\(|panic!\([^)]*STUB' src/ --include="*.rs" || true)
+          if [ -n "$hits" ]; then
+            echo "❌ Stub / unimplemented / STUB panic detected (production path):"
+            echo "$hits"
+            exit 1
+          fi
+          echo "✓ No todo! / unimplemented! / panic!(STUB) in src/"
+      - name: Detect dbg!() residual
+        run: |
+          set -eo pipefail
+          hits=$(grep -rn 'dbg!(' src/ --include="*.rs" || true)
+          if [ -n "$hits" ]; then
+            echo "❌ dbg!() macro left in production code:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "✓ No dbg!()"
+      # The crate's own promise: no platform libm call and no fma anywhere in
+      # src/ (the `ops` module is the only place allowed to call `.sqrt()`,
+      # behind the `std` feature). Test modules are excluded (they call libm
+      # as the reference on purpose).
+      - name: Detect platform libm / mul_add calls in src/
+        run: |
+          set -eo pipefail
+          hits=$(grep -rnE '\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|ln|log|log2|log10|powf|powi|cbrt|hypot|mul_add|floor|ceil|round|trunc|fract)\(' src/ --include="*.rs" \
+            | grep -vE '^\S+:\s*//' \
+            | grep -vE 'src/ops\.rs:[0-9]+:\s+x\.sqrt\(\)' \
+            | grep -vE 'tests|assert|x\.round\(\)|y\.round\(\)|x\.sqrt\(\)|y\.sqrt\(\)|f64::|f32::' \
+            || true)
+          if [ -n "$hits" ]; then
+            echo "❌ platform libm / mul_add call in src/ (breaks the bit-exact guarantee):"
+            echo "$hits"
+            exit 1
+          fi
+          echo "✓ No platform libm / mul_add in src/ (outside ops::sqrt std path and test modules)"
+
+  coverage:
+    name: Coverage (cargo-llvm-cov, informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Run coverage (docs.rs feature set)
+        run: |
+          set -o pipefail
+          cargo llvm-cov --features std,simd --summary-only 2>&1 | tee coverage-summary.txt
+      - name: Upload coverage summary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage-summary.txt
+          retention-days: 30
+
+  semver-checks:
+    name: cargo-semver-checks (API compat vs crates.io)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Before the first crates.io release there is no baseline; skip with a
+      # notice instead of a red (job-level continue-on-error would also hide
+      # real breakage, canonical trap #22)
+      - name: Check for a published baseline
+        id: baseline
+        run: |
+          if cargo search alice-det-math --limit 1 | grep -q '^alice-det-math = '; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::alice-det-math is not on crates.io yet; semver-checks skipped"
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install cargo-semver-checks
+        if: steps.baseline.outputs.published == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@0.50.0
+      - name: Run cargo semver-checks (docs.rs feature set)
+        if: steps.baseline.outputs.published == 'true'
+        run: >
+          cargo semver-checks check-release --package alice-det-math
+          --only-explicit-features --features std,simd

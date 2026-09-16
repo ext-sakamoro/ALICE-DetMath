@@ -1,0 +1,200 @@
+name: CI
+
+# Every step here is mirrored in scripts/preflight.sh (run before `git push`):
+# a step that is not in preflight.sh is a step that can only fail remotely.
+#
+# The whole point of this crate is that the bits are the same everywhere, so
+# the test matrix *is* the product: 5 native platforms + wasm32 + the SIMD
+# fallback paths (no AVX / no FMA) + FMA forced on. `tests/golden.rs` pins
+# SHA-256 hashes recorded on aarch64-apple-darwin; every lane must reproduce them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # docs.rs feature set (Cargo.toml [package.metadata.docs.rs] all-features)
+  ALL_FEATURES: std,simd
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # - macos-latest       → aarch64-apple-darwin       (golden hash baseline)
+        # - macos-15-intel     → x86_64-apple-darwin
+        # - ubuntu-latest      → x86_64-unknown-linux-gnu
+        # - ubuntu-24.04-arm   → aarch64-unknown-linux-gnu
+        # - windows-latest     → x86_64-pc-windows-msvc
+        os: [macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test (default features)
+        run: cargo test
+      - name: Test (docs.rs feature set)
+        shell: bash
+        run: cargo test --features "$ALL_FEATURES"
+      # no_std: the software sqrt path must produce the same golden hashes
+      - name: Test (no_std, software sqrt)
+        run: cargo test --no-default-features --features simd
+
+  simd-paths:
+    name: SIMD codegen paths (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # SSE2-only: exercises wide's f32x4 fallback for every f32x8 op
+          - name: sse2-only
+            rustflags: "-C target-feature=-avx2,-avx,-fma,-sse4.1"
+          # AVX2 + FMA available: proves nothing gets contracted into an fma
+          - name: avx2-fma
+            rustflags: "-C target-feature=+avx2,+fma"
+          - name: native
+            rustflags: "-C target-cpu=native"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: simd-${{ matrix.name }}
+      - name: Test (${{ matrix.name }})
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo test --features "$ALL_FEATURES"
+
+  wasm:
+    name: Test (wasm32-wasip1 via wasmtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      # dtolnay/rust-toolchain's `targets:` has silently skipped the rustup
+      # target add before; the explicit call is idempotent
+      - name: Ensure wasm32-wasip1 rust-std is installed
+        run: rustup target add wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-wasip1
+      # official setup action (retry built in); `curl | bash` is green on a
+      # network error and fails one step later with exit 127
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Build tests (wasm32-wasip1)
+        run: cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --no-run
+      - name: Run golden + accuracy + simd_parity + unit tests via wasmtime
+        run: |
+          set -euo pipefail
+          for t in golden accuracy simd_parity alice_det_math; do
+            WASM_BIN=$(find target/wasm32-wasip1/debug/deps -name "${t}-*.wasm" -not -name '*.d' | head -1)
+            echo "Executing: $WASM_BIN"
+            wasmtime "$WASM_BIN"
+          done
+
+  clippy:
+    name: Clippy (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (default, all targets)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: clippy (docs.rs feature set, all targets)
+        run: cargo clippy --all-targets --features "$ALL_FEATURES" -- -D warnings
+      - name: clippy (no_std lib)
+        run: cargo clippy --lib --no-default-features -- -D warnings
+
+  no_std:
+    name: no_std (rlib, thumbv7em-none-eabihf)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # rust-toolchain.toml carries the pin and the bare-metal target
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # `cargo check` on host is not a no_std proof (std is linked anyway);
+      # only a target without std is. rlib crate-type: no panic handler needed.
+      - name: Build rlib for a target without std
+        run: cargo rustc --lib --no-default-features --crate-type rlib --target thumbv7em-none-eabihf
+      - name: Build rlib for a target without std (simd)
+        run: cargo rustc --lib --no-default-features --features simd --crate-type rlib --target thumbv7em-none-eabihf
+
+  msrv:
+    name: MSRV (rust-version = 1.85)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@1.85
+        with:
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@v2
+      # `rust-version` is only true if this compiles; bump both together
+      - name: cargo check on MSRV (lib, default features)
+        run: cargo +1.85 check --lib --locked
+      - name: cargo check on MSRV (lib, docs.rs feature set)
+        run: cargo +1.85 check --lib --locked --features "$ALL_FEATURES"
+      - name: cargo build on MSRV (no_std rlib, bare-metal target)
+        run: cargo +1.85 rustc --lib --locked --no-default-features --crate-type rlib --target thumbv7em-none-eabihf
+
+  feature-powerset:
+    name: Feature powerset (cargo-hack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      # 2 features → 4 combinations
+      - name: Powerset (all depths)
+        run: cargo hack check --lib --feature-powerset
+
+  doc:
+    name: Doc (RUSTDOCFLAGS=-Dwarnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo doc (default)
+        run: RUSTDOCFLAGS="-Dwarnings" cargo doc --lib --no-deps
+      - name: cargo doc (docs.rs feature set)
+        run: RUSTDOCFLAGS="-Dwarnings" cargo doc --lib --no-deps --features "$ALL_FEATURES"
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+  actionlint:
+    name: actionlint (workflow YAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          fail_level: error
+          reporter: github-check
