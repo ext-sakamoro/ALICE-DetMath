@@ -143,6 +143,10 @@ jobs:
         uses: dtolnay/rust-toolchain@1.85
         with:
           targets: thumbv7em-none-eabihf
+      # the action's `targets:` input has silently not installed the target
+      # (first CI run of this repo); the explicit call is idempotent
+      - name: Ensure thumbv7em-none-eabihf rust-std is installed for 1.85
+        run: rustup target add --toolchain 1.85 thumbv7em-none-eabihf
       - uses: Swatinem/rust-cache@v2
       # `rust-version` is only true if this compiles; bump both together
       - name: cargo check on MSRV (lib, default features)
