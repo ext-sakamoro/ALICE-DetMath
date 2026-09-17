@@ -5,6 +5,7 @@
 [![docs.rs](https://docs.rs/alice-det-math/badge.svg)](https://docs.rs/alice-det-math)
 
 Cross-platform **bit-exact** `f32` / `f64` transcendentals — `sin`, `cos`, `exp`,
+<!-- claim-test: scalar_outputs_match_recorded_hashes -->
 `ln`, `atan2`, `asin`, `acos`, `tan`, `tanh`, `powf`, `cbrt`, `hypot`, … — built
 from IEEE 754 basic operations only, so every function is a pure function of
 its input bits on x86_64, aarch64, wasm32 and every other IEEE target.
