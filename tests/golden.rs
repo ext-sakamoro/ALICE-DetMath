@@ -93,15 +93,15 @@ fn check(name: &str, got: &str, want: &str) {
 const GOLDEN: &[(&str, &str)] = &[
     (
         "sin",
-        "5a30c19aa45a4d09629879b301f5cd2430482fd4de1bd11463335d589503b884",
+        "5e51709ffaa05b16afe14f2268c97633a0058eee46ff2f563e24fb8426967ef1",
     ),
     (
         "cos",
-        "e3e7f8d33ab7dc12d86086d2168c460f1257adee3ada7f777b0a9d7835e74fd5",
+        "d80b955d724c77e2d64c58dab6e5dc32cbca3a8274db4b9065f1d8528011f896",
     ),
     (
         "sin_cos",
-        "4220632ccae1ae46983326dfca07cf7bbc90520b685eb09a3225996e9c843db9",
+        "e8fbc874df490f32d4bbd895cfa30b0d42c3624a58f042863e08ec6becd145fb",
     ),
     (
         "exp",
@@ -129,11 +129,11 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "atan",
-        "054933a8ac34feeb854eec352da0f9e0e8e73ab8e7f519b043edf77fd46edee9",
+        "3c5b4e38c7b09d816a5815073c8128d698b92173c2c443eef9a12fb06043dc78",
     ),
     (
         "atan2",
-        "1ec8cb5ec8b1426524adddeec547f6a7086e3ecf09a5d2284c46d2462471fd99",
+        "6fcbd5192a639e6e9b6b431485a4c3421b009b28f5d667b8a263124bf3ea28a4",
     ),
     (
         "asin",

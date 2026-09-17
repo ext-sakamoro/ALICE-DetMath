@@ -2,10 +2,8 @@
 //! `powf` / `powi` / `cbrt` / `hypot`, and the `f32` entry points of the
 //! double-precision fdlibm kernels in [`crate::double`].
 
-use crate::double::{
-    acos64, asin64, atan2_64, atan64, exp64, k_cos64, k_sin64, ln64, reduce_pio2_64,
-};
-use crate::ops::{round, sqrt};
+use crate::double::{acos64, asin64, exp64, k_cos64, k_sin64, ln64, reduce_pio2_64};
+use crate::ops::sqrt;
 
 /// π/2 split into three single-precision pieces (Cephes `DP1..3` × 2) so
 /// `x - k·π/2` is computed with ~24 extra bits for `|k| < 2^24`.
@@ -43,10 +41,25 @@ fn cos_poly(r: f32) -> f32 {
     1.0 - 0.5 * z + p
 }
 
+/// Nearest integer of `t` for range reduction: `trunc(t + copysign(0.5, t))`.
+///
+/// Basic operations only (deterministic), 3 ops instead of the ~20 of the
+/// exact `round`; it differs from `round` only when `t` is within an ulp of
+/// an exact tie, where either neighbour is a valid reduction (`|r|` lands on
+/// the `π/4` boundary the polynomials are fitted to).
+#[inline(always)]
+pub(crate) fn nearest_int(t: f32) -> f32 {
+    // `t < 0` (not the sign bit: `-0.0` and NaN take +0.5, which changes
+    // nothing) — the SIMD version is the same compare + blend
+    let half = if t < 0.0 { -0.5 } else { 0.5 };
+    // `as i32` saturates and maps NaN to 0, like the SIMD `trunc_int`
+    ((t + half) as i32) as f32
+}
+
 /// Reduce `x` to `(k mod 4, r)` with `x = k·π/2 + r`, `|r| ≤ π/4`.
 #[inline(always)]
 fn reduce_pio2(x: f32) -> (i32, f32) {
-    let kf = round(x * FRAC_2_PI);
+    let kf = nearest_int(x * FRAC_2_PI);
     let r = ((x - kf * PIO2_1) - kf * PIO2_2) - kf * PIO2_3;
     // `kf` is integral and |kf| < 2^31 for every finite f32 we accept; the
     // cast saturates for huge inputs, which only affects the (already
@@ -73,6 +86,7 @@ pub(crate) fn canon(v: f32) -> f32 {
 /// `|x| > 2^24` is beyond the single-precision reduction: the result is
 /// deterministic but meaningless (`±inf` or the canonical NaN), as with
 /// Cephes `sinf` (which returns 0 there) — reduce the argument first.
+#[inline]
 #[must_use]
 pub fn sin(x: f32) -> f32 {
     if !x.is_finite() {
@@ -88,6 +102,7 @@ pub fn sin(x: f32) -> f32 {
 }
 
 /// Deterministic `cos(x)` (see [`sin`] for the `|x| > 2^24` caveat).
+#[inline]
 #[must_use]
 pub fn cos(x: f32) -> f32 {
     if !x.is_finite() {
@@ -104,6 +119,7 @@ pub fn cos(x: f32) -> f32 {
 
 /// Deterministic `(sin(x), cos(x))` from one range reduction; bit-identical
 /// to calling [`sin`] and [`cos`] separately.
+#[inline]
 #[must_use]
 pub fn sin_cos(x: f32) -> (f32, f32) {
     if !x.is_finite() {
@@ -152,6 +168,7 @@ fn pow2i(k: i32) -> f32 {
 /// Overflows to `+inf` above ≈ 88.72, underflows to `0.0` below ≈ −103.97
 /// (subnormal results are produced via a two-step scale, so the tail is
 /// gradual, not a cliff).
+#[inline]
 #[must_use]
 pub fn exp(x: f32) -> f32 {
     if x.is_nan() {
@@ -163,7 +180,7 @@ pub fn exp(x: f32) -> f32 {
     if x < EXP_LO {
         return 0.0;
     }
-    let kf = round(x * LOG2E);
+    let kf = nearest_int(x * LOG2E);
     let k = kf as i32;
     let r = (x - kf * LN2_HI) - kf * LN2_LO;
     let p = (((((EXP_P[0] * r + EXP_P[1]) * r + EXP_P[2]) * r + EXP_P[3]) * r + EXP_P[4]) * r
@@ -197,6 +214,7 @@ pub const SQRT2_BITS: u32 = 0x3fb5_04f3;
 /// Deterministic natural logarithm `ln(x)`.
 ///
 /// `ln(0) = -inf`, `ln(x < 0) = NaN`, `ln(inf) = inf`.
+#[inline]
 #[must_use]
 pub fn ln(x: f32) -> f32 {
     if x.is_nan() || x < 0.0 {
@@ -246,6 +264,7 @@ pub fn ln(x: f32) -> f32 {
 /// `x < 0 → NaN` (non-integer `y` is the common case here, so no
 /// integer-exponent sign rule is attempted), `x == 0 → 0 / 1 / inf` for
 /// `y > 0 / y == 0 / y < 0`, `y == 0 → 1`.
+#[inline]
 #[must_use]
 pub fn powf(x: f32, y: f32) -> f32 {
     if y == 0.0 {
@@ -264,6 +283,7 @@ pub fn powf(x: f32, y: f32) -> f32 {
 ///
 /// Unlike `f32::powi`, which lowers to a compiler-rt routine, the
 /// multiplication order here is fixed by this source.
+#[inline]
 #[must_use]
 pub fn powi(x: f32, n: i32) -> f32 {
     if n == 0 {
@@ -294,6 +314,7 @@ pub fn powi(x: f32, n: i32) -> f32 {
 /// Bit-hack initial estimate (`bits / 3 + 0x2a51_37a0`) followed by three
 /// Newton steps, then the sign is restored. `±0`, `±inf` and `NaN` pass
 /// through.
+#[inline]
 #[must_use]
 pub fn cbrt(x: f32) -> f32 {
     if x == 0.0 || !x.is_finite() {
@@ -328,6 +349,7 @@ pub fn cbrt(x: f32) -> f32 {
 
 /// Deterministic `sqrt(x² + y²)` with power-of-two scaling so intermediate
 /// squares neither overflow nor flush to zero.
+#[inline]
 #[must_use]
 pub fn hypot(x: f32, y: f32) -> f32 {
     let ax = x.abs();
@@ -370,25 +392,162 @@ pub fn hypot(x: f32, y: f32) -> f32 {
 // 1 ulp of correctly rounded over the measured domains (see tests).
 // ---------------------------------------------------------------------------
 
-/// Deterministic `atan(x)`.
+// fdlibm s_atanf.c: atan(0.5) / atan(1) / atan(1.5) / atan(inf) high + low parts
+const ATANHI_F: [f32; 4] = [
+    4.636_476_040e-01,
+    7.853_981_256_5e-01,
+    9.827_936_887_7e-01,
+    1.570_796_251_3e+00,
+];
+const ATANLO_F: [f32; 4] = [
+    5.012_158_244e-09,
+    3.774_894_707_9e-08,
+    3.447_321_717e-08,
+    7.549_789_415_9e-08,
+];
+const AT_F: [f32; 5] = [
+    3.333_332_836_6e-01,
+    -1.999_915_838_2e-01,
+    1.425_363_570_5e-01,
+    -1.064_801_737_7e-01,
+    6.168_760_731_8e-02,
+];
+
+/// Deterministic `atan(x)` (fdlibm `s_atanf.c`, single precision, ≤ 1 ulp).
+///
+/// Until 0.2.0 this was `atan64(x as f64) as f32` (the double-precision
+/// kernel rounded once); the `f32` kernel is ~3× faster and within 1 ulp.
+#[inline]
 #[must_use]
 pub fn atan(x: f32) -> f32 {
-    atan64(f64::from(x)) as f32
+    let ix = x.to_bits() & 0x7fff_ffff;
+    if ix >= 0x4c80_0000 {
+        // |x| >= 2^26
+        if x.is_nan() {
+            return f32::NAN;
+        }
+        return if x > 0.0 {
+            ATANHI_F[3] + ATANLO_F[3]
+        } else {
+            -ATANHI_F[3] - ATANLO_F[3]
+        };
+    }
+    let (id, t): (i32, f32) = if ix < 0x3ee0_0000 {
+        // |x| < 0.4375
+        if ix < 0x3980_0000 {
+            // |x| < 2^-12
+            return x;
+        }
+        (-1, x)
+    } else {
+        let ax = x.abs();
+        if ix < 0x3f98_0000 {
+            // |x| < 1.1875
+            if ix < 0x3f30_0000 {
+                // |x| < 0.6875
+                (0, (2.0 * ax - 1.0) / (2.0 + ax))
+            } else {
+                (1, (ax - 1.0) / (ax + 1.0))
+            }
+        } else if ix < 0x401c_0000 {
+            // |x| < 2.4375
+            (2, (ax - 1.5) / (1.0 + 1.5 * ax))
+        } else {
+            (3, -1.0 / ax)
+        }
+    };
+    let z = t * t;
+    let w = z * z;
+    let s1 = z * (AT_F[0] + w * (AT_F[2] + w * AT_F[4]));
+    let s2 = w * (AT_F[1] + w * AT_F[3]);
+    if id < 0 {
+        return t - t * (s1 + s2);
+    }
+    let i = id as usize;
+    let r = ATANHI_F[i] - ((t * (s1 + s2) - ATANLO_F[i]) - t);
+    if x < 0.0 {
+        -r
+    } else {
+        r
+    }
 }
 
-/// Deterministic `atan2(y, x)` in `(-π, π]`, IEEE special cases as fdlibm.
+const PI_F: f32 = core::f32::consts::PI;
+const PI_LO_F: f32 = -8.742_277_657_3e-08;
+const PIO2_HI_F: f32 = core::f32::consts::FRAC_PI_2;
+const PIO4_HI_F: f32 = core::f32::consts::FRAC_PI_4;
+
+/// Deterministic `atan2(y, x)` in `(-π, π]`, IEEE special cases as fdlibm
+/// (`e_atan2f.c`, single precision, ≤ 1 ulp).
+///
+/// Until 0.2.0 this was the double-precision kernel rounded once.
+#[inline]
 #[must_use]
 pub fn atan2(y: f32, x: f32) -> f32 {
-    atan2_64(f64::from(y), f64::from(x)) as f32
+    if x.is_nan() || y.is_nan() {
+        return f32::NAN;
+    }
+    if x == 1.0 {
+        return atan(y);
+    }
+    // m: bit0 = sign(y), bit1 = sign(x)
+    let m = u32::from(y.is_sign_negative()) | (u32::from(x.is_sign_negative()) << 1);
+    if y == 0.0 {
+        return match m {
+            0 | 1 => y, // atan(±0, +anything) = ±0
+            2 => PI_F,  // atan(+0, -anything) = π
+            _ => -PI_F, // atan(-0, -anything) = -π
+        };
+    }
+    if x == 0.0 {
+        return if y < 0.0 { -PIO2_HI_F } else { PIO2_HI_F };
+    }
+    if x.is_infinite() {
+        if y.is_infinite() {
+            return match m {
+                0 => PIO4_HI_F,
+                1 => -PIO4_HI_F,
+                2 => 3.0 * PIO4_HI_F,
+                _ => -3.0 * PIO4_HI_F,
+            };
+        }
+        return match m {
+            0 => 0.0,
+            1 => -0.0,
+            2 => PI_F,
+            _ => -PI_F,
+        };
+    }
+    if y.is_infinite() {
+        return if y < 0.0 { -PIO2_HI_F } else { PIO2_HI_F };
+    }
+    let ex = ((x.to_bits() >> 23) & 0xff) as i32;
+    let ey = ((y.to_bits() >> 23) & 0xff) as i32;
+    let k = ey - ex;
+    let z = if k > 26 {
+        PIO2_HI_F + 0.5 * PI_LO_F
+    } else if x < 0.0 && k < -26 {
+        0.0
+    } else {
+        atan((y / x).abs())
+    };
+    match m {
+        0 => z,
+        1 => -z,
+        2 => PI_F - (z - PI_LO_F),
+        _ => (z - PI_LO_F) - PI_F,
+    }
 }
 
 /// Deterministic `asin(x)`; `NaN` outside `[-1, 1]`.
+#[inline]
 #[must_use]
 pub fn asin(x: f32) -> f32 {
     asin64(f64::from(x)) as f32
 }
 
 /// Deterministic `acos(x)`; `NaN` outside `[-1, 1]`.
+#[inline]
 #[must_use]
 pub fn acos(x: f32) -> f32 {
     acos64(f64::from(x)) as f32
@@ -398,6 +557,7 @@ pub fn acos(x: f32) -> f32 {
 ///
 /// Argument reduction is exact for `|x| < 2^20·π/2`; beyond that the result
 /// is still deterministic but loses accuracy (as `sin` / `cos` do).
+#[inline]
 #[must_use]
 pub fn tan(x: f32) -> f32 {
     if !x.is_finite() {
@@ -414,6 +574,7 @@ pub fn tan(x: f32) -> f32 {
 ///
 /// `|x| < 2^-14 → x` (the cubic term is below half an `f32` ulp), otherwise
 /// `(e^{2|x|} − 1) / (e^{2|x|} + 1)` in double precision via [`exp64`].
+#[inline]
 #[must_use]
 pub fn tanh(x: f32) -> f32 {
     if x.is_nan() {

@@ -38,6 +38,7 @@ const AT: [f64; 11] = [
 ];
 
 /// Deterministic `atan(x)` in double precision (fdlibm `s_atan.c`).
+#[inline]
 #[must_use]
 pub fn atan64(x: f64) -> f64 {
     if x.is_nan() {
@@ -92,6 +93,7 @@ const PIO2_LO_64: f64 = 6.123_233_995_736_766_035_87e-17;
 const PIO4_HI_64: f64 = core::f64::consts::FRAC_PI_4;
 
 /// Deterministic `atan2(y, x)` in double precision (fdlibm `e_atan2.c`).
+#[inline]
 #[must_use]
 pub fn atan2_64(y: f64, x: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
@@ -176,6 +178,7 @@ fn clear_low_word(x: f64) -> f64 {
 
 /// Deterministic `asin(x)` in double precision (fdlibm `e_asin.c`); `NaN`
 /// outside `[-1, 1]`.
+#[inline]
 #[must_use]
 pub fn asin64(x: f64) -> f64 {
     // NaN must not reach the arithmetic below: NaN *propagation* (which
@@ -224,6 +227,7 @@ pub fn asin64(x: f64) -> f64 {
 
 /// Deterministic `acos(x)` in double precision (fdlibm `e_acos.c`); `NaN`
 /// outside `[-1, 1]`.
+#[inline]
 #[must_use]
 pub fn acos64(x: f64) -> f64 {
     if x.is_nan() {
@@ -342,6 +346,7 @@ fn pow2i64(k: i32) -> f64 {
 }
 
 /// Deterministic `exp(x)` in double precision (fdlibm algorithm).
+#[inline]
 #[must_use]
 pub fn exp64(x: f64) -> f64 {
     if x.is_nan() {
@@ -382,6 +387,7 @@ const LG7_64: f64 = 1.479_819_860_511_658_591e-01;
 /// Deterministic natural logarithm in double precision (fdlibm algorithm).
 ///
 /// `ln64(0) = -inf`, `ln64(x < 0) = NaN`, `ln64(inf) = inf`.
+#[inline]
 #[must_use]
 pub fn ln64(x: f64) -> f64 {
     if x.is_nan() || x < 0.0 {
@@ -442,6 +448,7 @@ fn two_prod(a: f64, b: f64) -> (f64, f64) {
 /// correction, exact product via Dekker splitting) so the exponential's
 /// argument error is not amplified by `|y · ln x|`; measured ≤ 13 ulp over
 /// the documented domain (the residual is limited by `exp64`'s own rounding).
+#[inline]
 #[must_use]
 pub fn powf64(x: f64, y: f64) -> f64 {
     if y == 0.0 {

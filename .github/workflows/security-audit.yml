@@ -92,12 +92,15 @@ jobs:
           echo "✓ No dbg!()"
       # The crate's own promise: no platform libm call and no fma anywhere in
       # src/ (the `ops` module is the only place allowed to call `.sqrt()`,
-      # behind the `std` feature). Test modules are excluded (they call libm
-      # as the reference on purpose).
+      # behind the `std` feature). floor / ceil / trunc / round / sqrt are
+      # exact IEEE operations (any correct implementation returns the same
+      # bits), so they are not libm in this sense; whether they exist without
+      # std is what the thumbv7em no_std build checks. Test modules are
+      # excluded (they call libm as the reference on purpose).
       - name: Detect platform libm / mul_add calls in src/
         run: |
           set -eo pipefail
-          hits=$(grep -rnE '\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|ln|log|log2|log10|powf|powi|cbrt|hypot|mul_add|floor|ceil|round|trunc|fract)\(' src/ --include="*.rs" \
+          hits=$(grep -rnE '\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|ln|log|log2|log10|powf|powi|cbrt|hypot|mul_add)\(' src/ --include="*.rs" \
             | grep -vE '^\S+:\s*//' \
             | grep -vE 'src/ops\.rs:[0-9]+:\s+x\.sqrt\(\)' \
             | grep -vE 'tests|assert|x\.round\(\)|y\.round\(\)|x\.sqrt\(\)|y\.sqrt\(\)|f64::|f32::' \

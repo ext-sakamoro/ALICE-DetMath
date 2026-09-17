@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-17
+
+Results change in the last ulp for some inputs (the law changed, see below);
+every consumer re-pins its goldens: alice-physics 1.4.0, alice-sdf 3.1.0.
+
+### Changed
+
+- Range reduction (`sin`, `cos`, `sin_cos`, `exp`): the nearest integer is
+  `trunc(t + (t < 0 ? -0.5 : 0.5))` (three basic operations) instead of the
+  exact `round` (musl `roundf`, ~20 operations). It differs from `round` only
+  within an ulp of an exact tie, where either neighbour is a valid reduction;
+  accuracy bounds are unchanged (`tests/accuracy.rs`).
+- `atan` / `atan2`: fdlibm's single-precision `s_atanf.c` / `e_atan2f.c`
+  (≤ 1 ulp) instead of the double-precision kernel rounded once — ~3× faster
+  per lane; the `f64` kernels `atan64` / `atan2_64` are unchanged.
+- `simd`: the kernels are written with float arithmetic, compares + blends
+  and lane shifts only, and every constant is a `const` vector. With wide 0.7
+  on aarch64, `f32x8::splat` compiles to a `memset_pattern16` *call* per
+  constant and the integer / bitwise lane ops have no NEON path; the previous
+  version paid 27 calls per `sin_cos` (~90 ns / `f32x8`, now ~25 ns — on par
+  with `wide`'s own `sin_cos`). Bit-identical to the scalar functions as
+  before (`tests/simd_parity.rs`).
+- `#[inline]` on every public function (cross-crate inlining without LTO).
+
 ## [0.1.1] - 2026-09-16
 
 ### Added
@@ -53,6 +77,7 @@ Extracted from `alice-physics` 1.2.0 `det_math` (bit-for-bit: the pins in
   were finite before are bit-identical, `cbrt(f32::MAX)` is now correct.
 - `asin64` / `acos64` are public (they were private kernels).
 
-[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ext-sakamoro/ALICE-DetMath/releases/tag/v0.1.0

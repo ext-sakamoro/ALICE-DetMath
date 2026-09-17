@@ -9,9 +9,10 @@
 //! which side of a surface a point is on.
 //!
 //! Every function here is built from the guaranteed operations only —
-//! integer range reduction, fixed-degree polynomials evaluated in a fixed
-//! order, and bit-level exponent construction — so the result is a pure
-//! function of the input bits on every target. `mul_add` is not used
+//! integer range reduction (`trunc(t + (t < 0 ? -0.5 : 0.5))`, three
+//! operations), fixed-degree polynomials evaluated in a fixed order, and
+//! bit-level exponent construction — so the result is a pure function of
+//! the input bits on every target. `mul_add` is not used
 //! anywhere: it fuses into one rounding on FMA hardware and stays two
 //! roundings elsewhere, which would break the guarantee.
 //!
@@ -39,7 +40,7 @@
 //! | [`cbrt`] | `[1e-30, 1e30]` | ≤ 1 ulp (bit-hack seed + 3 Newton steps) |
 //! | [`hypot`] | finite | ≤ 1 ulp of `sqrt(x² + y²)` |
 //! | [`powf`] | `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` | ≤ 1 ulp (evaluated in `f64`, rounded once) |
-//! | [`atan`] / [`atan2`] | `|x| ≤ 1e4`, all quadrants | ≤ 1 ulp (fdlibm in `f64`, rounded once) |
+//! | [`atan`] / [`atan2`] | `|x| ≤ 1e4`, all quadrants | ≤ 1 ulp (fdlibm `s_atanf` / `e_atan2f`, single precision) |
 //! | [`asin`] / [`acos`] | `[-1, 1]` | ≤ 1 ulp (fdlibm in `f64`, rounded once) |
 //! | [`tan`] | `|x| ≤ 100` | ≤ 1 ulp (fdlibm `k_sin`/`k_cos` in `f64`) |
 //! | [`tanh`] | finite | ≤ 1 ulp (`exp64` based, `x` below 2^-14) |

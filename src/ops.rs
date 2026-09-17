@@ -18,6 +18,7 @@
 //! NaN, whose sign bit differs between `x86` and `AArch64`).
 
 /// `f32::round` — nearest integer, ties away from zero (musl `roundf`).
+#[inline]
 #[must_use]
 pub fn round(x: f32) -> f32 {
     const TOINT: f32 = 8_388_608.0; // 2^23
@@ -49,6 +50,7 @@ pub fn round(x: f32) -> f32 {
 }
 
 /// `f64::round` — nearest integer, ties away from zero (musl `round`).
+#[inline]
 #[must_use]
 pub fn round64(x: f64) -> f64 {
     const TOINT: f64 = 4_503_599_627_370_496.0; // 2^52
@@ -78,6 +80,7 @@ pub fn round64(x: f64) -> f64 {
 }
 
 /// `f32::sqrt`, correctly rounded; canonical NaN for negative / NaN input.
+#[inline]
 #[must_use]
 pub fn sqrt(x: f32) -> f32 {
     if x.is_nan() || x < 0.0 {
@@ -97,6 +100,7 @@ pub fn sqrt(x: f32) -> f32 {
 }
 
 /// `f64::sqrt`, correctly rounded; canonical NaN for negative / NaN input.
+#[inline]
 #[must_use]
 pub fn sqrt64(x: f64) -> f64 {
     if x.is_nan() || x < 0.0 {

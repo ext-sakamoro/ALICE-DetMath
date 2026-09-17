@@ -137,7 +137,7 @@ step "security-audit.yml / stub-guard: Detect platform libm / mul_add calls in s
 (
   export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"
   set -eo pipefail
-  hits=$(grep -rnE '\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|ln|log|log2|log10|powf|powi|cbrt|hypot|mul_add|floor|ceil|round|trunc|fract)\(' src/ --include="*.rs" \
+  hits=$(grep -rnE '\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|ln|log|log2|log10|powf|powi|cbrt|hypot|mul_add)\(' src/ --include="*.rs" \
     | grep -vE '^\S+:\s*//' \
     | grep -vE 'src/ops\.rs:[0-9]+:\s+x\.sqrt\(\)' \
     | grep -vE 'tests|assert|x\.round\(\)|y\.round\(\)|x\.sqrt\(\)|y\.sqrt\(\)|f64::|f32::' \
