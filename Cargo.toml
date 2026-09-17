@@ -37,7 +37,7 @@ std = []
 simd = ["dep:wide", "dep:bytemuck"]
 
 [dev-dependencies]
-sha2 = "0.10"
+sha2 = "0.11"
 
 [lints.rust]
 unsafe_code = "forbid"
