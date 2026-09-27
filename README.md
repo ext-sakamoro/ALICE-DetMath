@@ -101,6 +101,17 @@ See the crate documentation (`cargo doc --open`) for the per-function error
 table and the exact scope of the bit-exactness guarantee (IEEE 754 basic
 operations on the target; x87 without SSE2 and fast-math builds are outside it).
 
+## Related Projects
+
+Crates that evaluate their laws through this one, so two machines agree bit for
+bit on the result:
+
+| Project | Why it needs bit-exact transcendentals | Links |
+|---------|----------------------------------------|-------|
+| **ALICE-SDF** | A signed-distance field evaluated on two machines must agree which side of a surface a point is on | [crates.io](https://crates.io/crates/alice-sdf) · [docs.rs](https://docs.rs/alice-sdf) · [GitHub](https://github.com/ext-sakamoro/ALICE-SDF) |
+| **ALICE-Physics** | Lockstep / rollback simulation diverges across peers the moment one `sin` differs by an ulp | [crates.io](https://crates.io/crates/alice-physics) · [docs.rs](https://docs.rs/alice-physics) · [GitHub](https://github.com/ext-sakamoro/ALICE-Physics) |
+| **ALICE-Zip** | Fourier / Perlin generators reconstruct a signal from its recipe — the recipe is only portable if the transcendentals are | [crates.io](https://crates.io/crates/alice-zip) · [docs.rs](https://docs.rs/alice-zip) · [GitHub](https://github.com/ext-sakamoro/ALICE-Zip) |
+
 ## License
 
 MIT OR Apache-2.0. Coefficients and algorithms are from Cephes (Stephen L.
