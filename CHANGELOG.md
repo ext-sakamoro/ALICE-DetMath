@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-27
+
+### Added
+- `MetricWeights::axis_extent` — the half-width along each axis of the ball
+  `{x : g(x) ≤ r}`, exactly `r / (w₁ + w₂ + w∞)`. It is deliberately *not*
+  `euclidean_radius`: a cube-metric ball of radius `r` is the cube
+  `[−r, r]³` (half-width `r`) even though it reaches `√3·r` along its
+  diagonal. The first is the tight box of a ball, the second is what a
+  *clearance* measured in the metric guarantees in Euclidean space, and
+  using one where the other belongs is either a missed pair (too small) or a
+  box three times too big. Checked against a brute-force sweep.
+
 ## [0.3.0] - 2026-09-27
 
 Additive: no existing function changes its bits (the goldens for every

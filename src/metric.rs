@@ -261,6 +261,21 @@ impl MetricWeights {
         m + self.l2
     }
 
+    /// The half-width along each axis of the ball `{x : g(x) ≤ r}`.
+    ///
+    /// `r / (w₁ + w₂ + w∞)`, exactly: every basis norm satisfies
+    /// `N(h) ≥ (w₁+w₂+w∞)·|hₓ|`, so a point of the ball has
+    /// `|xₓ| = r·|hₓ|/g(h) ≤ r/Σw`, with equality at `h = e₁`. This is the
+    /// tight axis-aligned box of the ball, and it is *not*
+    /// [`euclidean_radius`](Self::euclidean_radius): a cube-metric ball of
+    /// radius `r` is the cube `[−r, r]³` (half-width `r`) even though it
+    /// reaches `√3·r` from the origin along its diagonal.
+    #[inline]
+    #[must_use]
+    pub fn axis_extent(self, r: f32) -> f32 {
+        r / (self.l1 + self.l2 + self.linf)
+    }
+
     /// The Euclidean radius reached by a ball of radius `r` in this metric.
     ///
     /// `r / minimum()`. This is the factor an axis-aligned bound has to grow

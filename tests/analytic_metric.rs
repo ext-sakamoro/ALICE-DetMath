@@ -409,3 +409,55 @@ fn every_nan_these_kernels_create_is_the_canonical_one() {
     // nothing
     assert!(generated > 100, "only {generated} NaN results exercised");
 }
+
+#[test]
+fn axis_extent_is_the_exact_half_width_of_the_metric_ball() {
+    // brute force: put a point at metric distance 1 along every direction of
+    // a dense grid and take the largest x it reaches. Shares no code with
+    // the closed form, and the two must agree.
+    for (a, b, c) in [
+        (1.0_f32, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+        (0.3, 0.5, 0.2),
+        (2.0, 1.0, 4.0),
+    ] {
+        let w = MetricWeights::new(a, b, c).unwrap();
+        let mut widest = 0.0_f32;
+        for h in directions(14) {
+            let n = w.norm(h);
+            widest = widest.max((h[0] / n).abs());
+        }
+        let closed = w.axis_extent(1.0);
+        assert!(
+            (closed - widest).abs() < 1e-5,
+            "axis_extent {closed} vs brute force {widest} for {a},{b},{c}"
+        );
+    }
+    // the two radii are different numbers, and conflating them is the bug
+    // this pair of methods exists to prevent
+    assert!((MetricWeights::LINF.axis_extent(1.0) - 1.0).abs() < 1e-6);
+    assert!((MetricWeights::LINF.euclidean_radius(1.0) - SQRT3).abs() < 1e-5);
+    // …and for the Euclidean metric they coincide at r
+    assert_eq!(MetricWeights::L2.axis_extent(2.5), 2.5);
+    assert_eq!(MetricWeights::L2.euclidean_radius(2.5), 2.5);
+}
+
+#[test]
+fn a_metric_ball_fits_inside_its_axis_box() {
+    for (a, b, c) in [(1.0_f32, 0.0, 0.0), (0.0, 0.0, 1.0), (0.4, 0.4, 0.2)] {
+        let w = MetricWeights::new(a, b, c).unwrap();
+        let r = 2.0_f32;
+        let half = w.axis_extent(r);
+        for h in directions(10) {
+            let s = r / w.norm(h);
+            let p = [h[0] * s, h[1] * s, h[2] * s];
+            for axis in p {
+                assert!(
+                    axis.abs() <= half + 1e-4,
+                    "surface point {axis} escaped half-width {half} for {a},{b},{c}"
+                );
+            }
+        }
+    }
+}
