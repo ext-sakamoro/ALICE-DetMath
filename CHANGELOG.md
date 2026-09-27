@@ -5,7 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-27
+
+Additive: no existing function changes its bits (the goldens for every
+previously recorded function are unchanged).
+
+### Added
+- `metric` module: the kernels a distance field needs when the metric itself
+  becomes a value — `lerp` / `clamp` / `smoothstep` (one canonical operation
+  order for every port to copy), `norm_l1` / `norm_l2` / `norm_linf`, and
+  `MetricWeights`, a norm built as a non-negative combination of the three
+  bases. `MetricWeights::new` rejects a negative weight (the unit ball stops
+  being convex, so it is not a metric) and the two extremes over the
+  Euclidean unit sphere are exact closed forms, not estimates:
+  `lipschitz() = √((w₁+w∞)² + 2w₁²) + w₂` and
+  `minimum() = min_k (k·w₁ + w∞)/√k + w₂` — the second gives
+  `euclidean_radius()`, the factor an axis-aligned bound must grow by
+  (`√3` for the cube metric). Checked against a brute-force sweep in
+  `tests/analytic_metric.rs` (17 tests).
+- `simd`: `lerp`, `clamp`, `smoothstep`, `metric_norm` and `MetricWeightsX8`,
+  lane-for-lane bit-identical to the scalar versions over the special values
+  and sprays (`tests/simd_parity.rs`). `‖·‖∞` is a mask + blend rather than
+  `f32x8::max`, whose NaN behaviour differs between the SSE and NEON backends.
+- `tests/golden.rs`: `smoothstep`, `metric_norm_mix` and `metric_lipschitz`
+  hashes, so the new kernels are pinned across every CI target too.
+
+### Fixed
+- `metric`: a NaN raised by arithmetic (`inf/inf` in `smoothstep`, `0·inf` in
+  `lerp` and `MetricWeights::norm`) kept the hardware's default sign — `+NaN`
+  on aarch64 / wasm32, `−NaN` on x86_64 — which splits the golden hash
+  between targets. Caught by the x86_64 leg of `scripts/preflight.sh` before
+  the first commit: 293 of 8000 special-value triples differed. Generated
+  NaNs are now canonicalised, as `sqrt` already did; an *input* NaN still
+  passes its payload through, which every target does identically.
 
 ### Changed
 - README / lib.rs の全称 claim を実態に限定し、各 claim 行に `<!-- claim-test: fn -->` で検証 test を紐付け (strict-eval 検査 1、2026-09-17)

@@ -72,6 +72,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod double;
+pub mod metric;
 pub mod ops;
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]

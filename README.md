@@ -27,6 +27,12 @@ extracted so both — and anything else — evaluate the same law.
 - **SIMD** (`simd` feature): `wide::f32x8` versions of `sin` / `cos` /
   `sin_cos` / `exp` / `ln` / `round` / `sqrt`, lane-for-lane bit-identical to
   the scalar functions — same constants, same operation order, no `mul_add`
+- **`metric`**: `lerp` / `clamp` / `smoothstep` with one canonical operation
+<!-- claim-test: every_nan_these_kernels_create_is_the_canonical_one -->
+  order, the three 3D norms, and `MetricWeights` — a metric built as a
+  non-negative combination of `‖·‖₁` / `‖·‖₂` / `‖·‖∞`, carrying exact closed
+  forms for its Lipschitz constant and for how far a ball of radius `r`
+  reaches in Euclidean space
 - **`round` / `sqrt` without libm**: musl's `x + 2^23 − 2^23` rounding and a
   correctly rounded software square root, so the crate works on bare-metal
   targets and returns the same bits there

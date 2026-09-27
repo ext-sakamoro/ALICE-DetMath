@@ -197,3 +197,97 @@ fn per_lane_wrappers_match_scalar() {
         );
     }
 }
+
+/// Lane-for-lane parity for the metric kernels, over the same special values
+/// and sprays as the transcendentals.
+#[test]
+fn metric_kernels_match_scalar_lane_for_lane() {
+    use alice_det_math::metric::{self, MetricWeights};
+    use alice_det_math::simd::MetricWeightsX8;
+
+    let mut xs = special_values();
+    xs.extend(sweep(-2.0, 3.0, 501));
+    xs.extend(spray(2048, 0x5eed_1234));
+
+    // lerp / clamp / smoothstep: three inputs, so walk three offset windows
+    for w in 0..3usize {
+        for chunk in xs.chunks(8) {
+            let mut a = [0.0f32; 8];
+            let mut b = [0.0f32; 8];
+            let mut t = [0.0f32; 8];
+            for (i, &x) in chunk.iter().enumerate() {
+                a[i] = x;
+                b[i] = xs[(i * 7 + w * 13 + 1) % xs.len()];
+                t[i] = xs[(i * 3 + w * 29 + 5) % xs.len()];
+            }
+            let (av, bv, tv) = (f32x8::new(a), f32x8::new(b), f32x8::new(t));
+            let l = lanes(simd::lerp(av, bv, tv));
+            let c = lanes(simd::clamp(av, bv, tv));
+            let s = lanes(simd::smoothstep(av, bv, tv));
+            for i in 0..8 {
+                assert_eq!(
+                    l[i].to_bits(),
+                    metric::lerp(a[i], b[i], t[i]).to_bits(),
+                    "lerp lane {i}: a={} b={} t={}",
+                    a[i],
+                    b[i],
+                    t[i]
+                );
+                assert_eq!(
+                    c[i].to_bits(),
+                    metric::clamp(a[i], b[i], t[i]).to_bits(),
+                    "clamp lane {i}: x={} low={} high={}",
+                    a[i],
+                    b[i],
+                    t[i]
+                );
+                assert_eq!(
+                    s[i].to_bits(),
+                    metric::smoothstep(a[i], b[i], t[i]).to_bits(),
+                    "smoothstep lane {i}: e0={} e1={} x={}",
+                    a[i],
+                    b[i],
+                    t[i]
+                );
+            }
+        }
+    }
+
+    // metric_norm over every basis and a mixed weight
+    for w in [
+        MetricWeights::L1,
+        MetricWeights::L2,
+        MetricWeights::LINF,
+        MetricWeights::new(0.3, 0.5, 0.2).unwrap(),
+        MetricWeights::new(2.0, 0.0, 5.0).unwrap(),
+    ] {
+        let wx = MetricWeightsX8::splat(w);
+        for chunk in xs.chunks(8) {
+            let mut x = [0.0f32; 8];
+            let mut y = [0.0f32; 8];
+            let mut z = [0.0f32; 8];
+            for (i, &v) in chunk.iter().enumerate() {
+                x[i] = v;
+                y[i] = xs[(i * 11 + 3) % xs.len()];
+                z[i] = xs[(i * 17 + 9) % xs.len()];
+            }
+            let got = lanes(simd::metric_norm(
+                wx,
+                f32x8::new(x),
+                f32x8::new(y),
+                f32x8::new(z),
+            ));
+            for i in 0..8 {
+                assert_eq!(
+                    got[i].to_bits(),
+                    w.norm([x[i], y[i], z[i]]).to_bits(),
+                    "metric_norm lane {i}: {:?} at ({}, {}, {})",
+                    w.weights(),
+                    x[i],
+                    y[i],
+                    z[i]
+                );
+            }
+        }
+    }
+}

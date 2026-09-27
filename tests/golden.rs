@@ -73,6 +73,16 @@ fn hash32x2(xs: &[f32], f: impl Fn(f32, f32) -> f32) -> String {
     format!("{:x}", h.finalize())
 }
 
+fn hash32x3(xs: &[f32], f: impl Fn(f32, f32, f32) -> f32) -> String {
+    let mut h = Sha256::new();
+    for (i, &x) in xs.iter().enumerate() {
+        let y = xs[(i * 7 + 3) % xs.len()];
+        let z = xs[(i * 13 + 11) % xs.len()];
+        h.update(f(x, y, z).to_bits().to_le_bytes());
+    }
+    format!("{:x}", h.finalize())
+}
+
 fn hash64(xs: &[f64], f: impl Fn(f64) -> f64) -> String {
     let mut h = Sha256::new();
     for &x in xs {
@@ -91,6 +101,18 @@ fn check(name: &str, got: &str, want: &str) {
 }
 
 const GOLDEN: &[(&str, &str)] = &[
+    (
+        "smoothstep",
+        "d43e5a4972e13773caf1da15db30501850e505f361fd7526c908c35ff8e7cc7b",
+    ),
+    (
+        "metric_norm_mix",
+        "00f35aac72ff55e1069259196427d703926b47f7b4349fb4cc7f3f7b8effdc60",
+    ),
+    (
+        "metric_lipschitz",
+        "566d51df6ba7ba7358f51c25b8c19b8ad85879caca497bd6f6f22ad8d332076e",
+    ),
     (
         "sin",
         "5e51709ffaa05b16afe14f2268c97633a0058eee46ff2f563e24fb8426967ef1",
@@ -237,6 +259,26 @@ fn scalar_outputs_match_recorded_hashes() {
     check("tanh", &hash32(&g, tanh), want("tanh"));
     check("round", &hash32(&g, round), want("round"));
     check("sqrt", &hash32(&g, sqrt), want("sqrt"));
+    check(
+        "smoothstep",
+        &hash32x3(&g, metric::smoothstep),
+        want("smoothstep"),
+    );
+    // a mixed metric exercises all three bases and the left-to-right sum
+    let mixed = metric::MetricWeights::new(0.3, 0.5, 0.2).unwrap();
+    check(
+        "metric_norm_mix",
+        &hash32x3(&g, |x, y, z| mixed.norm([x, y, z])),
+        want("metric_norm_mix"),
+    );
+    check(
+        "metric_lipschitz",
+        &hash32x3(&g, |a, b, c| {
+            metric::MetricWeights::new(a.abs(), b.abs(), c.abs())
+                .map_or(f32::NAN, metric::MetricWeights::lipschitz)
+        }),
+        want("metric_lipschitz"),
+    );
     let g = grid64();
     check("atan64", &hash64(&g, atan64), want("atan64"));
     check(

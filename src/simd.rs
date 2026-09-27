@@ -379,3 +379,88 @@ pub fn cbrt(x: f32x8) -> f32x8 {
 pub fn hypot(x: f32x8, y: f32x8) -> f32x8 {
     map2(x, y, crate::hypot)
 }
+
+/// Lane-wise counterpart of `metric::canonical`: a NaN raised by arithmetic
+/// has a target-dependent sign, so it is replaced by the canonical one.
+#[inline]
+fn canonical_nan(v: f32x8) -> f32x8 {
+    v.cmp_eq(v).blend(v, C_NAN)
+}
+
+/// [`crate::metric::lerp`] per lane — `(1 − t)·a + t·b`, exact at both ends.
+#[inline]
+#[must_use]
+pub fn lerp(a: f32x8, b: f32x8, t: f32x8) -> f32x8 {
+    canonical_nan((C_1P0 - t) * a + t * b)
+}
+
+/// [`crate::metric::clamp`] per lane.
+///
+/// The scalar code's NaN early-return needs no mask here: both comparisons
+/// are false for a NaN lane, so the input falls through unchanged, which is
+/// exactly what the scalar version returns.
+#[inline]
+#[must_use]
+pub fn clamp(x: f32x8, low: f32x8, high: f32x8) -> f32x8 {
+    let y = high.cmp_lt(x).blend(high, x);
+    y.cmp_lt(low).blend(low, y)
+}
+
+/// [`crate::metric::smoothstep`] per lane — `3t² − 2t³` over the clamped
+/// interval, a step where the interval is degenerate, NaN passed through.
+#[inline]
+#[must_use]
+pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
+    // `!(e1 > e0)` also catches a NaN edge, as the scalar `is_nan` arms do
+    let degenerate = !edge1.cmp_gt(edge0);
+    let step = x.cmp_lt(edge0).blend(C_0P0, C_1P0);
+    // the division is garbage in degenerate lanes and blended away there
+    let t = clamp((x - edge0) / (edge1 - edge0), C_0P0, C_1P0);
+    let cubic = canonical_nan(t * t * (C_3P0 - C_2P0 * t));
+    let r = degenerate.blend(step, cubic);
+    x.cmp_eq(x).blend(r, x)
+}
+
+/// [`crate::metric::MetricWeights`] broadcast to lanes.
+///
+/// Splatting is a call rather than an instruction on `aarch64` with `wide`
+/// 0.7, so a hot loop builds this once outside the loop instead of passing
+/// the scalar weights per sample.
+#[derive(Debug, Clone, Copy)]
+pub struct MetricWeightsX8 {
+    l1: f32x8,
+    l2: f32x8,
+    linf: f32x8,
+}
+
+impl MetricWeightsX8 {
+    /// Broadcasts the three weights to all lanes.
+    #[inline]
+    #[must_use]
+    pub fn splat(w: crate::metric::MetricWeights) -> Self {
+        let (l1, l2, linf) = w.weights();
+        Self {
+            l1: f32x8::splat(l1),
+            l2: f32x8::splat(l2),
+            linf: f32x8::splat(linf),
+        }
+    }
+}
+
+/// [`crate::metric::MetricWeights::norm`] per lane, same operation order.
+///
+/// `‖·‖∞` is a mask + blend rather than `f32x8::max`, whose NaN behaviour
+/// differs between the SSE and NEON backends; the blend reproduces the
+/// scalar `if a > b { a } else { b }` on every target.
+#[inline]
+#[must_use]
+pub fn metric_norm(w: MetricWeightsX8, x: f32x8, y: f32x8, z: f32x8) -> f32x8 {
+    let ax = x.abs();
+    let ay = y.abs();
+    let az = z.abs();
+    let l1 = ax + ay + az;
+    let l2 = sqrt(x * x + y * y + z * z);
+    let m = ax.cmp_gt(ay).blend(ax, ay);
+    let linf = m.cmp_gt(az).blend(m, az);
+    canonical_nan(w.l1 * l1 + w.l2 * l2 + w.linf * linf)
+}
