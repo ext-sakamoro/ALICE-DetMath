@@ -37,7 +37,7 @@ jobs:
         # - windows-latest     → x86_64-pc-windows-msvc
         os: [macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm, windows-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Test (default features)
@@ -65,7 +65,7 @@ jobs:
           - name: native
             rustflags: "-C target-cpu=native"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -79,7 +79,7 @@ jobs:
     name: Test (wasm32-wasip1 via wasmtime)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
@@ -109,7 +109,7 @@ jobs:
     name: Clippy (-D warnings)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: clippy (default, all targets)
@@ -123,7 +123,7 @@ jobs:
     name: no_std (rlib, thumbv7em-none-eabihf)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # rust-toolchain.toml carries the pin and the bare-metal target
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -138,9 +138,9 @@ jobs:
     name: MSRV (rust-version = 1.85)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install MSRV toolchain
-        uses: dtolnay/rust-toolchain@1.85
+        uses: dtolnay/rust-toolchain@1.120
         with:
           targets: thumbv7em-none-eabihf
       # the action's `targets:` input has silently not installed the target
@@ -160,7 +160,7 @@ jobs:
     name: Feature powerset (cargo-hack)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-hack
@@ -173,7 +173,7 @@ jobs:
     name: Doc (RUSTDOCFLAGS=-Dwarnings)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: cargo doc (default)
@@ -185,7 +185,7 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -196,7 +196,7 @@ jobs:
     name: actionlint (workflow YAML)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run actionlint
         uses: reviewdog/action-actionlint@v1
         with:

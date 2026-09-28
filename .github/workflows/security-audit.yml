@@ -37,7 +37,7 @@ jobs:
     name: cargo audit (RustSec CVE scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-audit
@@ -49,7 +49,7 @@ jobs:
     name: cargo-deny (license + advisories + bans + sources)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-deny
@@ -61,7 +61,7 @@ jobs:
     name: cargo-machete (unused dependencies)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: bnjbvr/cargo-machete@main
 
@@ -69,7 +69,7 @@ jobs:
     name: Stub / mock / dbg / libm guard (grep)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Detect todo! / unimplemented! / panic!(STUB)
         run: |
           set -eo pipefail
@@ -116,7 +116,7 @@ jobs:
     name: Package integrity (publish される .crate が build できるか)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
 
       # publish される .crate に必要な file が全部入っているかを見る
@@ -153,7 +153,7 @@ jobs:
     name: Coverage (cargo-llvm-cov, informational)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
@@ -165,7 +165,7 @@ jobs:
           set -o pipefail
           cargo llvm-cov --features std,simd --summary-only 2>&1 | tee coverage-summary.txt
       - name: Upload coverage summary as artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-summary
           path: coverage-summary.txt
@@ -175,7 +175,7 @@ jobs:
     name: cargo-semver-checks (API compat vs crates.io)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # Before the first crates.io release there is no baseline; skip with a
