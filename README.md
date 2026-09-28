@@ -104,7 +104,16 @@ operations on the target; x87 without SSE2 and fast-math builds are outside it).
 ## Related Projects
 
 Crates that evaluate their laws through this one, so two machines agree bit for
-bit on the result:
+bit on the result. This crate is the joint of the ALICE core: a signed-distance
+field ([ALICE-SDF](https://github.com/ext-sakamoro/ALICE-SDF)) and the bodies
+moving through it ([ALICE-Physics](https://github.com/ext-sakamoro/ALICE-Physics))
+only agree on a surface if they compute `sin` the same way, and a law verifier
+([ALICE-LOL](https://github.com/ext-sakamoro/ALICE-LOL)) can only prove something
+about a field that is reproducible in the first place.
+
+> **Keep the version unified across the resolved graph.** Two versions of this
+> crate in one dependency tree means two implementations of the same function,
+> and the guarantee is gone. Check with `cargo tree -i alice-det-math`.
 
 | Project | Why it needs bit-exact transcendentals | Links |
 |---------|----------------------------------------|-------|
