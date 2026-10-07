@@ -134,6 +134,14 @@ const GOLDEN: &[(&str, &str)] = &[
         "f740b2d9021d091ae3f5a18ecf346fbe5205b2d3b0209e96dca70b710da2e924",
     ),
     (
+        "log2",
+        "31911ba674cb7bce895b09de45c8d9ea1a84a5c26ba5936ef5a01faa05ac551e",
+    ),
+    (
+        "log10",
+        "2acdd36905c9d2ae3bb1d97db141d37f6c4823f630703fd8efede750a5c1caa1",
+    ),
+    (
         "powf",
         "aeeb77e2053b833490655db02c832d6305502dfb873b2bbb03b2557f64460e0e",
     ),
@@ -206,6 +214,14 @@ const GOLDEN: &[(&str, &str)] = &[
         "053aec9251fe146bb064b9a66a5f662ca59eb31b8507b9a50f27135f39dfc8c9",
     ),
     (
+        "log2_64",
+        "c3586ee8c0d3d001f36b1d57846cc1172d0b42b7629588054c050fc74126fd07",
+    ),
+    (
+        "log10_64",
+        "b3e8502088c819da30e0f12076d08b0fc52ef6f3496970b4600d1ff2f1c97934",
+    ),
+    (
         "powf64",
         "6bd59fa5f716c2adc9d5d9a4bdecf4f600889587ba0b5a927d4826fa1b593969",
     ),
@@ -226,12 +242,20 @@ const GOLDEN: &[(&str, &str)] = &[
         "c8b013bf72744ff237e34a15b5cb05c3b33391970917db0074446fd70b349377",
     ),
     (
+        "tan64",
+        "bb8669e863c925b799c8d73eaf50965b2e7c60eab00a9bacbc24644025d7d3d6",
+    ),
+    (
         "sin64_dense",
         "ce7f4729ce2f51e9c0fccd9657ffee833d04cfdb4497f72b4ab70da89e0dd525",
     ),
     (
         "cos64_dense",
         "4de5c741eb8cb0fb9cfea9aeda36ffeebbd0de8b4f1ad3b697f0ed9eb6e60918",
+    ),
+    (
+        "tan64_dense",
+        "cf5945d72c4e963e438588ff84821a51bc2b2d909db13239dea400667f6ea80e",
     ),
     (
         "sin_cos64",
@@ -263,6 +287,8 @@ fn scalar_outputs_match_recorded_hashes() {
     );
     check("exp", &hash32(&g, exp), want("exp"));
     check("ln", &hash32(&g, ln), want("ln"));
+    check("log2", &hash32(&g, log2), want("log2"));
+    check("log10", &hash32(&g, log10), want("log10"));
     check("powf", &hash32x2(&g, powf), want("powf"));
     check(
         "powi",
@@ -310,6 +336,9 @@ fn scalar_outputs_match_recorded_hashes() {
     check("acos64", &hash64(&g, acos64), want("acos64"));
     check("exp64", &hash64(&g, exp64), want("exp64"));
     check("ln64", &hash64(&g, ln64), want("ln64"));
+    check("log2_64", &hash64(&g, log2_64), want("log2_64"));
+    check("log10_64", &hash64(&g, log10_64), want("log10_64"));
+    check("tan64", &hash64(&g, tan64), want("tan64"));
     check(
         "powf64",
         &hash64(&g, |x| powf64(x.abs(), x * 1.0e-2)),
@@ -334,6 +363,9 @@ fn scalar_outputs_match_recorded_hashes() {
         .collect();
     check("sin64_dense", &hash64(&dense, sin64), want("sin64_dense"));
     check("cos64_dense", &hash64(&dense, cos64), want("cos64_dense"));
+    // the tangent's kernel branches on |reduced| ≥ 0.6744 and on the parity
+    // of the quadrant, so the dense grid covers all four combinations
+    check("tan64_dense", &hash64(&dense, tan64), want("tan64_dense"));
 }
 
 /// The SIMD path hashes to the same bytes as the scalar one (parity is

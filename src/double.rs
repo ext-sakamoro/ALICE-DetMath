@@ -9,7 +9,7 @@
 use crate::ops::{round64, sqrt64};
 
 mod trig;
-pub use trig::{cos64, sin64, sin_cos64};
+pub use trig::{cos64, sin64, sin_cos64, tan64};
 
 // fdlibm s_atan.c
 // fdlibm's atan(0.5) / atan(1) / atan(1.5) / atan(inf) high parts; the π/4
@@ -428,6 +428,100 @@ pub fn ln64(x: f64) -> f64 {
     let hfsq = 0.5 * f * f;
     let kf = f64::from(k);
     kf * LN2_HI64 - ((hfsq - (s * (hfsq + r) + kf * LN2_LO64)) - f)
+}
+
+// fdlibm `e_log10.c` base-conversion constants, and `1/ln 2` split into a
+// 24-bit head plus tail (fdlibm `e_pow.c`'s `ivln2_h` / `ivln2_l`), so the
+// constant itself contributes no rounding error to the product.
+/// `1/ln 10`
+const IVLN10_64: f64 = 4.342_944_819_032_518_166_68e-01;
+/// `log10(2)`, high part (its low 32 mantissa bits are zero)
+const LOG10_2HI_64: f64 = 3.010_299_956_636_117_713_06e-01;
+/// `log10(2) − LOG10_2HI_64`
+const LOG10_2LO_64: f64 = 3.694_239_077_158_930_899_06e-13;
+/// `1/ln 2`, high part (24 bits)
+const IVLN2_H_64: f64 = 1.442_695_021_629_333_496_09e+00;
+/// `1/ln 2 − IVLN2_H_64`
+const IVLN2_L_64: f64 = 1.925_962_991_126_617_468_87e-08;
+
+/// `(k, mantissa bits)` with `x = 1.mantissa · 2^k` for finite `x > 0`
+/// (the exponent split of fdlibm `e_log.c` / `e_log10.c`; subnormals are
+/// scaled by the exact `2^54` first so the extraction stays exact).
+#[inline(always)]
+fn exponent_split64(x: f64) -> (i32, u64) {
+    let mut bits = x.to_bits();
+    let mut k: i32 = 0;
+    if bits < 0x0010_0000_0000_0000 {
+        let scaled = x * 18_014_398_509_481_984.0; // 2^54
+        bits = scaled.to_bits();
+        k -= 54;
+    }
+    k += ((bits >> 52) as i32) - 1023;
+    (k, bits & 0x000f_ffff_ffff_ffff)
+}
+
+/// `(y, m)` with `x = m·2^y`: `m ∈ [1, 2)` for `y ≥ 0` and `m ∈ [0.5, 1)` for
+/// `y < 0` (fdlibm `e_log10.c`). Keeping `m` below 1 when the exponent is
+/// negative is what avoids the cancellation of `y + log(m)` around `x = 1`.
+#[inline(always)]
+fn log_reduce64(k: i32, mantissa: u64) -> (f64, f64) {
+    let i = i32::from(k < 0);
+    let m = f64::from_bits(mantissa | (((1023 - i) as u64) << 52));
+    (f64::from(k + i), m)
+}
+
+/// Deterministic base-2 logarithm in double precision.
+///
+/// `y + log2(m)` with `x = m·2^y` (the exponent split of fdlibm `e_log10.c`),
+/// the fraction from [`ln64`] converted with `1/ln 2` split into a 24-bit head
+/// and a tail. A power of two returns its exponent exactly; `log2_64(0) =
+/// -inf`, `log2_64(x < 0) = NaN`, `log2_64(inf) = inf`, and a NaN input
+/// returns the canonical NaN.
+#[inline]
+#[must_use]
+pub fn log2_64(x: f64) -> f64 {
+    if x.is_nan() || x < 0.0 {
+        return f64::NAN;
+    }
+    if x == 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if x.is_infinite() {
+        return f64::INFINITY;
+    }
+    let (k, mantissa) = exponent_split64(x);
+    if mantissa == 0 {
+        // x = 2^k: the exponent *is* the answer. Without this the reduction
+        // below returns ln(0.5)/ln2, which is not exactly −1.
+        return f64::from(k);
+    }
+    let (y, m) = log_reduce64(k, mantissa);
+    let t = ln64(m);
+    y + (IVLN2_H_64 * t + IVLN2_L_64 * t)
+}
+
+/// Deterministic base-10 logarithm in double precision (fdlibm `e_log10.c`).
+///
+/// `y·log10(2) + log10(m)` with `x = m·2^y`, `log10(2)` split into a high and
+/// a low part and the fraction taken from [`ln64`]. `log10_64(1) = 0`
+/// exactly; `log10_64(0) = -inf`, `log10_64(x < 0) = NaN`, `log10_64(inf) =
+/// inf`, and a NaN input returns the canonical NaN.
+#[inline]
+#[must_use]
+pub fn log10_64(x: f64) -> f64 {
+    if x.is_nan() || x < 0.0 {
+        return f64::NAN;
+    }
+    if x == 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if x.is_infinite() {
+        return f64::INFINITY;
+    }
+    let (k, mantissa) = exponent_split64(x);
+    let (y, m) = log_reduce64(k, mantissa);
+    let z = y * LOG10_2LO_64 + IVLN10_64 * ln64(m);
+    z + y * LOG10_2HI_64
 }
 
 /// Exact product `a·b = p + e` (Dekker / Veltkamp splitting, no `fma`).

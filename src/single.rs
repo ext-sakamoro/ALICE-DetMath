@@ -2,7 +2,9 @@
 //! `powf` / `powi` / `cbrt` / `hypot`, and the `f32` entry points of the
 //! double-precision fdlibm kernels in [`crate::double`].
 
-use crate::double::{acos64, asin64, exp64, k_cos64, k_sin64, ln64, reduce_pio2_64};
+use crate::double::{
+    acos64, asin64, exp64, k_cos64, k_sin64, ln64, log10_64, log2_64, reduce_pio2_64,
+};
 use crate::ops::sqrt;
 
 /// π/2 split into three single-precision pieces (Cephes `DP1..3` × 2) so
@@ -253,6 +255,30 @@ pub fn ln(x: f32) -> f32 {
     let hfsq = 0.5 * f * f;
     let kf = k as f32;
     kf * LN2_HI - ((hfsq - (s * (hfsq + r) + kf * LN2_LO)) - f)
+}
+
+/// Deterministic base-2 logarithm `log2(x)`.
+///
+/// [`log2_64`](crate::log2_64) rounded once to `f32` (the same pattern as
+/// [`asin`] / [`acos`] / [`powf`]), so the result is within 1 ulp of correctly
+/// rounded over the measured domain. A power of two returns its exponent
+/// exactly. `log2(0) = -inf`, `log2(x < 0) = NaN`, `log2(inf) = inf`, and a
+/// NaN input returns the canonical NaN.
+#[inline]
+#[must_use]
+pub fn log2(x: f32) -> f32 {
+    log2_64(f64::from(x)) as f32
+}
+
+/// Deterministic base-10 logarithm `log10(x)`.
+///
+/// [`log10_64`](crate::log10_64) rounded once to `f32`. `log10(1) = 0`
+/// exactly; `log10(0) = -inf`, `log10(x < 0) = NaN`, `log10(inf) = inf`, and a
+/// NaN input returns the canonical NaN.
+#[inline]
+#[must_use]
+pub fn log10(x: f32) -> f32 {
+    log10_64(f64::from(x)) as f32
 }
 
 /// Deterministic `x^y` for real `y`.

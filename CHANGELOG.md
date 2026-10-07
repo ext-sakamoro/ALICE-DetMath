@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Additive: no existing function changes its bits (every previously recorded
+golden hash is unchanged).
+
+### Added
+- `log2` / `log10` (`f32`) and `log2_64` / `log10_64` (`f64`): deterministic
+  base-2 and base-10 logarithms. The exponent split of fdlibm `e_log10.c`
+  gives `x = m·2^y` with `m` kept below 1 when `y` is negative, so there is no
+  cancellation around `x = 1`; the fraction comes from `ln64` and is converted
+  with `log10(2)` split high / low (base 10) or `1/ln 2` split into a 24-bit
+  head and a tail (base 2). A power of two returns its exponent exactly, down
+  to the last subnormal. The `f32` entry points are the `f64` kernels rounded
+  once, as `asin` / `acos` / `powf` already are. Measured against the platform
+  libm: `log2_64` ≤ 2 ulp, `log10_64` ≤ 1 ulp; `log2` / `log10` are within
+  0 ulp of the correctly rounded `f32` over a 200 000-point log-spaced sweep.
+  Domain edges follow `ln`: `-inf` at either zero, the canonical NaN below it
+  and for a NaN input, `inf` at `inf`.
+- `tan64`: `f64` tangent over every finite argument, a port of musl `tan.c`
+  with the fdlibm `k_tan.c` kernel, reusing the Cody–Waite and Payne–Hanek
+  reduction already used by `sin64` / `cos64`. Only IEEE 754 basic operations
+  in the source's order, no `mul_add`. `tan(±0) = ±0`, subnormals return `x`,
+  `±inf` and NaN return the canonical NaN. Within 1 ulp of correctly rounded
+  at 76 reference points (independent 2400-bit evaluation, 21 of them above
+  `1e9` so the Payne–Hanek path is covered); the platform libm is itself up to
+  3 ulp off at several of those points.
+- `tests/accuracy.rs`: the logarithms against the correctly rounded reference
+  and against every power of two, both logarithms' domain edges and the
+  tangent's behaviour at the nine `f64` nearest to the first poles (large and
+  finite, sign flipping across the pole), `tan64` against the 76-point
+  reference table and against `sin64 / cos64`, and the new functions in the
+  canonical-NaN check.
+- `tests/golden.rs`: `log2`, `log10`, `log2_64`, `log10_64`, `tan64`, and a
+  dense grid over `[−10, 10]` for the tangent, which covers both sides of the
+  kernel's `0.6744` branch in both quadrant parities.
+
 ## [0.3.2] - 2026-10-07
 
 Additive: no existing function changes its bits (every previously recorded

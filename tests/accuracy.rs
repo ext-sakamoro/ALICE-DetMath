@@ -165,6 +165,440 @@ fn ln_within_1_ulp_of_correctly_rounded() {
     assert!(ulp_diff32(ln(1.0e-40), r32(f64::ln)(1.0e-40)) <= 1);
 }
 
+/// Every `f32` power of two, including the subnormal ones, built from bit
+/// patterns (a grid made with the platform `powf` would itself vary).
+fn powers_of_two32() -> Vec<(i32, f32)> {
+    (-149..=127)
+        .map(|k| {
+            let x = if k >= -126 {
+                f32::from_bits(((k + 127) as u32) << 23)
+            } else {
+                f32::from_bits(1u32 << (k + 149))
+            };
+            (k, x)
+        })
+        .collect()
+}
+
+/// Every `f64` power of two, including the subnormal ones.
+fn powers_of_two64() -> Vec<(i32, f64)> {
+    (-1074..=1023)
+        .map(|k| {
+            let x = if k >= -1022 {
+                f64::from_bits(((k + 1023) as u64) << 52)
+            } else {
+                f64::from_bits(1u64 << (k + 1074))
+            };
+            (k, x)
+        })
+        .collect()
+}
+
+#[test]
+fn log2_log10_within_1_ulp_of_correctly_rounded() {
+    // oracle: the f64 libm rounded once to f32 (correctly rounded f32)
+    let mut worst2 = 0;
+    let mut worst10 = 0;
+    for i in 0..=200_000u32 {
+        let x = 10f32.powf(-30.0 + 60.0 * (i as f32 / 200_000.0));
+        worst2 = worst2.max(ulp_diff32(log2(x), r32(f64::log2)(x)));
+        worst10 = worst10.max(ulp_diff32(log10(x), r32(f64::log10)(x)));
+    }
+    println!("log2 max {worst2} ulp, log10 max {worst10} ulp");
+    assert!(worst2 <= 1, "log2 worst ulp {worst2}");
+    assert!(worst10 <= 1, "log10 worst ulp {worst10}");
+    // the interval around 1, where `y + log2(m)` would cancel without the
+    // reduction that keeps `m` below 1 for a negative exponent
+    let mut worst_near1 = 0;
+    for i in 0..=200_000u32 {
+        let x = 0.5 + 1.0 * (i as f32 / 200_000.0);
+        worst_near1 = worst_near1.max(ulp_diff32(log2(x), r32(f64::log2)(x)));
+    }
+    assert!(worst_near1 <= 1, "log2 near 1 worst ulp {worst_near1}");
+
+    // closed form: log2 of a power of two is its exponent, exactly
+    let pows = powers_of_two32();
+    assert_eq!(pows.len(), 277);
+    for (k, x) in pows {
+        assert_eq!(log2(x), k as f32, "log2(2^{k}) = {}", log2(x));
+    }
+    assert_eq!(log2(1.0), 0.0);
+    assert_eq!(log2(2.0), 1.0);
+    assert_eq!(log2(0.5), -1.0);
+    assert_eq!(log2(1024.0), 10.0);
+    // closed form: log10 of 10^k for the k where 10^k is an exact f32
+    for k in 0..=10i32 {
+        let x = 10f32.powi(k);
+        assert_eq!(log10(x), k as f32, "log10(10^{k}) = {}", log10(x));
+    }
+    assert_eq!(log10(1.0), 0.0);
+    assert_eq!(log10(10.0), 1.0);
+    assert_eq!(log10(100.0), 2.0);
+    // the identity that makes these logarithms, checked against ln
+    let mut worst_id = 0;
+    for i in 0..=100_000u32 {
+        let x = 10f32.powf(-20.0 + 40.0 * (i as f32 / 100_000.0));
+        let via_ln = (f64::from(ln(x)) * core::f64::consts::LOG2_E) as f32;
+        worst_id = worst_id.max(ulp_diff32(log2(x), via_ln));
+    }
+    assert!(worst_id <= 2, "log2 vs ln·log2(e) worst ulp {worst_id}");
+}
+
+#[test]
+fn log2_64_log10_64_within_2_ulp_of_libm() {
+    let mut worst2 = (0u64, 0.0f64);
+    let mut worst10 = (0u64, 0.0f64);
+    for i in 0..=400_000u32 {
+        let x = 10f64.powf(-300.0 + 600.0 * (f64::from(i) / 400_000.0));
+        let d2 = ulp_diff64(log2_64(x), x.log2());
+        let d10 = ulp_diff64(log10_64(x), x.log10());
+        if d2 > worst2.0 {
+            worst2 = (d2, x);
+        }
+        if d10 > worst10.0 {
+            worst10 = (d10, x);
+        }
+    }
+    println!(
+        "log2_64 max {} ulp (at {:e}), log10_64 max {} ulp (at {:e})",
+        worst2.0, worst2.1, worst10.0, worst10.1
+    );
+    assert!(worst2.0 <= 2, "log2_64 {} ulp at {:e}", worst2.0, worst2.1);
+    assert!(
+        worst10.0 <= 2,
+        "log10_64 {} ulp at {:e}",
+        worst10.0,
+        worst10.1
+    );
+    // around 1, where the exponent and the fraction would cancel
+    let mut worst_near1 = 0;
+    for i in 0..=400_000u32 {
+        let x = 0.5 + 1.0 * (f64::from(i) / 400_000.0);
+        worst_near1 = worst_near1.max(ulp_diff64(log2_64(x), x.log2()));
+    }
+    assert!(worst_near1 <= 2, "log2_64 near 1 worst ulp {worst_near1}");
+
+    // closed form: exact on every power of two, down to the last subnormal
+    let pows = powers_of_two64();
+    assert_eq!(pows.len(), 2098);
+    for (k, x) in pows {
+        assert_eq!(log2_64(x), f64::from(k), "log2_64(2^{k}) = {}", log2_64(x));
+    }
+    assert_eq!(log2_64(1.0), 0.0);
+    assert_eq!(log2_64(2.0), 1.0);
+    assert_eq!(log2_64(0.5), -1.0);
+    assert_eq!(log2_64(f64::MIN_POSITIVE), -1022.0);
+    assert_eq!(log2_64(f64::from_bits(1)), -1074.0);
+    // closed form: 10^k is an exact f64 for 0 ≤ k ≤ 22
+    for k in 0..=22i32 {
+        let x = 10f64.powi(k);
+        assert_eq!(log10_64(x), f64::from(k), "log10_64(10^{k})");
+    }
+    assert_eq!(log10_64(1.0), 0.0);
+    // log2(x) = log10(x) / log10(2) up to the conversion's own rounding
+    let mut worst_id = 0;
+    for i in 0..=100_000u32 {
+        let x = 10f64.powf(-200.0 + 400.0 * (f64::from(i) / 100_000.0));
+        let d = (log2_64(x) * core::f64::consts::LOG10_2 - log10_64(x)).abs();
+        let scale = log10_64(x).abs().max(1.0);
+        worst_id = worst_id.max((d / scale * 1.0e18) as u64);
+    }
+    assert!(worst_id < 1_000, "log2/log10 identity drift {worst_id}e-18");
+}
+
+/// `(x, tan x)` as `f64` bit patterns, correctly rounded by an independent
+/// high-precision evaluation — *not* by a libm, which is off by up to 3 ulp at
+/// several of these points (measured on macOS: 3 ulp at `x = −7.59915`,
+/// `−99.214`, `−924500`, `−9.52435e17`). Reproduce with
+///
+/// ```text
+/// python3 -c 'import mpmath,struct; mpmath.mp.prec=2400
+/// b=lambda v: struct.unpack("<Q", struct.pack("<d", v))[0]
+/// f=lambda h: struct.unpack("<d", struct.pack("<Q", h))[0]
+/// print([hex(b(float(mpmath.tan(mpmath.mpf(f(h)))))) for h in [0x3fb999999999999a]])'
+/// ```
+///
+/// The inputs cover the `2^-27` shortcut, both sides of the kernel's `0.6744`
+/// branch, the `small` reduction (1 to 4 multiples of π/2), the Cody–Waite
+/// region and its `2^20·π/2` threshold, the Payne–Hanek region up to
+/// `f64::MAX`, the three `f64` closest to π/2, and negatives.
+const TAN64_REFERENCE: &[(u64, u64)] = &[
+    (0x0000_0000_0000_0001, 0x0000_0000_0000_0001),
+    (0x000f_ffff_ffff_ffff, 0x000f_ffff_ffff_ffff),
+    (0x0010_0000_0000_0000, 0x0010_0000_0000_0000),
+    (0x3e30_0000_0000_0000, 0x3e30_0000_0000_0000),
+    (0x3e40_0000_0000_0000, 0x3e40_0000_0000_0000),
+    (0x3e50_0000_0000_0000, 0x3e50_0000_0000_0000),
+    (0x3bc7_9ca1_0c92_4223, 0x3bc7_9ca1_0c92_4223),
+    (0x3fb9_9999_9999_999a, 0x3fb9_af88_7743_0b80),
+    (0x3fe0_0000_0000_0000, 0x3fe1_7b4f_5bf3_474a),
+    (0x3fe5_93dd_97f6_2b6b, 0x3fe9_93ad_96d4_80cb),
+    (0x3fe5_94af_4f0d_844d, 0x3fe9_9505_4ea0_0c37),
+    (0x3fe5_9581_0624_dd2f, 0x3fe9_965d_147d_8180),
+    (0x3fe6_6666_6666_6666, 0x3fea_f406_c2fc_78ae),
+    (0x3fe9_21fb_5444_2d18, 0x3fef_ffff_ffff_ffff),
+    (0x3fe9_21fb_5444_2d15, 0x3fef_ffff_ffff_fff9),
+    (0x3ff7_5f9a_6049_a4d2, 0x4022_1da3_52e0_8a44),
+    (0x3ff9_e300_4f1d_42ed, 0xc035_3477_861d_1174),
+    (0x4007_5f9a_6049_a4d2, 0xbfcc_9c84_0aea_a4e9),
+    (0x4009_e300_4f1d_42ed, 0x3fb8_32f9_d77a_112d),
+    (0x4011_87b3_c837_3b9d, 0x4007_5db7_f003_c4a6),
+    (0x4013_6a40_3b55_f232, 0xc01c_1aff_bfad_ce6f),
+    (0x4017_5f9a_6049_a4d2, 0xbfde_1db9_a59e_3b3a),
+    (0x4019_e300_4f1d_42ed, 0x3fc8_6ad4_8ef4_1b7d),
+    (0x401d_3780_f85c_0e06, 0x3ffa_1c10_83c2_3fcf),
+    (0x4020_2de0_3172_49d4, 0xc010_a944_57ca_4c84),
+    (0x4021_87b3_c837_3b9d, 0xbfe8_d25d_d684_54df),
+    (0x4023_6a40_3b55_f232, 0x3fd2_97fd_f511_7d0e),
+    (0x4024_73a7_1440_7037, 0x3ff0_82be_7e23_fec8),
+    (0x4026_a6a0_4539_9a90, 0xc007_5db7_f003_c4a0),
+    (0x4027_5f9a_6049_a4d2, 0xbff3_5736_a5ca_a0b3),
+    (0x4029_e300_4f1d_42ed, 0x3fd9_56e2_6e56_d2ae),
+    (0x402a_4b8d_ac52_d96c, 0x3fe5_0523_6176_6d19),
+    (0x402d_1f60_5900_eb4b, 0xc001_b7d1_34c6_37e8),
+    (0x402b_574b_c6a7_ef9e, 0x3fff_c288_f97c_d9f1),
+    (0x401e_6587_93dd_97f6, 0x400e_b5f4_b8c5_94f2),
+    (0x4058_cdb2_2d0e_5604, 0xc00e_d650_f28a_a836),
+    (0x4059_0000_0000_0000, 0xbfe2_ca74_d62b_5d38),
+    (0x408f_4000_0000_0000, 0x3ff7_8672_9f34_311a),
+    (0x40c8_1cd6_c8b4_3958, 0xbfef_ba58_3632_3a4e),
+    (0x4129_21fb_5444_2d18, 0xbdc1_a626_3314_5c07),
+    (0x4139_1b8c_3ad6_8a3c, 0xbff4_5c92_4ea0_d2a9),
+    (0x4139_286a_6db1_cff4, 0x3ff4_5c92_4e89_b4fd),
+    (0x41cd_cd65_0000_0000, 0x3fe4_d8b2_49e3_dba7),
+    (0x412c_36a8_0000_0000, 0x403f_202c_37a6_7b9a),
+    (0x43aa_6f75_2c2d_4c60, 0x3fef_385a_ab4e_e9fa),
+    (0x4480_f0cf_064d_d592, 0xbffa_0f79_c1b6_b257),
+    (0x54b2_49ad_2594_c37d, 0xbfda_5807_d6f7_6f7d),
+    (0x7e37_e43c_8800_759c, 0x3ff6_be41_1f37_ac77),
+    (0x7fef_ffff_ffff_ffff, 0xbf74_530c_fe72_9484),
+    (0x7fe0_0000_0000_0000, 0xbfe5_ce6b_4c0d_02a3),
+    (0x3ff9_21fb_5444_2d18, 0x434d_0296_7c31_cdb5),
+    (0x3ff9_21fb_5444_2d17, 0x4329_153d_9443_ed0b),
+    (0x3ff9_21fb_5444_2d19, 0xc336_17a1_5494_767a),
+    (0x4012_d97c_7f33_21d2, 0x4333_570e_fd76_8923),
+    (0x401f_6a7a_2955_385e, 0x4327_3545_3027_d7c4),
+    (0xbfb9_9999_9999_999a, 0xbfb9_af88_7743_0b80),
+    (0xbfe5_94af_4f0d_844d, 0xbfe9_9505_4ea0_0c37),
+    (0xbfe6_6666_6666_6666, 0xbfea_f406_c2fc_78ae),
+    (0xc02b_574b_c6a7_ef9e, 0xbfff_c288_f97c_d9f1),
+    (0xc058_cdb2_2d0e_5604, 0x400e_d650_f28a_a836),
+    (0xc1cd_cd65_0000_0000, 0xbfe4_d8b2_49e3_dba7),
+    (0xd4b2_49ad_2594_c37d, 0x3fda_5807_d6f7_6f7d),
+    // more of the Payne–Hanek region, including the two binades where every
+    // f64 is an integer (2^52, 2^53) and both signs of large magnitudes
+    (0x4202_a05f_2000_0000, 0xbfe1_de00_0f44_3f50), // 1e10
+    (0x426d_1a94_a200_0000, 0xbfe8_b6bb_0174_398f), // 1e12
+    (0x430c_6bf5_2634_0000, 0xbffa_c236_00a9_5be4), // 1e15
+    (0x4330_0000_0000_0000, 0xbffc_cef2_838d_a5ca), // 2^52
+    (0x4340_0000_0000_0000, 0x3ff9_b33a_f5ae_241f), // 2^53
+    (0x43ab_c16d_674e_c800, 0xc020_c6ef_fbd6_0ad2), // 1e18
+    (0xc3ab_c16d_674e_c800, 0x4020_c6ef_fbd6_0ad2), // −1e18
+    (0x4520_8b2a_2c28_0291, 0xbfd4_8406_33f9_3616), // 1e25
+    (0x4a51_1b0e_c57e_649a, 0xbfe1_8859_16b6_549d), // 1e50
+    (0xdf13_8d35_2e50_96af, 0x3fee_8eff_dfae_250d), // −1e150
+    (0x6974_e718_d7d7_625a, 0xbfea_ef78_45d4_1e88), // 1e200
+    (0x7830_0000_0000_0000, 0x402c_074d_a74b_10f0), // 2^900
+    (0xfe70_0000_0000_0000, 0x3fc4_a41d_560c_08cc), // −2^1000
+    (0x422d_4223_fc1f_977b, 0xbed2_c8fe_b2a2_f182), // 2π·1e10, a near-multiple of π
+];
+
+#[test]
+fn tan64_within_1_ulp_of_correctly_rounded_reference() {
+    // a truncated table must not turn the oracle into a no-op
+    assert_eq!(TAN64_REFERENCE.len(), 76);
+    let mut worst = (0u64, 0.0f64);
+    let mut huge = 0;
+    for &(xb, tb) in TAN64_REFERENCE {
+        let x = f64::from_bits(xb);
+        let d = ulp_diff64(tan64(x), f64::from_bits(tb));
+        if d > worst.0 {
+            worst = (d, x);
+        }
+        if x.abs() > 1.0e9 {
+            huge += 1;
+        }
+    }
+    // the large-argument (Payne–Hanek) path must actually be exercised
+    assert!(huge >= 10, "only {huge} rows above 1e9");
+    println!(
+        "tan64 max {} ulp vs the high-precision reference (at {:e})",
+        worst.0, worst.1
+    );
+    assert!(worst.0 <= 1, "tan64 {} ulp at {:e}", worst.0, worst.1);
+
+    // a dense sweep against the platform libm: that reference is itself up to
+    // 3 ulp off (see TAN64_REFERENCE), so this bound carries its slack and is
+    // a broad consistency check, not the accuracy claim
+    let mut worst_libm = (0u64, 0.0f64);
+    for i in 0..=400_000u32 {
+        let x = -100.0 + 200.0 * (f64::from(i) / 400_000.0);
+        let d = ulp_diff64(tan64(x), x.tan());
+        if d > worst_libm.0 {
+            worst_libm = (d, x);
+        }
+    }
+    println!(
+        "tan64 max {} ulp vs the platform libm (at {:e})",
+        worst_libm.0, worst_libm.1
+    );
+    assert!(
+        worst_libm.0 <= 3,
+        "tan64 {} ulp vs libm at {:e}",
+        worst_libm.0,
+        worst_libm.1
+    );
+    // and over the reduction table's large arguments
+    let mut counted = 0;
+    let mut worst_big = (0u64, 0.0f64);
+    for (x, _, _) in sin_cos64_reference() {
+        if x.abs() <= 1.0e9 {
+            continue;
+        }
+        counted += 1;
+        let d = ulp_diff64(tan64(x), x.tan());
+        if d > worst_big.0 {
+            worst_big = (d, x);
+        }
+    }
+    assert!(counted > 500, "only {counted} large arguments");
+    println!(
+        "tan64 max {} ulp vs libm over {counted} large arguments (at {:e})",
+        worst_big.0, worst_big.1
+    );
+    assert!(
+        worst_big.0 <= 3,
+        "tan64 {} ulp at {:e}",
+        worst_big.0,
+        worst_big.1
+    );
+    // closed form: tan is odd, bitwise
+    for x in identity_inputs() {
+        let x = x.abs();
+        assert_eq!(tan64(-x).to_bits(), (-tan64(x)).to_bits(), "tan64(-{x:e})");
+    }
+    // closed form: tan = sin/cos (the quotient costs an extra rounding and
+    // loses relative accuracy where cos is near zero, so the bound is looser)
+    let mut worst_q = 0;
+    for i in 0..=400_000u32 {
+        let x = -20.0 + 40.0 * (f64::from(i) / 400_000.0);
+        let (s, c) = sin_cos64(x);
+        let q = s / c;
+        if q.is_finite() {
+            worst_q = worst_q.max(ulp_diff64(tan64(x), q));
+        }
+    }
+    println!("tan64 vs sin64/cos64 max {worst_q} ulp");
+    assert!(worst_q <= 4, "tan64 vs sin64/cos64 worst ulp {worst_q}");
+    assert_eq!(tan64(0.0).to_bits(), 0.0f64.to_bits());
+    assert_eq!(tan64(-0.0).to_bits(), (-0.0f64).to_bits());
+    assert_eq!(tan64(core::f64::consts::FRAC_PI_4), 0.999_999_999_999_999_9);
+    assert_eq!(
+        tan64(core::f64::consts::PI).to_bits(),
+        (-1.224_646_799_147_353_2e-16f64).to_bits()
+    );
+    // subnormals and the tiny-argument shortcut: tan x = x
+    for b in [1u64, 2, 0x000f_ffff_ffff_ffff, 0x0008_0000_0000_0000] {
+        for x in [f64::from_bits(b), -f64::from_bits(b)] {
+            assert_eq!(tan64(x).to_bits(), x.to_bits());
+        }
+    }
+}
+
+/// The domain edges of the new logarithms and the pole of the tangent: what
+/// each one returns is fixed here, and it is what [`ln`] / [`ln64`] already
+/// do at the same inputs (`-inf` at zero, the canonical NaN below it) — a
+/// logarithm that disagreed with `ln` about its own domain would be worse
+/// than one that is a ulp off.
+#[test]
+fn logarithm_domain_edges_and_tangent_poles_are_pinned() {
+    let canon32 = f32::NAN.to_bits();
+    let canon64 = f64::NAN.to_bits();
+
+    // zero (both signs) is -inf, as for `ln`
+    for x in [0.0f32, -0.0] {
+        assert_eq!(ln(x), f32::NEG_INFINITY);
+        assert_eq!(log2(x), f32::NEG_INFINITY, "log2({x})");
+        assert_eq!(log10(x), f32::NEG_INFINITY, "log10({x})");
+    }
+    for x in [0.0f64, -0.0] {
+        assert_eq!(ln64(x), f64::NEG_INFINITY);
+        assert_eq!(log2_64(x), f64::NEG_INFINITY, "log2_64({x})");
+        assert_eq!(log10_64(x), f64::NEG_INFINITY, "log10_64({x})");
+    }
+    // negative (including -inf and the smallest subnormal) is the canonical NaN
+    for x in [
+        -1.0f32,
+        -f32::MIN_POSITIVE,
+        -f32::from_bits(1),
+        -f32::MAX,
+        f32::NEG_INFINITY,
+    ] {
+        assert_eq!(ln(x).to_bits(), canon32);
+        assert_eq!(log2(x).to_bits(), canon32, "log2({x:e})");
+        assert_eq!(log10(x).to_bits(), canon32, "log10({x:e})");
+    }
+    for x in [
+        -1.0f64,
+        -f64::MIN_POSITIVE,
+        -f64::from_bits(1),
+        -f64::MAX,
+        f64::NEG_INFINITY,
+    ] {
+        assert_eq!(ln64(x).to_bits(), canon64);
+        assert_eq!(log2_64(x).to_bits(), canon64, "log2_64({x:e})");
+        assert_eq!(log10_64(x).to_bits(), canon64, "log10_64({x:e})");
+    }
+    // +inf is +inf
+    assert_eq!(log2(f32::INFINITY), f32::INFINITY);
+    assert_eq!(log10(f32::INFINITY), f32::INFINITY);
+    assert_eq!(log2_64(f64::INFINITY), f64::INFINITY);
+    assert_eq!(log10_64(f64::INFINITY), f64::INFINITY);
+    // the extremes of the finite range stay finite (no overflow in the
+    // exponent reconstruction, and the subnormal pre-scaling does not
+    // flush to zero)
+    for x in [
+        f32::MAX,
+        f32::MIN_POSITIVE,
+        f32::from_bits(1),
+        f32::from_bits(0x007f_ffff),
+    ] {
+        assert!(log2(x).is_finite(), "log2({x:e}) = {}", log2(x));
+        assert!(log10(x).is_finite(), "log10({x:e}) = {}", log10(x));
+    }
+    for x in [
+        f64::MAX,
+        f64::MIN_POSITIVE,
+        f64::from_bits(1),
+        f64::from_bits(0x000f_ffff_ffff_ffff),
+    ] {
+        assert!(log2_64(x).is_finite(), "log2_64({x:e})");
+        assert!(log10_64(x).is_finite(), "log10_64({x:e})");
+    }
+
+    // the tangent has a pole at every odd multiple of π/2, but no f64 *is*
+    // one: the value at the nearest f64 is large and finite, and it is the
+    // tangent of that f64 (not of the pole)
+    let pole = core::f64::consts::FRAC_PI_2;
+    assert!(tan64(pole).is_finite(), "tan64(π/2) = {}", tan64(pole));
+    assert!(tan64(pole) > 1.0e16, "tan64(π/2) = {}", tan64(pole));
+    assert!(ulp_diff64(tan64(pole), pole.tan()) <= 1);
+    for m in 1..=9i32 {
+        let x = f64::from(m) * pole;
+        let t = tan64(x);
+        assert!(t.is_finite(), "tan64({m}·π/2) = {t}");
+        assert!(ulp_diff64(t, x.tan()) <= 2, "tan64({m}·π/2) = {t}");
+    }
+    // and the neighbours of the nearest f64 straddle the pole: the sign flips
+    let below = f64::from_bits(pole.to_bits() - 1);
+    let above = f64::from_bits(pole.to_bits() + 1);
+    assert!(tan64(below) > 0.0 && tan64(above) < 0.0);
+    // ±inf is the canonical NaN, as for sin64 / cos64
+    for x in [f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(tan64(x).to_bits(), canon64, "tan64({x})");
+    }
+}
+
 #[test]
 fn cbrt_within_1_ulp_of_correctly_rounded() {
     let mut worst = 0;
@@ -324,6 +758,8 @@ fn nan_inputs_yield_canonical_or_pass_through_nan() {
         same("sin_cos.1", sin_cos(x).1);
         same("exp", exp(x));
         same("ln", ln(x));
+        same("log2", log2(x));
+        same("log10", log10(x));
         same("powf", powf(x, 2.0));
         same("powf", powf(2.0, x));
         same("powi", powi(x, 3));
@@ -358,6 +794,9 @@ fn nan_inputs_yield_canonical_or_pass_through_nan() {
             ("acos64", acos64(x)),
             ("exp64", exp64(x)),
             ("ln64", ln64(x)),
+            ("log2_64", log2_64(x)),
+            ("log10_64", log10_64(x)),
+            ("tan64", tan64(x)),
             ("powf64", powf64(x, 2.0)),
             ("powf64", powf64(2.0, x)),
             ("sqrt64", sqrt64(x)),

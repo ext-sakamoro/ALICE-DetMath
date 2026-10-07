@@ -54,6 +54,7 @@
 //! | [`sin`] / [`cos`] / [`sin_cos`] | `|x| ≤ 100` | ≤ 2 ulp (Cephes single-precision coefficients) |
 //! | [`exp`] | `[-87, 88]` | ≤ 2 ulp |
 //! | [`ln`] | `[1e-30, 1e30]` | ≤ 1 ulp (musl `logf` algorithm) |
+//! | [`log2`] / [`log10`] | `[1e-30, 1e30]` | ≤ 1 ulp, measured max 0 ([`log2_64`] / [`log10_64`] rounded once; powers of two are exact) |
 //! | [`cbrt`] | `[1e-30, 1e30]` | ≤ 1 ulp (bit-hack seed + 3 Newton steps) |
 //! | [`hypot`] | finite | ≤ 1 ulp of `sqrt(x² + y²)` |
 //! | [`powf`] | `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` | ≤ 1 ulp (evaluated in `f64`, rounded once) |
@@ -62,7 +63,9 @@
 //! | [`tan`] | `|x| ≤ 100` | ≤ 1 ulp (fdlibm `k_sin`/`k_cos` in `f64`) |
 //! | [`tanh`] | finite | ≤ 1 ulp (`exp64` based, `x` below 2^-14) |
 //! | [`sin64`] / [`cos64`] / [`sin_cos64`] | every finite `f64` (Cody–Waite below `2^20·π/2`, Payne–Hanek above) | ≤ 1 ulp of correctly rounded, measured max 1 over 6234 points of an independent 2400-bit reference (musl `sin.c` / `cos.c`) |
+//! | [`tan64`] | every finite `f64` (same reduction as [`sin64`]) | ≤ 1 ulp of correctly rounded, measured max 1 over 76 points of an independent 2400-bit reference (fdlibm `k_tan.c`) |
 //! | [`exp64`] / [`ln64`] | as above | ≤ 1 ulp on macOS libm, bound 2 across platform libms (fdlibm algorithms) |
+//! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
 //! | [`powf64`] | as above | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`) |
 //!
@@ -111,8 +114,12 @@ pub mod consts {
     };
 }
 
-pub use double::{acos64, asin64, atan2_64, atan64, cos64, exp64, ln64, powf64, sin64, sin_cos64};
+pub use double::{
+    acos64, asin64, atan2_64, atan64, cos64, exp64, ln64, log10_64, log2_64, powf64, sin64,
+    sin_cos64, tan64,
+};
 pub use ops::{round, round64, sqrt, sqrt64};
 pub use single::{
-    acos, asin, atan, atan2, cbrt, cos, exp, hypot, ln, powf, powi, sin, sin_cos, tan, tanh,
+    acos, asin, atan, atan2, cbrt, cos, exp, hypot, ln, log10, log2, powf, powi, sin, sin_cos, tan,
+    tanh,
 };

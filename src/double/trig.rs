@@ -13,7 +13,7 @@
 //! * the `FORCE_EVAL` statements that only raise floating-point exception
 //!   flags are dropped (Rust does not observe the flags).
 
-use super::{C1, C2, C3, C4, C5, C6, S1, S2, S3, S4, S5, S6};
+use super::{clear_low_word, C1, C2, C3, C4, C5, C6, S1, S2, S3, S4, S5, S6};
 
 // ---------------------------------------------------------------------------
 // __sin.c / __cos.c: kernels on [-π/4, π/4] with the reduction's tail `y`
@@ -43,6 +43,90 @@ fn k_cos_tail(x: f64, y: f64) -> f64 {
     let hz = 0.5 * z;
     let w = 1.0 - hz;
     w + (((1.0 - w) - hz) + (z * r - x * y))
+}
+
+// ---------------------------------------------------------------------------
+// __tan.c: kernel on [-π/4, π/4] with the reduction's tail `y`
+// ---------------------------------------------------------------------------
+
+/// fdlibm `k_tan.c` polynomial coefficients (`T[0]` is the `x³/3` term).
+const T: [f64; 13] = [
+    3.333_333_333_333_340_919_86e-01,
+    1.333_333_333_332_012_426_99e-01,
+    5.396_825_397_622_605_213_77e-02,
+    2.186_948_829_485_954_245_99e-02,
+    8.863_239_823_599_300_057_37e-03,
+    3.592_079_107_591_312_353_56e-03,
+    1.456_209_454_325_290_255_16e-03,
+    5.880_412_408_202_640_968_74e-04,
+    2.464_631_348_184_699_068_12e-04,
+    7.817_944_429_395_570_923_00e-05,
+    7.140_724_913_826_081_903_05e-05,
+    -1.855_863_748_552_754_566_54e-05,
+    2.590_730_518_636_337_128_84e-05,
+];
+/// π/4, 53 bits (`0x3FE921FB, 0x54442D18`).
+const TAN_PIO4: f64 = core::f64::consts::FRAC_PI_4;
+/// π/4 − [`TAN_PIO4`].
+const TAN_PIO4_LO: f64 = 3.061_616_997_868_383_017_93e-17;
+
+/// musl `__tan(x, y, odd)`: `tan(x + y)` for `|x + y| ≤ π/4`, or
+/// `−1/tan(x + y)` when `odd` (the argument was reduced by an odd multiple of
+/// π/2); `y` is the tail of the reduced argument.
+///
+/// Above `|x| ≥ 0.6744` the identity `tan(π/4 − z) = (1 − tan z)/(1 + tan z)`
+/// moves the evaluation away from the end of the polynomial's interval, and
+/// the `odd` branch forms `−1/(x + r)` through a two-term correction because
+/// the plain division costs up to 2 ulp.
+// `w*w/(w + s)` is the source's expression; the lint reads it as a typo for
+// `w*s/(w + s)`. Changing the grouping would change both the value and the
+// bits, which is the one thing this crate must not do.
+#[allow(clippy::suspicious_operation_groupings)]
+#[inline(always)]
+fn k_tan_tail(mut x: f64, mut y: f64, odd: bool) -> f64 {
+    let hx = (x.to_bits() >> 32) as u32;
+    let big = (hx & 0x7fff_ffff) >= 0x3fe5_9428; // |x| >= 0.6744
+    let sign = (hx >> 31) != 0;
+    if big {
+        if sign {
+            x = -x;
+            y = -y;
+        }
+        let z = TAN_PIO4 - x;
+        let w = TAN_PIO4_LO - y;
+        x = z + w;
+        y = 0.0;
+    }
+    let z = x * x;
+    let w = z * z;
+    // x⁵·(T[1] + x²·T[2] + …) split into the even and the odd half so the two
+    // chains are independent, as in the source.
+    let r = T[1] + w * (T[3] + w * (T[5] + w * (T[7] + w * (T[9] + w * T[11]))));
+    let v = z * (T[2] + w * (T[4] + w * (T[6] + w * (T[8] + w * (T[10] + w * T[12])))));
+    let s = z * x;
+    let r = y + z * (s * (r + v) + y) + s * T[0];
+    let w = x + r;
+    if big {
+        let s = if odd { -1.0 } else { 1.0 };
+        let v = s - 2.0 * (x + (r - w * w / (w + s)));
+        return if sign { -v } else { v };
+    }
+    if !odd {
+        return w;
+    }
+    // −1.0/(x + r) has up to 2 ulp of error, so compute it accurately:
+    // with `w0 + v = x + r` and `a0` the leading half of `a = −1/w`, the
+    // product `a0·w0` is exact (21 bits each), so `1 + a0·w0 + a0·v` is the
+    // residual of `−1/(x+r)` and one multiplication by `a` recovers it.
+    // Both `v` terms are scaled by `a0`, not `a`: using `a` there leaves an
+    // error of `a·(a − a0)·v` ≈ 2^-42 relative (measured 3919 ulp at
+    // `x = −13.6705`).
+    let w0 = clear_low_word(w);
+    let v = r - (w0 - x); // w0 + v = r + x
+    let a = -1.0 / w;
+    let a0 = clear_low_word(a);
+    let s = 1.0 + a0 * w0;
+    a0 + a * (s + a0 * v)
 }
 
 // ---------------------------------------------------------------------------
@@ -536,6 +620,32 @@ pub fn cos64(x: f64) -> f64 {
     }
     let (n, y0, y1) = rem_pio2(x);
     cos_quadrant(n, y0, y1)
+}
+
+/// Deterministic `tan(x)` in double precision over the whole range.
+///
+/// musl `tan.c`: the fdlibm `__tan` kernel, the Cody–Waite reduction up to
+/// `2^20·π/2` and Payne–Hanek beyond, so every finite argument is reduced
+/// exactly. `tan(±0) = ±0`, `tan(±inf) = tan(NaN) = NaN` (canonical).
+///
+/// Near an odd multiple of π/2 the true tangent has a pole; the result there
+/// is the (large, finite) tangent of the nearest `f64`, not an infinity.
+#[inline]
+#[must_use]
+pub fn tan64(x: f64) -> f64 {
+    let ix = high_word(x);
+    if ix <= PIO4_HI_WORD {
+        if ix < 0x3e40_0000 {
+            // |x| < 2^-27 (includes ±0 and subnormals)
+            return x;
+        }
+        return k_tan_tail(x, 0.0, false);
+    }
+    if ix >= 0x7ff0_0000 {
+        return f64::NAN;
+    }
+    let (n, y0, y1) = rem_pio2(x);
+    k_tan_tail(y0, y1, n & 1 != 0)
 }
 
 /// `(sin64(x), cos64(x))` with one argument reduction.
