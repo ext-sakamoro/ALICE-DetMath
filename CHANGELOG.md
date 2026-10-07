@@ -28,6 +28,15 @@ golden hash is unchanged).
   `sin64(−x) = −sin64(x)` and `cos64(−x) = cos64(x)` are checked bitwise.
 - `tests/golden.rs`: `sin64`, `cos64`, `sin_cos64`, and a dense grid over
   `[−10, 10]` for the first reduction cases.
+- `README_JP.md`: the Japanese README, with the same sections and identical
+  code blocks.
+
+### Changed
+- README: installation with `cargo add` (no version pinned in the text), the
+  first example is the crate doctest, `sin64` / `cos64` / `sin_cos64` in the
+  feature list, a note on what the crate is not for, and sections for
+  `no_std`, MSRV and building. Related projects: ALICE-LOL added; ALICE-Zip
+  removed from the list of users, since it does not depend on this crate.
 
 ## [0.3.1] - 2026-09-27
 
