@@ -66,7 +66,7 @@
 //! | [`tan64`] | every finite `f64` (same reduction as [`sin64`]) | ≤ 1 ulp of correctly rounded, measured max 1 over 6310 points of an independent 2400-bit reference (fdlibm `k_tan.c`) |
 //! | [`exp64`] / [`ln64`] | as above | ≤ 1 ulp on macOS libm, bound 2 across platform libms (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
-//! | [`powf64`] | as above | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) |
+//! | [`powf64`] | `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) ⚠️ outside this domain the result can be *wrong*, not just less accurate — see [`powf64`] |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`) |
 //!
 //! Large arguments to [`sin`] / [`cos`] (`|x| > 2¹³`) are still deterministic

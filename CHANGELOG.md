@@ -62,6 +62,15 @@ golden hash is unchanged).
   folded.
 
 ### Changed
+- `powf64` documents that outside its domain (`x ∈ [1e-3, 1e3]`, `|y| ≤ 8`)
+  the result can be wrong rather than merely less accurate, with the mechanism
+  and a measured case: the residual step `l_lo = x·exp64(−l_hi) − 1` collapses
+  to `x − 1` when `x` is within one ulp of 1, because `exp64(−l_hi)` rounds to
+  exactly 1, so `y·l_lo` adds a second copy of `y·ln x` and the exponent is
+  doubled. At `x = 1 − 1 ulp`, `y = 1e15` it returns `7.9556e-1` against a
+  correctly rounded `8.9492e-1`. Inside the domain the duplicated term is
+  below half an ulp and the bound holds, so this is a documentation change:
+  no behaviour changed.
 - No `f64` accuracy bound is asserted against a platform libm any more.
   `exp64`, `ln64`, `log2_64`, `log10_64` and `powf64` join `tan64` in being
   measured against committed tables of correctly rounded values

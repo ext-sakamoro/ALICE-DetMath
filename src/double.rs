@@ -546,7 +546,24 @@ fn two_prod(a: f64, b: f64) -> (f64, f64) {
 /// `y · ln x` is formed as a double-double (`ln64` plus a one-step residual
 /// correction, exact product via Dekker splitting) so the exponential's
 /// argument error is not amplified by `|y · ln x|`; measured ≤ 13 ulp over
-/// the documented domain (the residual is limited by `exp64`'s own rounding).
+/// the documented domain `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` (the residual is
+/// limited by `exp64`'s own rounding).
+///
+/// # Outside that domain the result can be wrong, not merely less accurate
+///
+/// The residual step is `l_lo = x · exp64(−l_hi) − 1`. When `x` is within one
+/// ulp of 1, `exp64(−l_hi)` rounds to exactly `1`, the expression collapses to
+/// `x − 1`, which is the whole logarithm rather than its residual, and
+/// `y · l_lo` then adds a second copy of `y · ln x`: the effective exponent is
+/// doubled. Inside the documented domain the duplicated term is below half an
+/// ulp of the result, so the bound above holds; with a large `|y|` it is not.
+/// Measured at `x = 1 − 1 ulp`, `y = 1e15`: this returns
+/// `7.9556e-1` where the correctly rounded value is `8.9492e-1`, an error of
+/// 8.9e14 ulp, with `ln(returned) / ln(true) = 2.06`.
+///
+/// Reduce such a case yourself (for `x = 1 + d` with a small `d`, evaluating
+/// `exp64(y · d)` with the `ln(1 + d)` series is accurate) or keep `|y|`
+/// inside the documented bound.
 #[inline]
 #[must_use]
 pub fn powf64(x: f64, y: f64) -> f64 {
