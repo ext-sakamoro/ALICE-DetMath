@@ -37,6 +37,12 @@ golden hash is unchanged).
   feature list, a note on what the crate is not for, and sections for
   `no_std`, MSRV and building. Related projects: ALICE-LOL added; ALICE-Zip
   removed from the list of users, since it does not depend on this crate.
+- CI: `scripts/docs_lint.py` (with its tests in `scripts/test_docs_lint.py`)
+  runs on Linux, macOS and Windows and in `scripts/preflight.sh`. It checks
+  the public documents and every tracked file for development-process
+  vocabulary and private names (hashed, not listed), the CHANGELOG heading
+  structure, and that the README's first example equals the crate doctest;
+  a check that compares nothing fails. Comments that it flagged were reworded.
 
 ## [0.3.1] - 2026-09-27
 

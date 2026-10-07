@@ -1,4 +1,4 @@
-# Rust toolchain pin (feedback_clippy_rust_version_drift 準拠)
+# Rust toolchain pin (clippy の lint 集合は版ごとに変わるので固定する)
 # `targets`: the bare-metal target the CI `no_std` job builds the rlib for; listed
 # here (not in the workflow) so rustup installs it for the pinned toolchain that
 # cargo actually uses (dtolnay/rust-toolchain@stable would add it to stable only)

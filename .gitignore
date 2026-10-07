@@ -1,7 +1,3 @@
-# Claude Code (project-local config never leaves this machine)
-CLAUDE.md
-.claude/
-
 # Build
 target/
 # cargo-fuzz build output (the root `target/` pattern does not cover it)
@@ -17,3 +13,6 @@ mutants.out/
 *~
 .idea/
 .vscode/
+
+# Python bytecode (scripts/test_docs_lint.py imports scripts/docs_lint.py)
+__pycache__/
