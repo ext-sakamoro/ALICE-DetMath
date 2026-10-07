@@ -259,7 +259,7 @@ pub fn ln(x: f32) -> f32 {
 
 /// Deterministic base-2 logarithm `log2(x)`.
 ///
-/// [`log2_64`](crate::log2_64) rounded once to `f32` (the same pattern as
+/// [`log2_64`] rounded once to `f32` (the same pattern as
 /// [`asin`] / [`acos`] / [`powf`]), so the result is within 1 ulp of correctly
 /// rounded over the measured domain. A power of two returns its exponent
 /// exactly. `log2(0) = -inf`, `log2(x < 0) = NaN`, `log2(inf) = inf`, and a
@@ -272,7 +272,7 @@ pub fn log2(x: f32) -> f32 {
 
 /// Deterministic base-10 logarithm `log10(x)`.
 ///
-/// [`log10_64`](crate::log10_64) rounded once to `f32`. `log10(1) = 0`
+/// [`log10_64`] rounded once to `f32`. `log10(1) = 0`
 /// exactly; `log10(0) = -inf`, `log10(x < 0) = NaN`, `log10(inf) = inf`, and a
 /// NaN input returns the canonical NaN.
 #[inline]
