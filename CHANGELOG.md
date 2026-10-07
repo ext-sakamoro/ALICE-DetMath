@@ -40,6 +40,18 @@ golden hash is unchanged).
 - `tests/golden.rs`: `log2`, `log10`, `log2_64`, `log10_64`, `tan64`, and a
   dense grid over `[−10, 10]` for the tangent, which covers both sides of the
   kernel's `0.6744` branch in both quadrant parities.
+- `tests/data/tan64_reference.txt`: correctly rounded `tan` at the 6234 inputs
+  of the sine / cosine reference (1964 of them in the Payne–Hanek range),
+  from the same independent 2400-bit evaluation. `tan64` is within 1 ulp of
+  it, measured max 1.
+
+### Changed
+- `tan64`'s accuracy test no longer asserts against the platform libm. The
+  libm disagrees with the correctly rounded value by ~1.0e5 ulp at
+  `x = 0x6404c96c11134d36` on one platform and by 2 ulp on another, so a
+  bound on that difference passed or failed according to which machine ran
+  it. The assertions are now against the committed reference above; the
+  difference from the platform libm is printed, not asserted.
 
 ## [0.3.2] - 2026-10-07
 

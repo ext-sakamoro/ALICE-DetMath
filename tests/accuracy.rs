@@ -403,6 +403,28 @@ const TAN64_REFERENCE: &[(u64, u64)] = &[
     (0x422d_4223_fc1f_977b, 0xbed2_c8fe_b2a2_f182), // 2π·1e10, a near-multiple of π
 ];
 
+const TAN64_REFERENCE_FILE: &str = include_str!("data/tan64_reference.txt");
+
+/// `(x, tan x)` rows of the committed tangent reference, correctly rounded by
+/// the same independent 2400-bit evaluation as the sine / cosine table and
+/// over the same inputs — not by a libm, which disagrees with the true value
+/// by up to ~1.0e5 ulp in the Payne–Hanek range depending on the platform.
+fn tan64_reference() -> Vec<(f64, f64)> {
+    let rows: Vec<(f64, f64)> = TAN64_REFERENCE_FILE
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| {
+            let mut it = l
+                .split_whitespace()
+                .map(|h| f64::from_bits(u64::from_str_radix(h, 16).expect("hex")));
+            (it.next().expect("x"), it.next().expect("tan"))
+        })
+        .collect();
+    // a truncated or renamed table must not turn the oracle into a no-op
+    assert!(rows.len() > 6000, "reference table has {} rows", rows.len());
+    rows
+}
+
 #[test]
 fn tan64_within_1_ulp_of_correctly_rounded_reference() {
     // a truncated table must not turn the oracle into a no-op
@@ -427,50 +449,46 @@ fn tan64_within_1_ulp_of_correctly_rounded_reference() {
     );
     assert!(worst.0 <= 1, "tan64 {} ulp at {:e}", worst.0, worst.1);
 
-    // a dense sweep against the platform libm: that reference is itself up to
-    // 3 ulp off (see TAN64_REFERENCE), so this bound carries its slack and is
-    // a broad consistency check, not the accuracy claim
+    // the committed table, over the same inputs as the sine / cosine
+    // reference: 6234 points, 1964 of them in the Payne–Hanek range
+    let mut worst_t = (0u64, 0.0f64);
+    let mut huge_t = 0;
+    let rows = tan64_reference();
+    for (x, t) in &rows {
+        let d = ulp_diff64(tan64(*x), *t);
+        if d > worst_t.0 {
+            worst_t = (d, *x);
+        }
+        if x.abs() > 1.0e9 {
+            huge_t += 1;
+        }
+    }
+    assert!(huge_t > 500, "only {huge_t} rows above 1e9");
+    println!(
+        "tan64 max {} ulp over {} reference rows ({huge_t} above 1e9, at {:e})",
+        worst_t.0,
+        rows.len(),
+        worst_t.1
+    );
+    assert!(worst_t.0 <= 1, "tan64 {} ulp at {:e}", worst_t.0, worst_t.1);
+
+    // The platform libm is *not* a reference here and is deliberately not
+    // asserted against: glibc is ~1.0e5 ulp off at x = 0x6404c96c11134d36
+    // (verified against 2400 bits: this crate is exact there and glibc is
+    // not), while macOS is within 2 ulp, so any bound on this number would
+    // pass or fail according to which runner executed it — a platform-
+    // dependent gate in a crate whose whole claim is platform independence.
+    // It is printed because the size of the gap is worth seeing.
     let mut worst_libm = (0u64, 0.0f64);
-    for i in 0..=400_000u32 {
-        let x = -100.0 + 200.0 * (f64::from(i) / 400_000.0);
-        let d = ulp_diff64(tan64(x), x.tan());
+    for (x, _) in &rows {
+        let d = ulp_diff64(tan64(*x), x.tan());
         if d > worst_libm.0 {
-            worst_libm = (d, x);
+            worst_libm = (d, *x);
         }
     }
     println!(
-        "tan64 max {} ulp vs the platform libm (at {:e})",
+        "tan64 vs the platform libm: max {} ulp at {:e} (reported, not asserted)",
         worst_libm.0, worst_libm.1
-    );
-    assert!(
-        worst_libm.0 <= 3,
-        "tan64 {} ulp vs libm at {:e}",
-        worst_libm.0,
-        worst_libm.1
-    );
-    // and over the reduction table's large arguments
-    let mut counted = 0;
-    let mut worst_big = (0u64, 0.0f64);
-    for (x, _, _) in sin_cos64_reference() {
-        if x.abs() <= 1.0e9 {
-            continue;
-        }
-        counted += 1;
-        let d = ulp_diff64(tan64(x), x.tan());
-        if d > worst_big.0 {
-            worst_big = (d, x);
-        }
-    }
-    assert!(counted > 500, "only {counted} large arguments");
-    println!(
-        "tan64 max {} ulp vs libm over {counted} large arguments (at {:e})",
-        worst_big.0, worst_big.1
-    );
-    assert!(
-        worst_big.0 <= 3,
-        "tan64 {} ulp at {:e}",
-        worst_big.0,
-        worst_big.1
     );
     // closed form: tan is odd, bitwise
     for x in identity_inputs() {
@@ -582,12 +600,36 @@ fn logarithm_domain_edges_and_tangent_poles_are_pinned() {
     let pole = core::f64::consts::FRAC_PI_2;
     assert!(tan64(pole).is_finite(), "tan64(π/2) = {}", tan64(pole));
     assert!(tan64(pole) > 1.0e16, "tan64(π/2) = {}", tan64(pole));
-    assert!(ulp_diff64(tan64(pole), pole.tan()) <= 1);
+    // the correctly rounded value, from the reference table rather than from
+    // the platform libm (which differs by runner)
+    let reference = |x: f64| -> f64 {
+        let (_, t) = TAN64_REFERENCE
+            .iter()
+            .map(|&(xb, tb)| (f64::from_bits(xb), f64::from_bits(tb)))
+            .find(|&(rx, _)| rx.to_bits() == x.to_bits())
+            .expect("the pole neighbourhood is in TAN64_REFERENCE");
+        t
+    };
+    assert_eq!(tan64(pole).to_bits(), reference(pole).to_bits());
+    for m in [1i32, 3, 5] {
+        let x = f64::from(m) * pole;
+        assert!(
+            ulp_diff64(tan64(x), reference(x)) <= 1,
+            "tan64({m}·π/2) = {}",
+            tan64(x)
+        );
+    }
+    // every one of the first nine stays finite, and the odd multiples (where
+    // the pole is) are the large ones
     for m in 1..=9i32 {
         let x = f64::from(m) * pole;
         let t = tan64(x);
         assert!(t.is_finite(), "tan64({m}·π/2) = {t}");
-        assert!(ulp_diff64(t, x.tan()) <= 2, "tan64({m}·π/2) = {t}");
+        if m % 2 == 1 {
+            assert!(t.abs() > 1.0e15, "tan64({m}·π/2) = {t}");
+        } else {
+            assert!(t.abs() < 1.0e-15, "tan64({m}·π/2) = {t}");
+        }
     }
     // and the neighbours of the nearest f64 straddle the pole: the sign flips
     let below = f64::from_bits(pole.to_bits() - 1);
