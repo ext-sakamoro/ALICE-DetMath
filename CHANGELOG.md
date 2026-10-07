@@ -42,8 +42,24 @@ golden hash is unchanged).
   kernel's `0.6744` branch in both quadrant parities.
 - `tests/data/tan64_reference.txt`: correctly rounded `tan` at the 6234 inputs
   of the sine / cosine reference (1964 of them in the Payne–Hanek range),
-  from the same independent 2400-bit evaluation. `tan64` is within 1 ulp of
-  it, measured max 1.
+  from the same independent 2400-bit evaluation, with
+  `scripts/gen_tan64_reference.py` to regenerate it. `tan64` is within 1 ulp
+  of it, measured max 1.
+- `SEMANTICS_ID`: a `[u8; 32]` that identifies this crate's numeric behaviour.
+  It is the SHA-256 of the per-function bit pins in `tests/golden.rs`, folded
+  in ascending order of function name, each as the name's length in four
+  big-endian bytes, then the name, then its 32-byte pin — so it changes
+  exactly when some function would return different bits for the same input,
+  and nothing outside this crate (no platform `libm`, no environment) enters
+  it. A caller deriving an identifier from a formula and its parameters can
+  mix it in so the identifier also covers how the arithmetic was evaluated.
+  Available in `no_std`. `tests/golden.rs` recomputes it from the pins, reads
+  the public numeric functions out of `src/lib.rs` and fails if any of them
+  has no pin, checks that perturbing any single pin moves the value, that the
+  fold does not depend on the written order, that the name length is part of
+  the input (with the pair of tables that would otherwise collide), and that
+  an empty, duplicated, non-ASCII or malformed table is rejected rather than
+  folded.
 
 ### Changed
 - `tan64`'s accuracy test no longer asserts against the platform libm. The

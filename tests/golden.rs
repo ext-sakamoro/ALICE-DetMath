@@ -368,6 +368,292 @@ fn scalar_outputs_match_recorded_hashes() {
     check("tan64_dense", &hash64(&dense, tan64), want("tan64_dense"));
 }
 
+// ---------------------------------------------------------------------------
+// SEMANTICS_ID: the table above, folded into one identifier
+// ---------------------------------------------------------------------------
+
+/// The 32 bytes a 64-character hex string stands for; `Err` if the string is
+/// not exactly 64 hex digits (a malformed entry must not fold silently).
+fn hex32(s: &str) -> Result<[u8; 32], String> {
+    let b = s.as_bytes();
+    if b.len() != 64 {
+        return Err(format!("hash {s:?} is {} chars, not 64", b.len()));
+    }
+    let mut out = [0u8; 32];
+    for (i, byte) in out.iter_mut().enumerate() {
+        let hi = (b[2 * i] as char).to_digit(16).ok_or("not a hex digit")?;
+        let lo = (b[2 * i + 1] as char)
+            .to_digit(16)
+            .ok_or("not a hex digit")?;
+        *byte = (hi * 16 + lo) as u8;
+    }
+    Ok(out)
+}
+
+/// Fold a table of `(name, hash)` pins into one identifier:
+/// `SHA256` over, for each entry in ascending byte order of the name, the
+/// name's length as four big-endian bytes, then the name, then the 32 bytes
+/// of its hash.
+///
+/// The length prefix is what makes the concatenation unambiguous: without it
+/// two different tables can produce the same byte stream (pinned by
+/// [`the_length_prefix_separates_tables_that_would_otherwise_collide`]).
+/// Sorting by name means the result does not depend on the order the entries
+/// happen to be written in, and a repeated name is rejected rather than
+/// ordered arbitrarily.
+fn fold_semantics_id(entries: &[(&str, &str)]) -> Result<[u8; 32], String> {
+    if entries.is_empty() {
+        return Err("the table is empty: there would be nothing to identify".into());
+    }
+    let mut sorted = entries.to_vec();
+    sorted.sort_unstable_by_key(|(name, _)| *name);
+    for pair in sorted.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            return Err(format!("`{}` appears twice: no unique order", pair[0].0));
+        }
+    }
+    let mut h = Sha256::new();
+    for (name, hash) in sorted {
+        if name.is_empty() || !name.is_ascii() {
+            return Err(format!("name {name:?} is empty or not ASCII"));
+        }
+        let len = u32::try_from(name.len()).map_err(|e| e.to_string())?;
+        h.update(len.to_be_bytes());
+        h.update(name.as_bytes());
+        h.update(hex32(hash)?);
+    }
+    Ok(h.finalize().into())
+}
+
+/// The crate's public numeric functions, read out of `src/lib.rs`: the names
+/// it re-exports at the crate root (`pub use <module>::{ … }`), keeping the
+/// `snake_case` entries (functions) and dropping the `SCREAMING_SNAKE_CASE`
+/// ones (the kernel constants the `consts` module re-exports). That list *is* the
+/// crate's public numeric surface — every transcendental has its entry point
+/// there — so counting it is how this test knows whether the golden table
+/// has fallen behind the code.
+fn public_numeric_functions() -> Vec<String> {
+    const LIB: &str = include_str!("../src/lib.rs");
+    // a `pub fn` written directly in lib.rs would not be in a `pub use` list
+    assert!(
+        !LIB.contains("pub fn "),
+        "lib.rs declares a function directly; extend this parser to see it"
+    );
+    let mut out = Vec::new();
+    let mut blocks = 0usize;
+    let mut rest = LIB;
+    while let Some(i) = rest.find("pub use ") {
+        rest = &rest[i + "pub use ".len()..];
+        let open = rest.find('{').expect("`pub use` with no brace list");
+        assert!(
+            !rest[..open].contains(';'),
+            "`pub use` without a brace list: {:?}",
+            &rest[..open]
+        );
+        let close = rest.find("};").expect("unterminated `pub use` list");
+        blocks += 1;
+        for raw in rest[open + 1..close].split(',') {
+            let name = raw.trim();
+            if !name.is_empty() && !name.chars().any(|c| c.is_ascii_uppercase()) {
+                out.push(name.to_owned());
+            }
+        }
+        rest = &rest[close..];
+    }
+    assert!(
+        blocks >= 3,
+        "only {blocks} `pub use` lists parsed in lib.rs"
+    );
+    out
+}
+
+/// Pins in [`GOLDEN`] that are not themselves a re-exported function: the
+/// `metric` module's entry points, and the second, denser input grid used for
+/// the functions whose first reduction cases the coarse grid barely samples.
+const EXTRA_PINS: &[&str] = &[
+    "smoothstep",
+    "metric_norm_mix",
+    "metric_lipschitz",
+    "sin64_dense",
+    "cos64_dense",
+    "tan64_dense",
+];
+
+/// Every public numeric function has a pin in [`GOLDEN`], and every pin in
+/// [`GOLDEN`] corresponds to something.
+///
+/// Without this, a function added to the crate without a golden entry would
+/// leave [`alice_det_math::SEMANTICS_ID`] unchanged while the crate's
+/// behaviour grew — the identifier would then not identify the behaviour.
+/// Neither direction may compare nothing: the counts are asserted exactly, so
+/// a parser that stopped seeing the public surface fails here.
+#[test]
+fn semantics_id_covers_every_public_numeric_function() {
+    let functions = public_numeric_functions();
+    // 34 = 13 from `double` + 4 from `ops` + 17 from `single`; adding one
+    // means adding its golden pin and raising this number in the same commit
+    assert_eq!(
+        functions.len(),
+        34,
+        "public numeric functions: {functions:?}"
+    );
+    for sentinel in ["sin", "ln64", "sqrt", "tan64", "log2", "log10_64"] {
+        assert!(
+            functions.iter().any(|f| f == sentinel),
+            "the parse lost `{sentinel}`: {functions:?}"
+        );
+    }
+    let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
+    assert_eq!(pinned.len(), 40, "golden pins: {pinned:?}");
+    for f in &functions {
+        assert!(
+            pinned.contains(&f.as_str()),
+            "`{f}` is public but has no entry in GOLDEN, so a change to it \
+             would not move SEMANTICS_ID"
+        );
+    }
+    for p in &pinned {
+        assert!(
+            functions.iter().any(|f| f == p) || EXTRA_PINS.contains(p),
+            "golden pin `{p}` names neither a public function nor a known \
+             extra pin (a typo here silently pins nothing)"
+        );
+    }
+}
+
+/// The recorded [`alice_det_math::SEMANTICS_ID`] is what the golden table
+/// folds to, so the constant cannot drift from the crate's measured
+/// behaviour: any change to any pinned function changes its hash, which
+/// changes the fold, which fails here until the constant is updated.
+#[test]
+fn semantics_id_matches_the_recorded_constant() {
+    let got = fold_semantics_id(GOLDEN).expect("the golden table folds");
+    let hex = got.iter().fold(String::new(), |mut s, b| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{b:02x}");
+        s
+    });
+    if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
+        // re-pin mode, as for the hashes above
+        println!("SEMANTICS_ID = {hex}");
+        let bytes = got
+            .iter()
+            .map(|b| format!("0x{b:02x},"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("    {bytes}");
+        return;
+    }
+    assert_eq!(
+        got,
+        alice_det_math::SEMANTICS_ID,
+        "SEMANTICS_ID is {hex} now; re-pin with DET_MATH_PRINT_GOLDEN=1"
+    );
+}
+
+/// Folding the same table twice gives the same bytes, and the result does not
+/// depend on the order the entries are written in.
+#[test]
+fn semantics_id_is_stable_and_order_independent() {
+    let once = fold_semantics_id(GOLDEN).expect("folds");
+    let twice = fold_semantics_id(GOLDEN).expect("folds");
+    assert_eq!(once, twice);
+    let mut shuffled = GOLDEN.to_vec();
+    shuffled.reverse();
+    assert_eq!(
+        fold_semantics_id(&shuffled).expect("folds"),
+        once,
+        "the fold depends on the written order"
+    );
+    // and it is not a constant: a different table gives a different answer
+    let shorter = &GOLDEN[1..];
+    assert_ne!(
+        fold_semantics_id(shorter).expect("folds"),
+        once,
+        "dropping a pin did not change the fold"
+    );
+}
+
+/// Every pin in [`GOLDEN`] is load-bearing: perturbing any one of its hashes
+/// by a single bit changes the fold. A pin that did not move the identifier
+/// would be a function whose behaviour could change silently.
+///
+/// The five functions added alongside this identifier are named explicitly as
+/// well, so that a table which lost one of them fails here rather than
+/// quietly folding 35 pins instead of 40.
+#[test]
+fn every_pin_moves_the_identifier_including_the_newest_functions() {
+    let base = fold_semantics_id(GOLDEN).expect("folds");
+    for i in 0..GOLDEN.len() {
+        let mut table = GOLDEN.to_vec();
+        // flip the low bit of the last hex digit of entry `i`
+        let (name, hash) = table[i];
+        let last = hash.chars().next_back().expect("non-empty hash");
+        let flipped = format!(
+            "{}{:x}",
+            &hash[..hash.len() - 1],
+            last.to_digit(16).expect("hex digit") ^ 1
+        );
+        table[i] = (name, flipped.as_str());
+        assert_ne!(
+            fold_semantics_id(&table).expect("folds"),
+            base,
+            "changing `{name}` does not change SEMANTICS_ID"
+        );
+    }
+    for name in ["log2", "log10", "log2_64", "log10_64", "tan64"] {
+        assert!(
+            GOLDEN.iter().any(|(n, _)| *n == name),
+            "`{name}` has no pin, so its behaviour is outside SEMANTICS_ID"
+        );
+    }
+}
+
+/// Two tables that differ only in where a name ends produce the same byte
+/// stream if the name is not length-prefixed. These two are such a pair: with
+/// `("ax", 11…78)` and `("b", 22…)` against `("a", 78 11…)` and `("xb", 22…)`
+/// the unprefixed concatenations are both
+/// `61 78 11×31 78 62 22×32`, so the fold would collide.
+#[test]
+fn the_length_prefix_separates_tables_that_would_otherwise_collide() {
+    let h1 = "11".repeat(31) + "78";
+    let h2 = "22".repeat(32);
+    let k1 = "78".to_owned() + &"11".repeat(31);
+    let a = [("ax", h1.as_str()), ("b", h2.as_str())];
+    let b = [("a", k1.as_str()), ("xb", h2.as_str())];
+    assert_ne!(
+        fold_semantics_id(&a).expect("folds"),
+        fold_semantics_id(&b).expect("folds"),
+        "the fold does not separate these two tables, so the name length is \
+         not part of the input"
+    );
+}
+
+/// A table the fold cannot order or parse is rejected instead of folded: an
+/// empty table identifies nothing, a repeated name has no unique order, and a
+/// name or hash that is not what it claims to be would make the identifier
+/// depend on how the malformed text happened to be handled.
+#[test]
+fn a_table_that_cannot_be_ordered_or_parsed_is_rejected() {
+    let h = "ab".repeat(32);
+    let h = h.as_str();
+    assert!(fold_semantics_id(&[]).is_err(), "empty table");
+    assert!(
+        fold_semantics_id(&[("sin", h), ("sin", h)]).is_err(),
+        "duplicate name"
+    );
+    assert!(fold_semantics_id(&[("", h)]).is_err(), "empty name");
+    assert!(fold_semantics_id(&[("sín", h)]).is_err(), "non-ASCII name");
+    assert!(fold_semantics_id(&[("sin", "ab")]).is_err(), "short hash");
+    assert!(
+        fold_semantics_id(&[("sin", &"zz".repeat(32))]).is_err(),
+        "non-hex hash"
+    );
+    // a minimal well-formed table does fold, so the checks above are not
+    // rejecting everything
+    assert!(fold_semantics_id(&[("sin", h)]).is_ok());
+}
+
 /// The SIMD path hashes to the same bytes as the scalar one (parity is
 /// checked lane by lane in `simd_parity.rs`; this pins it against the same
 /// recorded constants so a platform-dependent SIMD op shows up here too).

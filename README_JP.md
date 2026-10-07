@@ -32,6 +32,7 @@ License: MIT OR Apache-2.0
 - [インストール](#インストール)
 - [使用例](#使用例)
 - [機能](#機能)
+- [`SEMANTICS_ID`](#semantics_id)
 - [利用側の方針](#利用側の方針)
 - [精度と保証の範囲](#精度と保証の範囲)
 - [no_std](#no_std)
@@ -90,6 +91,18 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   musl の `sin.c` / `cos.c` に、`|x| ≥ 2^20·π/2` では Payne–Hanek 縮約を組み合わせる
   正しく丸めた値から 1 ulp 以内 (libm ではなく `mpmath` を 2400 bit で用いて求めた
   6234 点と比較) `sin_cos64` は縮約を 1 回で済ませ、個別の 2 回の呼び出しとビット一致する
+- **`tan64`**: 有限の全引数に対する `f64` の正接 同じ縮約の上で fdlibm の
+<!-- claim-test: tan64_within_1_ulp_of_correctly_rounded_reference -->
+  `k_tan.c` を用い、正しく丸めた値から 1 ulp 以内 (`mpmath` を 2400 bit で用いて
+  求めた 6310 点と比較) プラットフォームの libm とは一切比較しない — Payne–Hanek
+  の領域で約 1.0e5 ulp 外れる環境と 2 ulp に収まる環境があり、その差に閾値を
+  置くと走らせた機械で結果が変わるため
+- **`log2` / `log10` / `log2_64` / `log10_64`**: fdlibm の `e_log10.c` の指数分解
+<!-- claim-test: log2_log10_within_1_ulp_of_correctly_rounded -->
+  による 2 を底とする対数と 10 を底とする対数 指数が負のとき仮数を 1 未満に
+  寄せるので `x = 1` の近傍で桁落ちしない 2 の冪は最小の非正規化数まで指数を
+  厳密に返す `log2_64` は 2 ulp 以内、`log10_64` は 1 ulp 以内で、`f32` の入口は
+  `f64` カーネルを 1 回丸めたもの (正しく丸めた値との差は実測 0 ulp)
 - **SIMD** (`simd` feature): `sin` / `cos` / `sin_cos` / `exp` / `ln` / `round` /
   `sqrt` の `wide::f32x8` 版 スカラー版とレーンごとにビット一致する — 同じ定数、
   同じ演算順、`mul_add` なし
@@ -106,6 +119,27 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   CI は macOS ARM / Intel、Linux x86 / ARM、Windows、wasm32 (wasmtime)、
   SSE2 のみの SIMD フォールバック、AVX2 + FMA の強制有効、`no_std` (ソフトウェア
   `sqrt`) でこれを再現する
+- **`SEMANTICS_ID`**: この crate の数値的な挙動を識別する 32 byte の定数 1 つ
+<!-- claim-test: semantics_id_matches_the_recorded_constant -->
+  (下記参照)
+
+## `SEMANTICS_ID`
+
+`SEMANTICS_ID` は **この crate が算術をどう評価するか**を識別する 32 byte の定数
+<!-- claim-test: semantics_id_covers_every_public_numeric_function -->
+ここにあるどの関数かが同じ入力に対して違うビットを返すようになったときに変わり、
+そのときだけ変わる 値は `tests/golden.rs` の関数ごとのビット固定値を、関数名の
+昇順に、名前の長さを 4 byte の big-endian、続いて名前、続いてその 32 byte の
+固定値として連結した SHA-256 プラットフォームの `libm`、時刻、環境は一切入らない
+ので、固定値が再現する全ターゲットで同じ値になる
+
+用途は、式とそのパラメータから識別子を作る利用側 この値を混ぜると識別子が算術まで
+覆うので、式・パラメータ・この値が一致する 2 回の実行は同じビットを計算したことに
+なり、この値が違えば、他が完全に一致していても同じビットではない
+
+2 つの test が乖離を防ぐ 1 つは固定値から再計算して定数とのずれで落ちる もう 1 つは
+`src/lib.rs` から crate の公開数値関数を読み出し、固定値を持たない関数があれば
+落ちる (表の外にある関数は、識別子を動かさずに挙動を変えられてしまうため)
 
 ## 利用側の方針
 
@@ -132,11 +166,12 @@ disallowed-methods = [
 基本演算を守ること SSE2 のない x87 と fast-math ビルドは範囲外) は crate の
 ドキュメント (`cargo doc --open`) を参照
 
-`sin64` / `cos64` の参照値は `tests/data/sin_cos64_reference.txt` にコミット
-してあり、次のコマンドで再生成できる
+`sin64` / `cos64` と `tan64` の参照値は `tests/data/sin_cos64_reference.txt` と
+`tests/data/tan64_reference.txt` にコミットしてあり、次のコマンドで再生成できる
 
 ```sh
 uv run --with mpmath python3 scripts/gen_sin_cos64_reference.py
+uv run --with mpmath python3 scripts/gen_tan64_reference.py
 ```
 
 ## no_std

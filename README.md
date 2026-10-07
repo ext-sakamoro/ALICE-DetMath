@@ -33,6 +33,7 @@ License: MIT OR Apache-2.0
 - [Installation](#installation)
 - [Example](#example)
 - [Features](#features)
+- [`SEMANTICS_ID`](#semantics_id)
 - [Policy for consumers](#policy-for-consumers)
 - [Accuracy and guarantee scope](#accuracy-and-guarantee-scope)
 - [no_std](#no_std)
@@ -92,6 +93,19 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   `|x| ≥ 2^20·π/2`, ≤ 1 ulp of correctly rounded (measured against 6234
   values computed with `mpmath` at 2400 bits, not against a libm);
   `sin_cos64` reduces once and is bit-identical to the two separate calls
+- **`tan64`**: `f64` tangent over every finite argument — fdlibm `k_tan.c` on
+<!-- claim-test: tan64_within_1_ulp_of_correctly_rounded_reference -->
+  the same reduction, ≤ 1 ulp of correctly rounded (measured against 6310
+  values from `mpmath` at 2400 bits). It is not compared with a platform libm
+  at all: one is ~1.0e5 ulp off in the Payne–Hanek range while another is
+  within 2 ulp, so a bound on that difference would depend on the machine
+- **`log2` / `log10` / `log2_64` / `log10_64`**: base-2 and base-10
+<!-- claim-test: log2_log10_within_1_ulp_of_correctly_rounded -->
+  logarithms on the exponent split of fdlibm `e_log10.c`, which keeps the
+  mantissa below 1 for a negative exponent so nothing cancels around `x = 1`.
+  A power of two returns its exponent exactly, down to the last subnormal;
+  `log2_64` is ≤ 2 ulp and `log10_64` ≤ 1 ulp, and the `f32` entry points are
+  the `f64` kernels rounded once (measured max 0 ulp from correctly rounded)
 - **SIMD** (`simd` feature): `wide::f32x8` versions of `sin` / `cos` /
   `sin_cos` / `exp` / `ln` / `round` / `sqrt`, lane-for-lane bit-identical to
   the scalar functions — same constants, same operation order, no `mul_add`
@@ -111,6 +125,31 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   input grid; CI reproduces it on macOS ARM / Intel, Linux x86 / ARM, Windows,
   wasm32 (wasmtime), with the SSE2-only SIMD fallback, with AVX2 + FMA forced
   on, and with `no_std` (software `sqrt`)
+- **`SEMANTICS_ID`**: one 32-byte constant that identifies this crate's
+<!-- claim-test: semantics_id_matches_the_recorded_constant -->
+  numeric behaviour (see below)
+
+## `SEMANTICS_ID`
+
+`SEMANTICS_ID` is a 32-byte constant that identifies *how this crate evaluates
+<!-- claim-test: semantics_id_covers_every_public_numeric_function -->
+arithmetic*. It changes whenever any function here would return different bits
+for the same input, and only then: it is the SHA-256 of the per-function bit
+pins in `tests/golden.rs`, folded in ascending order of function name, each as
+the name's length in four big-endian bytes, then the name, then its 32-byte
+pin. No platform `libm`, no timing and no environment enters it, so it is the
+same value on every target the pins reproduce on.
+
+It is for callers that build an identifier out of a formula and its
+parameters: mixing this in makes the identifier cover the arithmetic as well,
+so two runs that agree on formula, parameters and this value computed the same
+bits — and if the value differs, they did not, however well everything else
+matches.
+
+Two tests keep it honest. One recomputes it from the pins and fails if the
+constant has drifted; the other reads the crate's public numeric functions out
+of `src/lib.rs` and fails if any of them has no pin, since a function outside
+the table could change behaviour without moving the identifier.
 
 ## Policy for consumers
 
@@ -136,11 +175,13 @@ See the crate documentation (`cargo doc --open`) for the per-function error
 table and the exact scope of the bit-exactness guarantee (IEEE 754 basic
 operations on the target; x87 without SSE2 and fast-math builds are outside it).
 
-The reference values for `sin64` / `cos64` are committed in
-`tests/data/sin_cos64_reference.txt` and regenerated with
+The reference values for `sin64` / `cos64` and for `tan64` are committed in
+`tests/data/sin_cos64_reference.txt` and `tests/data/tan64_reference.txt`, and
+regenerated with
 
 ```sh
 uv run --with mpmath python3 scripts/gen_sin_cos64_reference.py
+uv run --with mpmath python3 scripts/gen_tan64_reference.py
 ```
 
 ## no_std
