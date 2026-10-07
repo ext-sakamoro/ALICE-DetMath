@@ -162,6 +162,33 @@ else
   echo "skip: alice-det-math is not on crates.io yet"
 fi
 
+# The run above selects its lints by the bump already declared, so once
+# Cargo.toml is a major (or 0.x minor) ahead of crates.io it decides every lint
+# is unnecessary and compares nothing -- while still printing "no semver update
+# required" and exiting 0. Measured on 0.4.0: "0 checks: 0 pass, 254 skip".
+# Asking for a patch release makes it run the major and minor lints, and the
+# gate is the number of comparisons, not the exit code: exit 100 is the normal
+# outcome of a genuinely breaking release and means "here is the list".
+step "security-audit.yml / semver-checks: as a patch release (the gate is the count)"
+if cargo search alice-det-math --limit 1 2>/dev/null | grep -q '^alice-det-math = '; then
+  (
+    export CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"
+    set -uo pipefail
+    out=$(cargo semver-checks check-release --package alice-det-math \
+          --only-explicit-features --features std,simd \
+          --release-type patch 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+    printf '%s\n' "$out"
+    n=$(printf '%s\n' "$out" | grep -oE '[0-9]+ checks: ' | grep -oE '[0-9]+' | tail -1)
+    if [ -z "$n" ] || [ "$n" -eq 0 ]; then
+      echo "semver-checks compared nothing (${n:-no count found}); the gate is vacuous" >&2
+      exit 1
+    fi
+    echo "semver-checks compared $n lints"
+  )
+else
+  echo "skip: alice-det-math is not on crates.io yet"
+fi
+
 step "fuzz.yml / build every fuzz target (nightly; the replay needs the runner)"
 if has_toolchain nightly && cargo +nightly fuzz --version >/dev/null 2>&1; then
   (cd fuzz && cargo +nightly fuzz build)

@@ -200,3 +200,25 @@ jobs:
         run: >
           cargo semver-checks check-release --package alice-det-math
           --only-explicit-features --features std,simd
+      # The run above selects its lints by the bump already declared, so once
+      # Cargo.toml is a major (or 0.x minor) ahead of crates.io it decides that
+      # every lint is unnecessary and compares nothing -- while still printing
+      # "no semver update required" and exiting 0. Measured on 0.4.0:
+      # "0 checks: 0 pass, 254 skip". Asking for a patch release makes it run
+      # the major and minor lints, and the gate is the number of comparisons,
+      # not the exit code: exit 100 is the normal outcome of a release that is
+      # genuinely breaking and means "here is the list", not "failed".
+      - name: Run cargo semver-checks as a patch release (the gate is the count)
+        if: steps.baseline.outputs.published == 'true'
+        run: |
+          set -uo pipefail
+          out=$(cargo semver-checks check-release --package alice-det-math \
+                --only-explicit-features --features std,simd \
+                --release-type patch 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+          printf '%s\n' "$out"
+          n=$(printf '%s\n' "$out" | grep -oE '[0-9]+ checks: ' | grep -oE '[0-9]+' | tail -1)
+          if [ -z "$n" ] || [ "$n" -eq 0 ]; then
+            echo "::error::semver-checks compared nothing (${n:-no count found}); the gate is vacuous"
+            exit 1
+          fi
+          echo "semver-checks compared $n lints"

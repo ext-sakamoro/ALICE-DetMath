@@ -16,6 +16,23 @@ it into an identifier sees the arithmetic change rather than silently
 inheriting it. No API changed, and no other function's bits changed (the
 `f32` `atan` has its own coefficients and is unaffected).
 
+### Changed
+- `cargo semver-checks` runs twice in CI and in `scripts/preflight.sh`, and
+  the gate is the number of comparisons rather than the exit code. The first
+  run selects its lints by the bump already declared, so with Cargo.toml a
+  major (or 0.x minor) ahead of crates.io it decides every lint is unnecessary
+  and compares nothing — measured on this release: `0 checks: 0 pass,
+  254 skip`, printed as `no semver update required` with exit 0. The second
+  run asks for a patch release, which exercises the major and minor lints
+  (223 of them here), and both files fail if the count is absent or zero.
+  Exit 100 stays an acceptable outcome: it is how a genuinely breaking release
+  reports its list.
+- `SEMANTICS_ID` and `tests/golden.rs` document the order a re-pin has to
+  follow: the per-function hashes first, the identifier second. The fold reads
+  the table as written in the source, so recomputing the identifier before the
+  table is updated reproduces the old value and reads as though it had failed
+  to notice the change.
+
 ### Fixed
 - `atan64`: `AT[2]`, the third coefficient of the fdlibm `s_atan.c`
   polynomial, was mistranscribed as `1.42857142759371231480e-01` where the

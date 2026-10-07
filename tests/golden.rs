@@ -9,7 +9,11 @@
 //! a grid generated with the platform `powf` would itself differ per target.
 //!
 //! `DET_MATH_PRINT_GOLDEN=1 cargo test --test golden -- --nocapture` prints
-//! the hashes for re-pinning after an intentional algorithm change.
+//! the hashes for re-pinning after an intentional algorithm change. Update the
+//! per-function hashes below *before* re-pinning
+//! [`alice_det_math::SEMANTICS_ID`]: that value is folded from this table as
+//! it stands in the source, so a re-pin run before the table is updated prints
+//! the old value and looks as though the identifier missed the change.
 
 #![allow(clippy::cast_precision_loss)]
 

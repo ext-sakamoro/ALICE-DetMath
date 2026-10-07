@@ -128,6 +128,14 @@
 /// `tests/golden.rs` recomputes it from the pins and fails if the two
 /// disagree, and checks that every public numeric function has a pin, so the
 /// constant cannot drift from the behaviour it names.
+///
+/// # Re-recording it, in this order
+///
+/// After an intentional change to any function's output, update the
+/// per-function hashes in `tests/golden.rs` **first**, and only then recompute
+/// this value. The fold reads the table as it is written in the source, so
+/// running the re-pin before the table is updated reproduces the old value and
+/// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
     0xd2, 0x20, 0x9b, 0x30, 0xf6, 0xf1, 0xf4, 0x5b, 0xaa, 0x1b, 0x63, 0x8b, 0xcd, 0xfe, 0xe3, 0x4a,
     0xc6, 0x47, 0x73, 0xb2, 0xe6, 0x3b, 0x9c, 0x08, 0x3b, 0x2e, 0x77, 0xaf, 0xc6, 0x91, 0x39, 0x8e,
