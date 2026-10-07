@@ -217,6 +217,26 @@ const GOLDEN: &[(&str, &str)] = &[
         "sqrt64",
         "45b138399157594f7ce1e36a01940a185ec7f04de57fe041e47ecf99aa40bf00",
     ),
+    (
+        "sin64",
+        "f67cfac4494c1bc738191d44db12d9a02df667dc86c5bf9471dded124824b367",
+    ),
+    (
+        "cos64",
+        "c8b013bf72744ff237e34a15b5cb05c3b33391970917db0074446fd70b349377",
+    ),
+    (
+        "sin64_dense",
+        "ce7f4729ce2f51e9c0fccd9657ffee833d04cfdb4497f72b4ab70da89e0dd525",
+    ),
+    (
+        "cos64_dense",
+        "4de5c741eb8cb0fb9cfea9aeda36ffeebbd0de8b4f1ad3b697f0ed9eb6e60918",
+    ),
+    (
+        "sin_cos64",
+        "37e1a316a90d2f09b318b52950c4ddaa2103b6410a075b1b43ac70101debc1a8",
+    ),
 ];
 
 fn want(name: &str) -> &'static str {
@@ -297,6 +317,23 @@ fn scalar_outputs_match_recorded_hashes() {
     );
     check("round64", &hash64(&g, round64), want("round64"));
     check("sqrt64", &hash64(&g, sqrt64), want("sqrt64"));
+    check("sin64", &hash64(&g, sin64), want("sin64"));
+    check("cos64", &hash64(&g, cos64), want("cos64"));
+    check(
+        "sin_cos64",
+        &hash64(&g, |x| {
+            let (s, c) = sin_cos64(x);
+            f64::from_bits(s.to_bits() ^ c.to_bits().rotate_left(32))
+        }),
+        want("sin_cos64"),
+    );
+    // dense over the first reduction cases (|x| ≤ 9π/4 and a little beyond),
+    // where the coarse grid has only a few hundred points
+    let dense: Vec<f64> = (0..=400_000u32)
+        .map(|i| -10.0 + 20.0 * (f64::from(i) / 400_000.0))
+        .collect();
+    check("sin64_dense", &hash64(&dense, sin64), want("sin64_dense"));
+    check("cos64_dense", &hash64(&dense, cos64), want("cos64_dense"));
 }
 
 /// The SIMD path hashes to the same bytes as the scalar one (parity is

@@ -3,9 +3,13 @@
 //! `s_atan.c` / `e_atan2.c` / `e_asin.c` / `e_acos.c` / `k_sin.c` /
 //! `k_cos.c` / `e_exp.c` / `e_log.c`, used directly as the double-precision
 //! entry points and as the evaluation core of the `f32` inverse-trigonometric
-//! functions.
+//! functions; `sin` / `cos` over the whole range (musl `sin.c` / `cos.c` with
+//! the Payne–Hanek reduction of `__rem_pio2_large.c`) are in the `trig` submodule.
 
 use crate::ops::{round64, sqrt64};
+
+mod trig;
+pub use trig::{cos64, sin64, sin_cos64};
 
 // fdlibm s_atan.c
 // fdlibm's atan(0.5) / atan(1) / atan(1.5) / atan(inf) high parts; the π/4

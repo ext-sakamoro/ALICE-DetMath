@@ -404,3 +404,123 @@ fn huge_arguments_never_leak_a_platform_nan() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// sin64 / cos64 / sin_cos64
+// oracle: correctly rounded values from an independent high-precision
+// evaluation (mpmath at 2400 bits, scripts/gen_sin_cos64_reference.py), not
+// the platform libm — so the bound below carries no libm slack.
+// ---------------------------------------------------------------------------
+
+const SIN_COS64_REFERENCE: &str = include_str!("data/sin_cos64_reference.txt");
+
+/// `(x, sin x, cos x)` rows of the committed reference table.
+fn sin_cos64_reference() -> Vec<(f64, f64, f64)> {
+    let rows: Vec<(f64, f64, f64)> = SIN_COS64_REFERENCE
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| {
+            let mut it = l
+                .split_whitespace()
+                .map(|h| f64::from_bits(u64::from_str_radix(h, 16).expect("hex")));
+            (
+                it.next().expect("x"),
+                it.next().expect("sin"),
+                it.next().expect("cos"),
+            )
+        })
+        .collect();
+    // a truncated or renamed table must not turn the oracle into a no-op
+    assert!(rows.len() > 6000, "reference table has {} rows", rows.len());
+    rows
+}
+
+#[test]
+fn sin_cos64_within_1_ulp_of_correctly_rounded_reference() {
+    let mut worst_s = (0u64, 0.0f64);
+    let mut worst_c = (0u64, 0.0f64);
+    let mut huge = 0;
+    for (x, s, c) in sin_cos64_reference() {
+        let ds = ulp_diff64(sin64(x), s);
+        let dc = ulp_diff64(cos64(x), c);
+        if ds > worst_s.0 {
+            worst_s = (ds, x);
+        }
+        if dc > worst_c.0 {
+            worst_c = (dc, x);
+        }
+        if x.abs() > 1.0e9 {
+            huge += 1;
+        }
+    }
+    // the large-argument (Payne–Hanek) path must actually be exercised
+    assert!(huge > 500, "only {huge} rows above 1e9");
+    println!(
+        "sin64 max {} ulp (at {:e}), cos64 max {} ulp (at {:e})",
+        worst_s.0, worst_s.1, worst_c.0, worst_c.1
+    );
+    assert!(worst_s.0 <= 1, "sin64 {} ulp at {:e}", worst_s.0, worst_s.1);
+    assert!(worst_c.0 <= 1, "cos64 {} ulp at {:e}", worst_c.0, worst_c.1);
+}
+
+#[test]
+fn sin_cos64_special_values() {
+    let canonical = f64::NAN.to_bits();
+    for x in [
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NAN,
+        -f64::NAN,
+        f64::from_bits(0x7ff0_0000_0000_0001), // signalling payload
+        f64::from_bits(0xfff8_dead_beef_0001), // negative quiet payload
+    ] {
+        assert_eq!(sin64(x).to_bits(), canonical, "sin64({:#x})", x.to_bits());
+        assert_eq!(cos64(x).to_bits(), canonical, "cos64({:#x})", x.to_bits());
+        let (s, c) = sin_cos64(x);
+        assert_eq!((s.to_bits(), c.to_bits()), (canonical, canonical));
+    }
+    assert_eq!(sin64(0.0).to_bits(), 0.0f64.to_bits());
+    assert_eq!(sin64(-0.0).to_bits(), (-0.0f64).to_bits());
+    assert_eq!(cos64(0.0).to_bits(), 1.0f64.to_bits());
+    assert_eq!(cos64(-0.0).to_bits(), 1.0f64.to_bits());
+    // subnormals: sin x = x exactly, cos x = 1
+    for b in [1u64, 2, 0x000f_ffff_ffff_ffff, 0x0008_0000_0000_0000] {
+        for x in [f64::from_bits(b), -f64::from_bits(b)] {
+            assert_eq!(sin64(x).to_bits(), x.to_bits());
+            assert_eq!(cos64(x).to_bits(), 1.0f64.to_bits());
+        }
+    }
+}
+
+/// Inputs for the bitwise identities: the reference table, a dense sweep, and
+/// a bit-pattern walk over the whole finite range.
+fn identity_inputs() -> Vec<f64> {
+    let mut v: Vec<f64> = sin_cos64_reference().into_iter().map(|r| r.0).collect();
+    for i in 0..=100_000u32 {
+        v.push(-50.0 + 100.0 * (f64::from(i) / 100_000.0));
+    }
+    for i in 0..=50_000u64 {
+        v.push(f64::from_bits(1 + (0x7fef_ffff_ffff_fffe / 50_000) * i));
+    }
+    v
+}
+
+#[test]
+fn sin64_is_odd_and_cos64_is_even_bitwise() {
+    for x in identity_inputs() {
+        let x = x.abs();
+        assert_eq!(sin64(-x).to_bits(), (-sin64(x)).to_bits(), "sin64(-{x:e})");
+        assert_eq!(cos64(-x).to_bits(), cos64(x).to_bits(), "cos64(-{x:e})");
+    }
+}
+
+#[test]
+fn sin_cos64_is_bit_identical_to_separate_calls() {
+    let mut xs = identity_inputs();
+    xs.extend([0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN]);
+    for x in xs {
+        let (s, c) = sin_cos64(x);
+        assert_eq!(s.to_bits(), sin64(x).to_bits(), "sin({x:e})");
+        assert_eq!(c.to_bits(), cos64(x).to_bits(), "cos({x:e})");
+    }
+}
