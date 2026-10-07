@@ -490,13 +490,14 @@ pub fn log2_64(x: f64) -> f64 {
         return f64::INFINITY;
     }
     let (k, mantissa) = exponent_split64(x);
-    if mantissa == 0 {
-        // x = 2^k: the exponent *is* the answer. Without this the reduction
-        // below returns ln(0.5)/ln2, which is not exactly −1.
-        return f64::from(k);
-    }
     let (y, m) = log_reduce64(k, mantissa);
     let t = ln64(m);
+    // A power of two needs no special case: `m` is then 1 (`ln64` gives 0) or
+    // 1/2, and the split constant is such that
+    // `IVLN2_H_64·ln64(0.5) + IVLN2_L_64·ln64(0.5)` is exactly −1, so `y`
+    // carries the answer unchanged. A guarded fast path here would be a
+    // branch no input can distinguish; the exactness is pinned by the test
+    // over all 2098 powers of two instead.
     y + (IVLN2_H_64 * t + IVLN2_L_64 * t)
 }
 
