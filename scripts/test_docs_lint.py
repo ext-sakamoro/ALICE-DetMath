@@ -329,6 +329,11 @@ class Changelog(unittest.TestCase):
         # "### Added — old style heading" in [1.4.0] is history, not checked
         self.assertEqual(errors(), [])
 
+    def test_released_only_changelog_passes(self):
+        # right after a release: no [Unreleased], Cargo.toml version has its section
+        cl = CHANGELOG.replace("## [Unreleased]\n", "## [1.5.0] - 2026-10-07\n", 1)
+        self.assertEqual(errors({"CHANGELOG.md": cl}), [])
+
     def test_unreleased_without_categories_compares_nothing(self):
         cl = CHANGELOG.split("### Added")[0] + "## [1.4.0] - 2026-09-17\n"
         e = errors({"CHANGELOG.md": cl})
