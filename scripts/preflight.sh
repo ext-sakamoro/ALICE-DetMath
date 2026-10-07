@@ -207,6 +207,6 @@ else
 fi
 
 step "security-audit.yml / audit: cargo audit"
-( export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; cargo audit --deny yanked )
+( export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; cargo audit --db "${CARGO_TARGET_DIR:-target}/advisory-db" --deny yanked )
 
 echo; echo "preflight OK"
