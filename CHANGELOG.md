@@ -5,10 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-07
 
-Additive: no existing function changes its bits (every previously recorded
-golden hash is unchanged).
+**Breaking:** `atan64` and `atan2_64` return different bits than 0.3.x for
+some inputs, because a mistranscribed coefficient was corrected (below).
+Anything that pins their output — a golden hash, a recorded simulation, a
+stored signed-distance field — has to be re-recorded against this version.
+`SEMANTICS_ID` changes with them, which is what it is for: a consumer mixing
+it into an identifier sees the arithmetic change rather than silently
+inheriting it. No API changed, and no other function's bits changed (the
+`f32` `atan` has its own coefficients and is unaffected).
+
+### Fixed
+- `atan64`: `AT[2]`, the third coefficient of the fdlibm `s_atan.c`
+  polynomial, was mistranscribed as `1.42857142759371231480e-01` where the
+  source has `1.42857142725034663711e-01` — a relative error of 2.4e-10 in a
+  term of the polynomial. Just below the `0.4375` branch threshold this left
+  the result **1898 ulp** from correctly rounded, against a documented bound
+  of 1 ulp: at `x = 0.4374999999999999` it returned `4.12410441597281852e-01`
+  where the correctly rounded value is `4.12410441597387212e-01`. The error
+  grows as the fourth power of the argument inside that branch, so it was
+  invisible at small `|x|` and absent from the other four branches, where the
+  coefficient's contribution is negligible. The other ten `AT` coefficients
+  and all eight `ATANHI` / `ATANLO` entries match the source exactly, checked
+  value by value. With the correction every branch is within 1 ulp.
+- The `atan64` accuracy test could not have caught it. It swept
+  `-1e6 + 2e6·(i/200000)`, a step of 10, so all 200001 points had
+  `|x| >= 2.4375`: one of the five branches of the reduction was measured and
+  four were not, while the assertion read `<= 1 ulp` and passed. It now runs
+  over the committed reference and **counts how many inputs reach each
+  branch, failing if any branch is unmeasured**, so narrowing the inputs
+  cannot quietly recreate the blind spot.
 
 ### Added
 - `log2` / `log10` (`f32`) and `log2_64` / `log10_64` (`f64`): deterministic

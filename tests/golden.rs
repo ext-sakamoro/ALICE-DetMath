@@ -191,11 +191,11 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "atan64",
-        "e94f1aafd50641d7cae36f44f055b989ead24adce7eb07585a8c7dda891d373d",
+        "110c479ea68f1a9acd63fef9328f388d5ddf39ac1082274e9a35855dd60784e1",
     ),
     (
         "atan2_64",
-        "132e8b85e30a843d41351568bc7f5c0be60863a5189a78c3923564fe1408b8d8",
+        "f2263508c440333a745930d61fb5b65ab7efa441f7846f7048ca701af46caa26",
     ),
     (
         "asin64",

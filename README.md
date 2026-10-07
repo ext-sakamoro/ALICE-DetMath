@@ -151,6 +151,11 @@ constant has drifted; the other reads the crate's public numeric functions out
 of `src/lib.rs` and fails if any of them has no pin, since a function outside
 the table could change behaviour without moving the identifier.
 
+It moved in 0.4.0, when a corrected `atan64` coefficient changed that
+function's output bits — which is the intended behaviour: a consumer that
+mixes this value into its own identifiers sees the arithmetic change instead
+of silently inheriting it.
+
 ## Policy for consumers
 
 Add the platform `libm` methods to `clippy.toml` `disallowed-methods` and run
@@ -185,6 +190,7 @@ uv run --with mpmath python3 scripts/gen_tan64_reference.py
 uv run --with mpmath python3 scripts/gen_exp64_reference.py
 uv run --with mpmath python3 scripts/gen_log64_reference.py
 uv run --with mpmath python3 scripts/gen_powf64_reference.py
+uv run --with mpmath python3 scripts/gen_atan64_reference.py
 ```
 
 ## no_std

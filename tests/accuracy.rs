@@ -14,8 +14,15 @@
 //! another is within 2 ulp, so such a bound passes or fails according to the
 //! machine that ran it rather than according to this crate. The distance from
 //! the platform libm is still printed, by [`print_libm_gap`], because its size
-//! is worth seeing. `atan64` is the one `f64` function still measured against
-//! the libm.
+//! is worth seeing.
+//!
+//! A reference table is not only a platform-independent bound, it is also what
+//! lets the inputs be chosen deliberately. `atan64` is why: its old sweep
+//! stepped by 10, so every point landed in one of the five branches of the
+//! reduction and a coefficient that left the function 1898 ulp wrong in
+//! another branch passed a `≤ 1 ulp` assertion for as long as it existed.
+//! [`atan64_within_1_ulp_of_correctly_rounded_reference`] now counts how many
+//! inputs reach each branch and fails if any of them is unmeasured.
 //!
 //! These are the *oracle* tests (the value is right); `golden.rs` pins the
 //! bits (the value is the same everywhere).
@@ -144,13 +151,96 @@ fn atan_asin_acos_tan_tanh_within_1_ulp_of_correctly_rounded() {
     assert_eq!(tanh(0.0), 0.0);
     assert_eq!(tanh(50.0), 1.0);
     assert_eq!(tanh(-50.0), -1.0);
-    // double-precision entry points against the platform libm (≤ 1 ulp slack, see crate docs)
-    let mut worst64 = 0;
-    for i in 0..=200_000 {
-        let x = -1e6 + 2e6 * (i as f64 / 200_000.0);
-        worst64 = worst64.max(ulp_diff64(atan64(x), x.atan()));
+}
+
+/// Which branch of the fdlibm `s_atan.c` reduction `x` takes.
+///
+/// The reduction picks one of five cases by magnitude, and each uses the
+/// polynomial on a differently reduced argument, so a coefficient can be
+/// wrong in a way that only one of them reveals. Classifying the inputs is
+/// how [`atan64_within_1_ulp_of_correctly_rounded_reference`] can assert that
+/// none of the five went unmeasured.
+fn atan_branch(x: f64) -> usize {
+    let ax = x.abs();
+    if ax >= 7.378_697_629_483_820_646_6e19 {
+        4 // |x| >= 2^66: the result saturates to ±π/2
+    } else if ax < 0.4375 {
+        0 // the polynomial on x itself
+    } else if ax < 1.1875 {
+        1 // reduced about 0.5 or 1
+    } else if ax < 2.4375 {
+        2 // reduced about 1.5
+    } else {
+        3 // reduced as -1/x
     }
-    assert!(worst64 <= 1, "atan64 worst {worst64} ulp");
+}
+
+const ATAN64_REFERENCE: &str = include_str!("data/atan64_reference.txt");
+
+/// `(x, atan x)` of the committed reference, correctly rounded by an
+/// independent 2400-bit evaluation (`scripts/gen_atan64_reference.py`).
+fn atan64_reference() -> Vec<(f64, f64)> {
+    let rows: Vec<(f64, f64)> = data_rows(ATAN64_REFERENCE)
+        .map(|l| hex_row::<2>(l).into())
+        .collect();
+    assert!(
+        rows.len() > 1500,
+        "atan64 reference has {} rows",
+        rows.len()
+    );
+    rows
+}
+
+/// `atan64` against the committed high-precision reference, over inputs that
+/// reach every branch of the reduction.
+///
+/// Until 0.4.0 this was a sweep of `-1e6 + 2e6·(i/200000)` compared with the
+/// platform libm. That step is 10, so all 200001 points had `|x| >= 2.4375`
+/// and four of the five branches were never measured — which is why a
+/// coefficient that left the function 1898 ulp wrong just below 0.4375 passed
+/// a `<= 1 ulp` assertion. The branch census below is the part that keeps a
+/// future change to these inputs from quietly doing the same thing again.
+#[test]
+fn atan64_within_1_ulp_of_correctly_rounded_reference() {
+    let rows = atan64_reference();
+    let mut worst = (0u64, 0.0f64);
+    let mut seen = [0usize; 5];
+    for &(x, a) in &rows {
+        seen[atan_branch(x)] += 1;
+        let d = ulp_diff64(atan64(x), a);
+        if d > worst.0 {
+            worst = (d, x);
+        }
+    }
+    println!(
+        "atan64 max {} ulp over {} reference rows (at {:e}); branch census {:?}",
+        worst.0,
+        rows.len(),
+        worst.1,
+        seen
+    );
+    // every branch has to be measured, or a coefficient only that branch uses
+    // can be wrong while this test stays green
+    for (b, &n) in seen.iter().enumerate() {
+        assert!(n >= 20, "branch {b} got only {n} of the reference inputs");
+    }
+    assert!(worst.0 <= 1, "atan64 {} ulp at {:e}", worst.0, worst.1);
+
+    // the exact values at the ends of the domain
+    assert_eq!(atan64(0.0).to_bits(), 0.0f64.to_bits());
+    assert_eq!(atan64(-0.0).to_bits(), (-0.0f64).to_bits());
+    assert_eq!(atan64(f64::INFINITY), core::f64::consts::FRAC_PI_2);
+    assert_eq!(atan64(f64::NEG_INFINITY), -core::f64::consts::FRAC_PI_2);
+    // odd, bitwise
+    for &(x, _) in &rows {
+        let ax = x.abs();
+        assert_eq!(
+            atan64(-ax).to_bits(),
+            (-atan64(ax)).to_bits(),
+            "atan64(-{ax:e})"
+        );
+    }
+    print_libm_gap("atan64", rows.iter().map(|&(x, _)| x), atan64, f64::atan);
 }
 
 #[test]

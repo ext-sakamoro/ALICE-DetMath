@@ -141,6 +141,10 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 `src/lib.rs` から crate の公開数値関数を読み出し、固定値を持たない関数があれば
 落ちる (表の外にある関数は、識別子を動かさずに挙動を変えられてしまうため)
 
+0.4.0 で `atan64` の係数を修正して出力ビットが変わったため、この値も変わった
+これは意図した挙動で、この値を自分の識別子に混ぜている利用側は、算術の変更を
+黙って引き継ぐのではなく識別子の変化として受け取る
+
 ## 利用側の方針
 
 プラットフォームの `libm` メソッドを `clippy.toml` の `disallowed-methods` に
@@ -176,6 +180,7 @@ uv run --with mpmath python3 scripts/gen_tan64_reference.py
 uv run --with mpmath python3 scripts/gen_exp64_reference.py
 uv run --with mpmath python3 scripts/gen_log64_reference.py
 uv run --with mpmath python3 scripts/gen_powf64_reference.py
+uv run --with mpmath python3 scripts/gen_atan64_reference.py
 ```
 
 ## no_std

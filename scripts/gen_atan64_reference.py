@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Generate tests/data/atan64_reference.txt: correctly rounded atan.
+
+The reference is independent of every libm: each input is an exact binary
+double, `mpmath` evaluates atan at 2400 bits, and the result is rounded to the
+nearest double (ties to even) by comparing the three candidate doubles around
+it in high precision.
+
+A platform libm is not usable as the reference: whether the measured
+difference stays inside the documented bound would then depend on which libm
+the test was linked with. It also could not have found the defect this table
+exists to pin. Until 0.4.0 `AT[2]` was mistranscribed from fdlibm `s_atan.c`,
+which left `atan64` 1898 ulp from the true value just below the 0.4375 branch
+threshold, and the old sweep never noticed: it stepped by 10 over
+[-1e6, 1e6], so every one of its 200001 points landed in the `|x| >= 2.4375`
+branch, where that coefficient's contribution is negligible. Four of the five
+branches were not measured at all.
+
+Inputs, chosen so that every branch of `s_atan.c` is covered and the ends of
+each one (where the polynomial is worst) are sampled densely: each branch
+threshold (0.4375, 0.6875, 1.1875, 2.4375) and its neighbouring doubles, the
+2^-27 and 2^66 shortcut thresholds, a dense walk up to the top of each branch,
+the neighbourhood of zero down to the smallest subnormal, log-uniform values
+up to f64::MAX, and both signs of everything.
+
+The size is deliberately modest: the `tests/data/` tables ship inside the
+published package, and this one is budgeted to keep their total under 1 MB.
+
+Each line: `<x bits> <atan(x) bits>`, 16 hex digits each.
+
+Usage: `uv run --with mpmath python3 scripts/gen_atan64_reference.py`
+(or any Python with mpmath installed). The output is deterministic.
+"""
+
+from __future__ import annotations
+
+import math
+import os
+import random
+import struct
+
+import mpmath
+
+mpmath.mp.prec = 2400
+
+# src/double.rs::atan64, from fdlibm s_atan.c
+THRESHOLDS = (0.4375, 0.6875, 1.1875, 2.4375)
+TINY = 7.450_580_596_923_828_125e-9  # 2^-27: atan(x) = x below this
+HUGE = 7.378_697_629_483_820_646_6e19  # 2^66: atan(x) = +-pi/2 above this
+
+
+def bits(x: float) -> int:
+    return struct.unpack("<Q", struct.pack("<d", x))[0]
+
+
+def from_bits(b: int) -> float:
+    return struct.unpack("<d", struct.pack("<Q", b))[0]
+
+
+def round_nearest(v: mpmath.mpf) -> float:
+    """The double nearest to v (ties to even), decided in high precision."""
+    c = float(v)
+    best = None
+    for cand in (math.nextafter(c, -math.inf), c, math.nextafter(c, math.inf)):
+        d = abs(mpmath.mpf(cand) - v)
+        key = (d, bits(cand) & 1)  # on an exact tie, the even mantissa wins
+        if best is None or key < best[0]:
+            best = (key, cand)
+    return best[1]
+
+
+def inputs() -> list[float]:
+    rng = random.Random(20261007)
+    xs: list[float] = []
+    # every branch threshold and the doubles around it: the defect this table
+    # pins lived one ulp below 0.4375
+    for t in THRESHOLDS + (TINY, HUGE, 1.0, 1.5, 0.5):
+        for d in range(-4, 5):
+            xs.append(from_bits(bits(t) + d))
+    # a dense walk over each branch, with the upper end sampled harder (the
+    # polynomial is least accurate where the reduced argument is largest)
+    edges = (0.0,) + THRESHOLDS + (8.0, 64.0, 1.0e4)
+    for lo, hi in zip(edges, edges[1:]):
+        for i in range(44):
+            u = i / 43
+            xs.append(lo + (hi - lo) * u)
+            xs.append(hi - (hi - lo) * u * u)  # denser near hi
+    # the neighbourhood of zero, down to the smallest subnormal
+    for e in range(0, 1075, 24):
+        xs.append(math.ldexp(1.0, -e) if e <= 1022 else from_bits(1 << (1074 - e)))
+    xs += [from_bits(1), from_bits(0x000F_FFFF_FFFF_FFFF), TINY / 2, TINY * 2]
+    # above 2^66 the result saturates to +-pi/2; just below it does not
+    for e in (60, 63, 66, 69, 100, 500, 1000, 1023):
+        xs.append(math.ldexp(1.0, e))
+    xs += [1.7976931348623157e308, from_bits(0x7FEF_FFFF_FFFF_FFFF)]
+    # log-uniform over the binades the function actually varies in
+    for _ in range(150):
+        xs.append(math.ldexp(rng.random() + 1.0, rng.randrange(-80, 70)))
+    out, seen = [], set()
+    for x in xs:
+        for y in (x, -x):
+            b = bits(y)
+            if b not in seen and math.isfinite(y):
+                seen.add(b)
+                out.append(y)
+    return sorted(out)
+
+
+def main() -> None:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, "tests", "data", "atan64_reference.txt")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = []
+    for x in inputs():
+        v = round_nearest(mpmath.atan(mpmath.mpf(x)))
+        lines.append(f"{bits(x):016x} {bits(v):016x}")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("# x atan(x): IEEE 754 binary64 bits, correctly rounded (mpmath, 2400 bits)\n")
+        f.write("# generated by scripts/gen_atan64_reference.py\n")
+        f.write("# Not produced by any libm. Covers every branch of the fdlibm reduction;\n")
+        f.write("# the old sweep stepped by 10 and so only ever reached one of them.\n")
+        f.write("\n".join(lines) + "\n")
+    print(f"{len(lines)} inputs -> {path}")
+
+
+if __name__ == "__main__":
+    main()
