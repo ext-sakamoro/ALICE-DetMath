@@ -1,7 +1,21 @@
-//! Accuracy of every function against a correctly rounded reference: the
-//! platform `f64` libm (≤ 1 ulp of 53 bits) rounded once to `f32`. Comparing
-//! against the platform `f32` libm directly would make the bound itself
-//! platform-dependent (MSVC `cbrtf` and macOS `cbrtf` disagree by 1 ulp).
+//! Accuracy of every function against a correctly rounded reference.
+//!
+//! The `f64` entry points are measured against committed tables of correctly
+//! rounded values (`tests/data/*_reference.txt`, produced by the
+//! `scripts/gen_*_reference.py` generators with `mpmath` at 2400 bits, not by
+//! any libm). The `f32` ones are measured against the platform `f64` libm
+//! rounded once to `f32`: the extra 29 bits absorb that libm's own error, and
+//! comparing against the platform `f32` libm directly would make the bound
+//! itself platform-dependent (MSVC `cbrtf` and macOS `cbrtf` disagree by
+//! 1 ulp).
+//!
+//! No `f64` bound is asserted against a platform libm. `tan64` is why: one
+//! platform is ~1.0e5 ulp from the true value in the Payne–Hanek range while
+//! another is within 2 ulp, so such a bound passes or fails according to the
+//! machine that ran it rather than according to this crate. The distance from
+//! the platform libm is still printed, by [`print_libm_gap`], because its size
+//! is worth seeing. `atan64` is the one `f64` function still measured against
+//! the libm.
 //!
 //! These are the *oracle* tests (the value is right); `golden.rs` pins the
 //! bits (the value is the same everywhere).
@@ -165,6 +179,92 @@ fn ln_within_1_ulp_of_correctly_rounded() {
     assert!(ulp_diff32(ln(1.0e-40), r32(f64::ln)(1.0e-40)) <= 1);
 }
 
+/// Hex columns of one line of a reference table, as `f64`.
+fn hex_row<const N: usize>(line: &str) -> [f64; N] {
+    let mut it = line
+        .split_whitespace()
+        .map(|h| f64::from_bits(u64::from_str_radix(h, 16).expect("hex")));
+    let mut out = [0.0; N];
+    for (i, slot) in out.iter_mut().enumerate() {
+        *slot = it.next().unwrap_or_else(|| panic!("column {i} missing"));
+    }
+    assert!(it.next().is_none(), "unexpected extra column");
+    out
+}
+
+fn data_rows(text: &'static str) -> impl Iterator<Item = &'static str> {
+    text.lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+}
+
+const EXP64_REFERENCE: &str = include_str!("data/exp64_reference.txt");
+const LOG64_REFERENCE: &str = include_str!("data/log64_reference.txt");
+const POWF64_REFERENCE: &str = include_str!("data/powf64_reference.txt");
+
+/// `(x, exp x)` of the committed reference, correctly rounded by an
+/// independent 2400-bit evaluation (`scripts/gen_exp64_reference.py`).
+fn exp64_reference() -> Vec<(f64, f64)> {
+    let rows: Vec<(f64, f64)> = data_rows(EXP64_REFERENCE)
+        .map(|l| hex_row::<2>(l).into())
+        .collect();
+    assert!(rows.len() > 2500, "exp64 reference has {} rows", rows.len());
+    rows
+}
+
+/// `(x, ln x, log2 x, log10 x)` of the committed reference
+/// (`scripts/gen_log64_reference.py`); the three logarithms share a domain, so
+/// one set of inputs serves all of them.
+fn log64_reference() -> Vec<(f64, f64, f64, f64)> {
+    let rows: Vec<(f64, f64, f64, f64)> = data_rows(LOG64_REFERENCE)
+        .map(|l| hex_row::<4>(l).into())
+        .collect();
+    assert!(rows.len() > 1500, "log64 reference has {} rows", rows.len());
+    rows
+}
+
+/// `(x, y, x^y)` of the committed reference
+/// (`scripts/gen_powf64_reference.py`).
+fn powf64_reference() -> Vec<(f64, f64, f64)> {
+    let rows: Vec<(f64, f64, f64)> = data_rows(POWF64_REFERENCE)
+        .map(|l| hex_row::<3>(l).into())
+        .collect();
+    assert!(
+        rows.len() > 2000,
+        "powf64 reference has {} rows",
+        rows.len()
+    );
+    rows
+}
+
+/// Report, without asserting, how far the platform `libm` is from this crate
+/// over the same inputs.
+///
+/// The difference is deliberately not a gate: a `libm` that is correctly
+/// rounded on one machine and a ulp off on another would make the bound depend
+/// on the machine that ran the test rather than on this crate. `tan64` showed
+/// the failure mode — one platform was ~1.0e5 ulp from the true value in the
+/// Payne–Hanek range — so every bound here is against the committed
+/// high-precision reference instead, and this number is printed because its
+/// size is worth seeing.
+fn print_libm_gap(
+    name: &str,
+    xs: impl Iterator<Item = f64>,
+    ours: impl Fn(f64) -> f64,
+    libm: impl Fn(f64) -> f64,
+) {
+    let mut worst = (0u64, 0.0f64);
+    for x in xs {
+        let d = ulp_diff64(ours(x), libm(x));
+        if d > worst.0 {
+            worst = (d, x);
+        }
+    }
+    println!(
+        "{name} vs the platform libm: max {} ulp at {:e} (reported, not asserted)",
+        worst.0, worst.1
+    );
+}
+
 /// Every `f32` power of two, including the subnormal ones, built from bit
 /// patterns (a grid made with the platform `powf` would itself vary).
 fn powers_of_two32() -> Vec<(i32, f32)> {
@@ -245,23 +345,34 @@ fn log2_log10_within_1_ulp_of_correctly_rounded() {
 }
 
 #[test]
-fn log2_64_log10_64_within_2_ulp_of_libm() {
+fn log2_64_log10_64_within_2_ulp_of_correctly_rounded_reference() {
+    let rows = log64_reference();
     let mut worst2 = (0u64, 0.0f64);
     let mut worst10 = (0u64, 0.0f64);
-    for i in 0..=400_000u32 {
-        let x = 10f64.powf(-300.0 + 600.0 * (f64::from(i) / 400_000.0));
-        let d2 = ulp_diff64(log2_64(x), x.log2());
-        let d10 = ulp_diff64(log10_64(x), x.log10());
+    let mut near1 = 0;
+    for &(x, _, l2, l10) in &rows {
+        let d2 = ulp_diff64(log2_64(x), l2);
+        let d10 = ulp_diff64(log10_64(x), l10);
         if d2 > worst2.0 {
             worst2 = (d2, x);
         }
         if d10 > worst10.0 {
             worst10 = (d10, x);
         }
+        // the interval around 1, where the exponent and the fraction cancel
+        if (0.5..=1.5).contains(&x) {
+            near1 += 1;
+        }
     }
+    // the reference has to actually cover the cancelling interval
+    assert!(near1 > 300, "only {near1} reference rows in [0.5, 1.5]");
     println!(
-        "log2_64 max {} ulp (at {:e}), log10_64 max {} ulp (at {:e})",
-        worst2.0, worst2.1, worst10.0, worst10.1
+        "log2_64 max {} ulp (at {:e}), log10_64 max {} ulp (at {:e}), over {} reference rows ({near1} near 1)",
+        worst2.0,
+        worst2.1,
+        worst10.0,
+        worst10.1,
+        rows.len()
     );
     assert!(worst2.0 <= 2, "log2_64 {} ulp at {:e}", worst2.0, worst2.1);
     assert!(
@@ -270,13 +381,13 @@ fn log2_64_log10_64_within_2_ulp_of_libm() {
         worst10.0,
         worst10.1
     );
-    // around 1, where the exponent and the fraction would cancel
-    let mut worst_near1 = 0;
-    for i in 0..=400_000u32 {
-        let x = 0.5 + 1.0 * (f64::from(i) / 400_000.0);
-        worst_near1 = worst_near1.max(ulp_diff64(log2_64(x), x.log2()));
-    }
-    assert!(worst_near1 <= 2, "log2_64 near 1 worst ulp {worst_near1}");
+    print_libm_gap("log2_64", rows.iter().map(|&(x, ..)| x), log2_64, f64::log2);
+    print_libm_gap(
+        "log10_64",
+        rows.iter().map(|&(x, ..)| x),
+        log10_64,
+        f64::log10,
+    );
 
     // closed form: exact on every power of two, down to the last subnormal
     let pows = powers_of_two64();
@@ -295,14 +406,18 @@ fn log2_64_log10_64_within_2_ulp_of_libm() {
         assert_eq!(log10_64(x), f64::from(k), "log10_64(10^{k})");
     }
     assert_eq!(log10_64(1.0), 0.0);
-    // log2(x) = log10(x) / log10(2) up to the conversion's own rounding
+    // log2(x) = log10(x) / log10(2) up to the conversion's own rounding, over
+    // the reference's inputs. The grid is the committed table rather than a
+    // `powf`-generated sweep: a grid built with the platform `powf` would
+    // itself differ per target, so the points this identity is measured at
+    // would depend on the machine even though the comparison does not.
     let mut worst_id = 0;
-    for i in 0..=100_000u32 {
-        let x = 10f64.powf(-200.0 + 400.0 * (f64::from(i) / 100_000.0));
+    for &(x, ..) in &rows {
         let d = (log2_64(x) * core::f64::consts::LOG10_2 - log10_64(x)).abs();
         let scale = log10_64(x).abs().max(1.0);
         worst_id = worst_id.max((d / scale * 1.0e18) as u64);
     }
+    println!("log2/log10 identity drift {worst_id}e-18");
     assert!(worst_id < 1_000, "log2/log10 identity drift {worst_id}e-18");
 }
 
@@ -718,38 +833,103 @@ fn powi_matches_repeated_multiplication() {
 }
 
 #[test]
-fn exp64_ln64_within_2_ulp_of_libm() {
-    let mut worst_e = 0;
-    for i in 0..=400_000u32 {
-        let x = -700.0 + 1400.0 * (f64::from(i) / 400_000.0);
-        worst_e = worst_e.max(ulp_diff64(exp64(x), x.exp()));
+fn exp64_ln64_within_2_ulp_of_correctly_rounded_reference() {
+    let rows = exp64_reference();
+    let mut worst = (0u64, 0.0f64);
+    for &(x, e) in &rows {
+        let d = ulp_diff64(exp64(x), e);
+        if d > worst.0 {
+            worst = (d, x);
+        }
     }
-    assert!(worst_e <= 2, "exp64 worst ulp {worst_e}");
-    let mut worst_l = 0;
-    for i in 0..=400_000u32 {
-        let x = 10f64.powf(-300.0 + 600.0 * (f64::from(i) / 400_000.0));
-        worst_l = worst_l.max(ulp_diff64(ln64(x), x.ln()));
+    println!(
+        "exp64 max {} ulp over {} reference rows (at {:e})",
+        worst.0,
+        rows.len(),
+        worst.1
+    );
+    assert!(worst.0 <= 2, "exp64 {} ulp at {:e}", worst.0, worst.1);
+
+    let logs = log64_reference();
+    let mut worst_l = (0u64, 0.0f64);
+    for &(x, ln_x, _, _) in &logs {
+        let d = ulp_diff64(ln64(x), ln_x);
+        if d > worst_l.0 {
+            worst_l = (d, x);
+        }
     }
-    assert!(worst_l <= 2, "ln64 worst ulp {worst_l}");
+    println!(
+        "ln64 max {} ulp over {} reference rows (at {:e})",
+        worst_l.0,
+        logs.len(),
+        worst_l.1
+    );
+    assert!(worst_l.0 <= 2, "ln64 {} ulp at {:e}", worst_l.0, worst_l.1);
+
     assert_eq!(exp64(0.0), 1.0);
     assert_eq!(ln64(1.0), 0.0);
     assert_eq!(exp64(1000.0), f64::INFINITY);
     assert_eq!(exp64(-800.0), 0.0);
     assert_eq!(ln64(0.0), f64::NEG_INFINITY);
-    assert!(ulp_diff64(ln64(1.0e-310), (1.0e-310f64).ln()) <= 2);
+    // the subnormal pre-scale path of ln64, against the reference rather than
+    // against a libm
+    let (sub_x, sub_ln) = logs
+        .iter()
+        .map(|&(x, ln_x, _, _)| (x, ln_x))
+        .find(|&(x, _)| x < f64::MIN_POSITIVE)
+        .expect("the reference covers the subnormal range");
+    assert!(
+        ulp_diff64(ln64(sub_x), sub_ln) <= 2,
+        "ln64({sub_x:e}) = {}",
+        ln64(sub_x)
+    );
+    print_libm_gap("exp64", rows.iter().map(|&(x, _)| x), exp64, f64::exp);
+    print_libm_gap("ln64", logs.iter().map(|&(x, ..)| x), ln64, f64::ln);
 }
 
 #[test]
-fn powf64_within_16_ulp_of_libm() {
-    let mut worst = 0;
-    for i in 0..=400u32 {
-        let x = 10f64.powf(-3.0 + 6.0 * (f64::from(i) / 400.0));
-        for j in 0..=160u32 {
-            let y = -8.0 + 16.0 * (f64::from(j) / 160.0);
-            worst = worst.max(ulp_diff64(powf64(x, y), x.powf(y)));
+fn powf64_within_16_ulp_of_correctly_rounded_reference() {
+    let rows = powf64_reference();
+    let mut worst = (0u64, 0.0f64, 0.0f64);
+    for &(x, y, p) in &rows {
+        let d = ulp_diff64(powf64(x, y), p);
+        if d > worst.0 {
+            worst = (d, x, y);
         }
     }
-    assert!(worst <= 16, "powf64 worst ulp {worst}");
+    println!(
+        "powf64 max {} ulp over {} reference pairs (at x = {:e}, y = {})",
+        worst.0,
+        rows.len(),
+        worst.1,
+        worst.2
+    );
+    assert!(
+        worst.0 <= 16,
+        "powf64 {} ulp at x = {:e}, y = {}",
+        worst.0,
+        worst.1,
+        worst.2
+    );
+    // special cases, by value
+    assert_eq!(powf64(2.0, 0.0), 1.0);
+    assert_eq!(powf64(0.0, 2.0), 0.0);
+    assert_eq!(powf64(0.0, -1.0), f64::INFINITY);
+    assert!(powf64(-2.0, 0.5).is_nan());
+    assert_eq!(powf64(f64::INFINITY, 1.0), f64::INFINITY);
+    assert_eq!(powf64(f64::INFINITY, -1.0), 0.0);
+
+    let mut worst_libm = (0u64, 0.0f64, 0.0f64);
+    for &(x, y, _) in &rows {
+        let d = ulp_diff64(powf64(x, y), x.powf(y));
+        if d > worst_libm.0 {
+            worst_libm = (d, x, y);
+        }
+    }
+    println!(
+        "powf64 vs the platform libm: max {} ulp at x = {:e}, y = {} (reported, not asserted)",
+        worst_libm.0, worst_libm.1, worst_libm.2
+    );
 }
 
 /// Bit-level pins carried over from `alice-physics` 1.2.0 `det_math`: the

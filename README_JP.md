@@ -166,12 +166,16 @@ disallowed-methods = [
 基本演算を守ること SSE2 のない x87 と fast-math ビルドは範囲外) は crate の
 ドキュメント (`cargo doc --open`) を参照
 
-`sin64` / `cos64` と `tan64` の参照値は `tests/data/sin_cos64_reference.txt` と
-`tests/data/tan64_reference.txt` にコミットしてあり、次のコマンドで再生成できる
+閾値を assert している `f64` 関数の参照値はすべて `tests/data/` にコミットしてあり、
+`f64` の閾値はどれもプラットフォームの `libm` に依存しない (`atan64` のみ例外)
+次のコマンドで再生成できる
 
 ```sh
 uv run --with mpmath python3 scripts/gen_sin_cos64_reference.py
 uv run --with mpmath python3 scripts/gen_tan64_reference.py
+uv run --with mpmath python3 scripts/gen_exp64_reference.py
+uv run --with mpmath python3 scripts/gen_log64_reference.py
+uv run --with mpmath python3 scripts/gen_powf64_reference.py
 ```
 
 ## no_std

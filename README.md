@@ -175,13 +175,16 @@ See the crate documentation (`cargo doc --open`) for the per-function error
 table and the exact scope of the bit-exactness guarantee (IEEE 754 basic
 operations on the target; x87 without SSE2 and fast-math builds are outside it).
 
-The reference values for `sin64` / `cos64` and for `tan64` are committed in
-`tests/data/sin_cos64_reference.txt` and `tests/data/tan64_reference.txt`, and
-regenerated with
+The reference values for every `f64` function whose bound is asserted are
+committed under `tests/data/`, so no `f64` bound depends on the platform
+`libm` (`atan64` is the one exception). They are regenerated with
 
 ```sh
 uv run --with mpmath python3 scripts/gen_sin_cos64_reference.py
 uv run --with mpmath python3 scripts/gen_tan64_reference.py
+uv run --with mpmath python3 scripts/gen_exp64_reference.py
+uv run --with mpmath python3 scripts/gen_log64_reference.py
+uv run --with mpmath python3 scripts/gen_powf64_reference.py
 ```
 
 ## no_std

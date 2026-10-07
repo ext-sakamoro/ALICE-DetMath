@@ -62,6 +62,20 @@ golden hash is unchanged).
   folded.
 
 ### Changed
+- No `f64` accuracy bound is asserted against a platform libm any more.
+  `exp64`, `ln64`, `log2_64`, `log10_64` and `powf64` join `tan64` in being
+  measured against committed tables of correctly rounded values
+  (`tests/data/exp64_reference.txt`, `log64_reference.txt`,
+  `powf64_reference.txt`, from the new `scripts/gen_exp64_reference.py`,
+  `gen_log64_reference.py` and `gen_powf64_reference.py`). Measured against
+  the true value the errors are smaller than the libm comparison suggested:
+  `exp64` 1 ulp, `ln64` 1, `log2_64` 1 (the libm comparison said 2, one of
+  which was the libm's own), `log10_64` 1, `powf64` 13. The bounds are
+  unchanged; the distance from the platform libm is printed, not asserted.
+  `atan64` is the one `f64` function still measured against the libm.
+- The `log2`/`log10` identity check takes its inputs from the committed table
+  instead of a `powf`-generated sweep, so the points it measures at no longer
+  depend on the platform either.
 - `tan64`'s accuracy test no longer asserts against the platform libm. The
   libm disagrees with the correctly rounded value by ~1.0e5 ulp at
   `x = 0x6404c96c11134d36` on one platform and by 2 ulp on another, so a
