@@ -104,10 +104,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 /// Identifies the numeric behaviour of this crate: it changes whenever any
-/// function here would return different bits for the same input.
+/// function here would return different bits for the same input, and
+/// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// d2209b30f6f1f45baa1b638bcdfee34ac64773b2e63b9c083b2e77afc691398e
+/// a6fe7dc833d2a35012fc11eaf8e253eca6bfdb76db2931f056132f44bf79d6af
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
@@ -126,8 +127,12 @@
 /// everything else matches.
 ///
 /// `tests/golden.rs` recomputes it from the pins and fails if the two
-/// disagree, and checks that every public numeric function has a pin, so the
-/// constant cannot drift from the behaviour it names.
+/// disagree; it also reads every `pub fn` this crate defines out of its own
+/// sources and fails if one has no pin, so the constant cannot drift from the
+/// behaviour it names. The SIMD kernels are covered by parity with the scalar
+/// functions rather than by pins of their own: they are feature-gated, and an
+/// identifier that changed with the feature set would not identify the
+/// arithmetic.
 ///
 /// # Re-recording it, in this order
 ///
@@ -137,8 +142,8 @@
 /// running the re-pin before the table is updated reproduces the old value and
 /// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
-    0xd2, 0x20, 0x9b, 0x30, 0xf6, 0xf1, 0xf4, 0x5b, 0xaa, 0x1b, 0x63, 0x8b, 0xcd, 0xfe, 0xe3, 0x4a,
-    0xc6, 0x47, 0x73, 0xb2, 0xe6, 0x3b, 0x9c, 0x08, 0x3b, 0x2e, 0x77, 0xaf, 0xc6, 0x91, 0x39, 0x8e,
+    0xa6, 0xfe, 0x7d, 0xc8, 0x33, 0xd2, 0xa3, 0x50, 0x12, 0xfc, 0x11, 0xea, 0xf8, 0xe2, 0x53, 0xec,
+    0xa6, 0xbf, 0xdb, 0x76, 0xdb, 0x29, 0x31, 0xf0, 0x56, 0x13, 0x2f, 0x44, 0xbf, 0x79, 0xd6, 0xaf,
 ];
 
 pub mod double;

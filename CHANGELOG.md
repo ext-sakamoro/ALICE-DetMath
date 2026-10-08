@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-08
+
+**Breaking:** `SEMANTICS_ID` changes, from
+`d2209b30f6f1f45baa1b638bcdfee34ac64773b2e63b9c083b2e77afc691398e` to
+`a6fe7dc833d2a35012fc11eaf8e253eca6bfdb76db2931f056132f44bf79d6af`. No
+function returns different bits than in 0.4.0: the identifier moves because
+the set of functions it covers grew by 11. A consumer that mixes it into its
+own identifiers has to re-record them, and gains coverage of the `metric`
+module in exchange.
+
+### Fixed
+
+- `SEMANTICS_ID` now covers the whole public numeric surface. It covered 37
+  functions out of 48: the check behind it read only the
+  `pub use <module>::{ … }` lists in `src/lib.rs`, so it saw the 34 names
+  re-exported at the crate root, while the `metric` module reaches callers as
+  `pub mod metric` with no re-export. Eleven entry points —
+  `metric::{norm_l1, norm_l2, norm_linf, lerp, clamp}` and
+  `MetricWeights::{new, weights, minimum, axis_extent, euclidean_radius,
+  normalised}` — therefore had no pin, and their output bits could change
+  without the identifier moving. Each one now has a pin in `tests/golden.rs`,
+  and the `metric_weights` pin folds in `MetricWeights::{L1, L2, LINF}` and
+  `Default` as well, so the three named metrics are covered too.
+
+### Changed
+
+- The coverage check reads the `pub fn` / `pub const fn` definitions out of
+  every source file the crate compiles, rather than the re-export lists, and
+  asserts the surface size (48) and the pin count (51) exactly, so a parser
+  that stopped seeing the surface fails instead of comparing nothing. A new
+  test asserts that every module the crate declares is one the parser reads,
+  which is what let the `metric` module stay outside until now. Measured
+  against six mutations, all red: a reordered sum in `norm_l1`, a reciprocal
+  multiply in `axis_extent`, the other spelling of `lerp`, an unpinned new
+  `pub fn`, an unparsed new module, and a deleted SIMD parity test.
+- The SIMD kernels are stated as covered by parity rather than by pins, and a
+  test enforces it: all 21 `pub fn` in `src/simd.rs` are exercised by
+  `tests/simd_parity.rs`. Folding them into `SEMANTICS_ID` would make the
+  identifier depend on the feature set, which would defeat its purpose.
+- The golden pin `metric_norm_mix` is renamed `metric_norm`, so that the pin
+  for a method is `<module>_<method>` throughout. Its hash is unchanged.
+- The documented contract is corrected: the identifier changes when any
+  function's bits change *or* when the set of functions it covers grows. The
+  old wording ("and only then") did not admit the second case, which this
+  release is.
+
 ## [0.4.0] - 2026-10-07
 
 **Breaking:** `atan64` and `atan2_64` return different bits than 0.3.x for
@@ -294,7 +340,12 @@ Extracted from `alice-physics` 1.2.0 `det_math` (bit-for-bit: the pins in
   were finite before are bit-identical, `cbrt(f32::MAX)` is now correct.
 - `asin64` / `acos64` are public (they were private kernels).
 
-[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.3.2...v0.4.0
+[0.3.2]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ext-sakamoro/ALICE-DetMath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ext-sakamoro/ALICE-DetMath/releases/tag/v0.1.0

@@ -95,6 +95,15 @@ fn hash64(xs: &[f64], f: impl Fn(f64) -> f64) -> String {
     format!("{:x}", h.finalize())
 }
 
+/// A metric's three weights folded into one `f32`, so that one pin can fix
+/// all three. The multipliers are powers of two and the sum runs left to
+/// right, so every operation is IEEE-basic and the fold itself cannot differ
+/// between targets.
+fn fold_weights(w: alice_det_math::metric::MetricWeights) -> f32 {
+    let (l1, l2, linf) = w.weights();
+    l1 + 2.0 * l2 + 4.0 * linf
+}
+
 fn check(name: &str, got: &str, want: &str) {
     if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
         // re-pin mode: print every hash instead of stopping at the first mismatch
@@ -110,12 +119,56 @@ const GOLDEN: &[(&str, &str)] = &[
         "d43e5a4972e13773caf1da15db30501850e505f361fd7526c908c35ff8e7cc7b",
     ),
     (
-        "metric_norm_mix",
+        "metric_norm",
         "00f35aac72ff55e1069259196427d703926b47f7b4349fb4cc7f3f7b8effdc60",
     ),
     (
         "metric_lipschitz",
         "566d51df6ba7ba7358f51c25b8c19b8ad85879caca497bd6f6f22ad8d332076e",
+    ),
+    (
+        "norm_l1",
+        "d42b5308210f6ccd35b2b30c7d147f4e500e702babfc88f9940911687c652cc3",
+    ),
+    (
+        "norm_l2",
+        "69e09bc27dee17bbdc9eeeb4ab0f984f6539e4c487463c725b34b9f48426dbf9",
+    ),
+    (
+        "norm_linf",
+        "803bba978f40181193b704539f30a458d85e487116ccab92ae2a1083de7934f9",
+    ),
+    (
+        "lerp",
+        "fe010775a3074825cbf8e3b28cf598d7e7d3a598e7c3da185f7f9525c7b6e6a6",
+    ),
+    (
+        "clamp",
+        "64f40a7cb1c1b64a8b1c9d8c662d7a2a58c8f8d8afda24e9808d5520c2bca267",
+    ),
+    (
+        "metric_new",
+        "604816265b1dd7bae1a41e479345ee0a4280b59eb46d229c21393a7121aa1849",
+    ),
+    (
+        "metric_weights",
+        "087ef0b899081bebeff373bffaee6df5c675b7851b2c78da12c3a8192fd7a927",
+    ),
+    (
+        "metric_minimum",
+        "7c8f001eef1728c8b70b22396b3c7f7c4deeeb8bce252226ea0fc7d0ecf16927",
+    ),
+    (
+        "metric_axis_extent",
+        "71be828d7ad082fc09e0a4d50c0f1111fab3af528cfa31d93b0af81f759e5632",
+    ),
+    (
+        "metric_euclidean_radius",
+        "ab01bbc9917308157470c5cf5d8fdc7f1025cbc339d619682a17ed5646b1341c",
+    ),
+    (
+        "metric_normalised",
+        "75ac63304282eaf0596bc81a30d77eb0324e412332b13b578bc04c5a7f28556e",
     ),
     (
         "sin",
@@ -317,9 +370,9 @@ fn scalar_outputs_match_recorded_hashes() {
     // a mixed metric exercises all three bases and the left-to-right sum
     let mixed = metric::MetricWeights::new(0.3, 0.5, 0.2).unwrap();
     check(
-        "metric_norm_mix",
+        "metric_norm",
         &hash32x3(&g, |x, y, z| mixed.norm([x, y, z])),
-        want("metric_norm_mix"),
+        want("metric_norm"),
     );
     check(
         "metric_lipschitz",
@@ -328,6 +381,85 @@ fn scalar_outputs_match_recorded_hashes() {
                 .map_or(f32::NAN, metric::MetricWeights::lipschitz)
         }),
         want("metric_lipschitz"),
+    );
+    check(
+        "norm_l1",
+        &hash32x3(&g, |x, y, z| metric::norm_l1([x, y, z])),
+        want("norm_l1"),
+    );
+    check(
+        "norm_l2",
+        &hash32x3(&g, |x, y, z| metric::norm_l2([x, y, z])),
+        want("norm_l2"),
+    );
+    check(
+        "norm_linf",
+        &hash32x3(&g, |x, y, z| metric::norm_linf([x, y, z])),
+        want("norm_linf"),
+    );
+    check("lerp", &hash32x3(&g, metric::lerp), want("lerp"));
+    check("clamp", &hash32x3(&g, metric::clamp), want("clamp"));
+    // the acceptance rule itself is part of the semantics: which triples are
+    // a metric decides which fields exist, so each rejection is folded in
+    // under its own value rather than collapsing to one "rejected"
+    check(
+        "metric_new",
+        &hash32x3(&g, |a, b, c| match metric::MetricWeights::new(a, b, c) {
+            Ok(w) => fold_weights(w),
+            Err(metric::MetricError::NotFinite) => -1.0,
+            Err(metric::MetricError::NotConvex) => -2.0,
+            Err(metric::MetricError::Degenerate) => -3.0,
+            Err(_) => -4.0,
+        }),
+        want("metric_new"),
+    );
+    // `weights` returns what the named metrics and `Default` store, so this
+    // pin is also what makes `L1` / `L2` / `LINF` / `default()` — public
+    // values this parser does not see, being consts and a trait impl — part
+    // of the identifier
+    check(
+        "metric_weights",
+        &hash32x3(&g, |a, b, c| {
+            let named = fold_weights(metric::MetricWeights::L1)
+                + 8.0 * fold_weights(metric::MetricWeights::L2)
+                + 64.0 * fold_weights(metric::MetricWeights::LINF)
+                + 512.0 * fold_weights(metric::MetricWeights::default());
+            let built = metric::MetricWeights::new(a.abs(), b.abs(), c.abs()).unwrap_or_default();
+            named + 4096.0 * fold_weights(built)
+        }),
+        want("metric_weights"),
+    );
+    check(
+        "metric_minimum",
+        &hash32x3(&g, |a, b, c| {
+            metric::MetricWeights::new(a.abs(), b.abs(), c.abs())
+                .map_or(f32::NAN, metric::MetricWeights::minimum)
+        }),
+        want("metric_minimum"),
+    );
+    check(
+        "metric_axis_extent",
+        &hash32x3(&g, |a, b, c| {
+            metric::MetricWeights::new(a.abs(), b.abs(), c.abs())
+                .map_or(f32::NAN, |w| w.axis_extent(a))
+        }),
+        want("metric_axis_extent"),
+    );
+    check(
+        "metric_euclidean_radius",
+        &hash32x3(&g, |a, b, c| {
+            metric::MetricWeights::new(a.abs(), b.abs(), c.abs())
+                .map_or(f32::NAN, |w| w.euclidean_radius(b))
+        }),
+        want("metric_euclidean_radius"),
+    );
+    check(
+        "metric_normalised",
+        &hash32x3(&g, |a, b, c| {
+            metric::MetricWeights::new(a.abs(), b.abs(), c.abs())
+                .map_or(f32::NAN, |w| fold_weights(w.normalised()))
+        }),
+        want("metric_normalised"),
     );
     let g = grid64();
     check("atan64", &hash64(&g, atan64), want("atan64"));
@@ -429,59 +561,203 @@ fn fold_semantics_id(entries: &[(&str, &str)]) -> Result<[u8; 32], String> {
     Ok(h.finalize().into())
 }
 
-/// The crate's public numeric functions, read out of `src/lib.rs`: the names
-/// it re-exports at the crate root (`pub use <module>::{ … }`), keeping the
-/// `snake_case` entries (functions) and dropping the `SCREAMING_SNAKE_CASE`
-/// ones (the kernel constants the `consts` module re-exports). That list *is* the
-/// crate's public numeric surface — every transcendental has its entry point
-/// there — so counting it is how this test knows whether the golden table
-/// has fallen behind the code.
-fn public_numeric_functions() -> Vec<String> {
-    const LIB: &str = include_str!("../src/lib.rs");
-    // a `pub fn` written directly in lib.rs would not be in a `pub use` list
-    assert!(
-        !LIB.contains("pub fn "),
-        "lib.rs declares a function directly; extend this parser to see it"
-    );
-    let mut out = Vec::new();
-    let mut blocks = 0usize;
-    let mut rest = LIB;
-    while let Some(i) = rest.find("pub use ") {
-        rest = &rest[i + "pub use ".len()..];
-        let open = rest.find('{').expect("`pub use` with no brace list");
-        assert!(
-            !rest[..open].contains(';'),
-            "`pub use` without a brace list: {:?}",
-            &rest[..open]
-        );
-        let close = rest.find("};").expect("unterminated `pub use` list");
-        blocks += 1;
-        for raw in rest[open + 1..close].split(',') {
-            let name = raw.trim();
-            if !name.is_empty() && !name.chars().any(|c| c.is_ascii_uppercase()) {
-                out.push(name.to_owned());
-            }
+// ---------------------------------------------------------------------------
+// The public numeric surface, read out of the sources
+// ---------------------------------------------------------------------------
+
+/// Every source file the crate compiles, with the module path it provides
+/// (`""` for the crate root).
+///
+/// Reading the *definitions* is what keeps the coverage check honest. An
+/// earlier version read only the `pub use <module>::{ … }` lists in
+/// `src/lib.rs`, so it saw the 34 re-exported transcendentals and nothing
+/// else: the whole `metric` module reaches callers as `pub mod metric` with
+/// no re-export, and 11 of its entry points had no pin at all — their bits
+/// could change without moving [`alice_det_math::SEMANTICS_ID`].
+/// [`every_module_declaration_is_parsed`] keeps this table complete, so a new
+/// module file cannot repeat that.
+const SOURCES: &[(&str, &str)] = &[
+    ("", include_str!("../src/lib.rs")),
+    ("double", include_str!("../src/double.rs")),
+    ("double::trig", include_str!("../src/double/trig.rs")),
+    ("metric", include_str!("../src/metric.rs")),
+    ("ops", include_str!("../src/ops.rs")),
+    ("simd", include_str!("../src/simd.rs")),
+    ("single", include_str!("../src/single.rs")),
+];
+
+/// One public function of the crate.
+struct Surface {
+    /// The module path it is defined in, as spelled in [`SOURCES`].
+    module: &'static str,
+    /// The type it is a method of, or `None` for a free function.
+    ty: Option<String>,
+    /// The function's own name.
+    name: String,
+}
+
+impl Surface {
+    /// How this function is written in Rust, for failure messages.
+    fn id(&self) -> String {
+        match (&self.ty, self.module) {
+            (Some(t), "") => format!("{t}::{}", self.name),
+            (Some(t), m) => format!("{m}::{t}::{}", self.name),
+            (None, "") => self.name.clone(),
+            (None, m) => format!("{m}::{}", self.name),
         }
-        rest = &rest[close..];
     }
-    assert!(
-        blocks >= 3,
-        "only {blocks} `pub use` lists parsed in lib.rs"
-    );
+
+    /// The pin in [`GOLDEN`] that fixes its output bits: a free function is
+    /// pinned under its own name (`sin`, `lerp`), a method under
+    /// `<module>_<method>` (`metric_norm`), since method names alone
+    /// (`new`, `norm`) would not say what they belong to.
+    fn pin(&self) -> String {
+        if self.ty.is_none() {
+            self.name.clone()
+        } else {
+            let last = self.module.rsplit("::").next().unwrap_or(self.module);
+            format!("{last}_{}", self.name)
+        }
+    }
+}
+
+/// Whether `hay` names `needle` as a whole path: the character after the
+/// match must not continue the identifier, so looking for `simd::sin` is not
+/// satisfied by `simd::sin_cos`.
+fn mentions(hay: &str, needle: &str) -> bool {
+    hay.match_indices(needle).any(|(i, _)| {
+        hay[i + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_ascii_alphanumeric() && c != '_')
+    })
+}
+
+/// The type an indented `pub fn` belongs to: the subject of the last `impl …`
+/// line at column zero before it. `impl Trait for Type` names `Type`.
+fn enclosing_type(src: &str, upto: usize) -> Option<&str> {
+    src[..upto]
+        .lines()
+        .rfind(|l| l.starts_with("impl "))
+        .map(|l| {
+            let head = l.trim_end().trim_end_matches('{').trim_end();
+            let subject = head.rsplit(" for ").next().unwrap_or(head);
+            let subject = subject.rsplit(' ').next().unwrap_or(subject);
+            subject.split('<').next().unwrap_or(subject)
+        })
+}
+
+/// Every `pub fn` / `pub const fn` the crate defines, parsed out of
+/// [`SOURCES`] and sorted.
+///
+/// Free functions sit at column zero; a method is indented inside an `impl`
+/// block. An indented `pub fn` with no `impl` above it is something this
+/// parser does not understand, so it panics instead of dropping the function
+/// silently — a dropped function is a function with no pin.
+fn public_numeric_surface() -> Vec<Surface> {
+    let mut out = Vec::new();
+    for (module, src) in SOURCES {
+        let mut at = 0usize;
+        for line in src.lines() {
+            let start = at;
+            at += line.len() + 1;
+            let body = line.trim_start();
+            let Some(rest) = body
+                .strip_prefix("pub fn ")
+                .or_else(|| body.strip_prefix("pub const fn "))
+            else {
+                continue;
+            };
+            let name = rest
+                .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                .next()
+                .unwrap_or_default();
+            assert!(!name.is_empty(), "`pub fn` with no name in `{module}`");
+            let ty = if line.len() == body.len() {
+                None
+            } else {
+                Some(
+                    enclosing_type(src, start)
+                        .unwrap_or_else(|| {
+                            panic!("indented `pub fn {name}` in `{module}` has no `impl` above it")
+                        })
+                        .to_owned(),
+                )
+            };
+            assert!(
+                !module.is_empty(),
+                "the crate root defines `{name}`; extend this parser to see it"
+            );
+            out.push(Surface {
+                module,
+                ty,
+                name: name.to_owned(),
+            });
+        }
+    }
+    out.sort_unstable_by_key(Surface::id);
     out
 }
 
-/// Pins in [`GOLDEN`] that are not themselves a re-exported function: the
-/// `metric` module's entry points, and the second, denser input grid used for
-/// the functions whose first reduction cases the coarse grid barely samples.
-const EXTRA_PINS: &[&str] = &[
-    "smoothstep",
-    "metric_norm_mix",
-    "metric_lipschitz",
-    "sin64_dense",
-    "cos64_dense",
-    "tan64_dense",
-];
+/// Pins in [`GOLDEN`] that do not name a public function: the second, denser
+/// input grid used for the functions whose first reduction cases the coarse
+/// grid barely samples.
+const EXTRA_PINS: &[&str] = &["sin64_dense", "cos64_dense", "tan64_dense"];
+
+/// Every module the crate declares is in [`SOURCES`], and every entry in
+/// [`SOURCES`] is declared somewhere.
+///
+/// Without this, a new module file would carry functions
+/// [`public_numeric_surface`] never reads, and the coverage check below would
+/// pass while saying nothing about them.
+#[test]
+fn every_module_declaration_is_parsed() {
+    let known: Vec<&str> = SOURCES.iter().map(|(m, _)| *m).collect();
+    let mut declared: Vec<String> = Vec::new();
+    for (module, src) in SOURCES {
+        for line in src.lines() {
+            let body = line.trim_start();
+            let Some(rest) = body
+                .strip_prefix("mod ")
+                .or_else(|| body.strip_prefix("pub mod "))
+            else {
+                continue;
+            };
+            // `mod name { … }` is written in place, so it is already parsed
+            let Some(name) = rest.trim_end().strip_suffix(';') else {
+                continue;
+            };
+            if name == "tests" {
+                continue;
+            }
+            declared.push(if module.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{module}::{name}")
+            });
+        }
+    }
+    // comparing nothing would pass: there are at least the five modules
+    // `lib.rs` declares plus `double::trig`
+    assert!(
+        declared.len() >= 6,
+        "only {} module declarations parsed: {declared:?}",
+        declared.len()
+    );
+    for d in &declared {
+        assert!(
+            known.contains(&d.as_str()),
+            "module `{d}` is declared but missing from SOURCES, so its \
+             functions are never read and could have no pin"
+        );
+    }
+    for m in known.iter().filter(|m| !m.is_empty()) {
+        assert!(
+            declared.iter().any(|d| d == m),
+            "SOURCES lists `{m}` but no `mod` declaration names it"
+        );
+    }
+}
 
 /// Every public numeric function has a pin in [`GOLDEN`], and every pin in
 /// [`GOLDEN`] corresponds to something.
@@ -493,34 +769,94 @@ const EXTRA_PINS: &[&str] = &[
 /// a parser that stopped seeing the public surface fails here.
 #[test]
 fn semantics_id_covers_every_public_numeric_function() {
-    let functions = public_numeric_functions();
-    // 34 = 13 from `double` + 4 from `ops` + 17 from `single`; adding one
-    // means adding its golden pin and raising this number in the same commit
+    let (simd, scalar): (Vec<Surface>, Vec<Surface>) = public_numeric_surface()
+        .into_iter()
+        .partition(|s| s.module.starts_with("simd"));
+    // 48 = 13 `double` (9 of its own + 4 from its private `trig`)
+    //    + 4 `ops` + 17 `single`
+    //    + 14 `metric` (6 free functions + 8 methods on `MetricWeights`).
+    // Adding one means adding its golden pin and raising this number in the
+    // same commit.
     assert_eq!(
-        functions.len(),
-        34,
-        "public numeric functions: {functions:?}"
+        scalar.len(),
+        48,
+        "public numeric surface: {:?}",
+        ids(&scalar)
     );
-    for sentinel in ["sin", "ln64", "sqrt", "tan64", "log2", "log10_64"] {
+    // `simd` is deliberately not folded into SEMANTICS_ID: it is
+    // feature-gated, and an identifier that changed with the feature set
+    // would not identify the crate's arithmetic. Its functions add no
+    // semantics of their own — each must return the bits its scalar
+    // counterpart returns, which `every_simd_function_has_a_parity_test`
+    // keeps true.
+    assert_eq!(simd.len(), 21, "SIMD surface: {:?}", ids(&simd));
+    for sentinel in [
+        "single::sin",
+        "double::ln64",
+        "ops::sqrt",
+        "double::trig::tan64",
+        "metric::norm_l1",
+        "metric::lerp",
+        "metric::MetricWeights::axis_extent",
+    ] {
         assert!(
-            functions.iter().any(|f| f == sentinel),
-            "the parse lost `{sentinel}`: {functions:?}"
+            scalar.iter().any(|s| s.id() == sentinel),
+            "the parse lost `{sentinel}`: {:?}",
+            ids(&scalar)
         );
     }
     let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
-    assert_eq!(pinned.len(), 40, "golden pins: {pinned:?}");
-    for f in &functions {
+    assert_eq!(pinned.len(), 51, "golden pins: {pinned:?}");
+    let wanted: Vec<String> = scalar.iter().map(Surface::pin).collect();
+    for s in &scalar {
         assert!(
-            pinned.contains(&f.as_str()),
-            "`{f}` is public but has no entry in GOLDEN, so a change to it \
-             would not move SEMANTICS_ID"
+            pinned.contains(&s.pin().as_str()),
+            "`{}` is public but has no entry in GOLDEN under `{}`, so a \
+             change to it would not move SEMANTICS_ID",
+            s.id(),
+            s.pin()
         );
     }
     for p in &pinned {
         assert!(
-            functions.iter().any(|f| f == p) || EXTRA_PINS.contains(p),
+            wanted.iter().any(|w| w == p) || EXTRA_PINS.contains(p),
             "golden pin `{p}` names neither a public function nor a known \
              extra pin (a typo here silently pins nothing)"
+        );
+    }
+}
+
+/// The ids of a surface, for failure messages.
+fn ids(surface: &[Surface]) -> Vec<String> {
+    surface.iter().map(Surface::id).collect()
+}
+
+/// Every `pub fn` in the SIMD module is exercised by `simd_parity.rs`.
+///
+/// The SIMD paths carry no pin of their own (see
+/// [`semantics_id_covers_every_public_numeric_function`]); what covers them
+/// is parity with the scalar functions, lane for lane. That argument holds
+/// only while every SIMD function actually has a parity test, so a new kernel
+/// added without one fails here rather than shipping with nothing pinning its
+/// bits.
+#[test]
+fn every_simd_function_has_a_parity_test() {
+    const PARITY: &str = include_str!("simd_parity.rs");
+    let simd: Vec<Surface> = public_numeric_surface()
+        .into_iter()
+        .filter(|s| s.module.starts_with("simd"))
+        .collect();
+    assert_eq!(simd.len(), 21, "SIMD surface: {:?}", ids(&simd));
+    for s in &simd {
+        let needle = s.ty.as_ref().map_or_else(
+            || format!("simd::{}", s.name),
+            |t| format!("{t}::{}", s.name),
+        );
+        assert!(
+            mentions(PARITY, &needle),
+            "`{}` has no parity test in simd_parity.rs (looked for `{needle}`), \
+             so nothing pins its bits",
+            s.id()
         );
     }
 }

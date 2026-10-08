@@ -134,11 +134,12 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 `SEMANTICS_ID` is a 32-byte constant that identifies *how this crate evaluates
 <!-- claim-test: semantics_id_covers_every_public_numeric_function -->
 arithmetic*. It changes whenever any function here would return different bits
-for the same input, and only then: it is the SHA-256 of the per-function bit
-pins in `tests/golden.rs`, folded in ascending order of function name, each as
-the name's length in four big-endian bytes, then the name, then its 32-byte
-pin. No platform `libm`, no timing and no environment enters it, so it is the
-same value on every target the pins reproduce on.
+for the same input, and otherwise only when the set of functions it covers
+grows: it is the SHA-256 of the per-function bit pins in `tests/golden.rs`,
+folded in ascending order of function name, each as the name's length in four
+big-endian bytes, then the name, then its 32-byte pin. No platform `libm`, no
+timing and no environment enters it, so it is the same value on every target
+the pins reproduce on.
 
 It is for callers that build an identifier out of a formula and its
 parameters: mixing this in makes the identifier cover the arithmetic as well,
@@ -146,15 +147,23 @@ so two runs that agree on formula, parameters and this value computed the same
 bits — and if the value differs, they did not, however well everything else
 matches.
 
-Two tests keep it honest. One recomputes it from the pins and fails if the
-constant has drifted; the other reads the crate's public numeric functions out
-of `src/lib.rs` and fails if any of them has no pin, since a function outside
-the table could change behaviour without moving the identifier.
+Three tests keep it honest. One recomputes it from the pins and fails if the
+constant has drifted. The second reads every `pub fn` the crate defines out of
+its sources — not only the names re-exported at the crate root — and fails if
+any of them has no pin, since a function outside the table could change
+behaviour without moving the identifier; it also fails if a module file is
+added that the parser does not read. The third covers the SIMD kernels, which
+carry no pin of their own because they are feature-gated and an identifier
+that changed with the feature set would identify nothing: each one must return
+the bits its scalar counterpart returns, lane for lane, so the test fails if
+any SIMD function has no parity test.
 
 It moved in 0.4.0, when a corrected `atan64` coefficient changed that
 function's output bits — which is the intended behaviour: a consumer that
 mixes this value into its own identifiers sees the arithmetic change instead
-of silently inheriting it.
+of silently inheriting it. It moved again in 0.5.0 for the other reason: no
+function changed, but the 11 `metric` entry points that had been outside the
+table joined it.
 
 ## Policy for consumers
 
