@@ -635,6 +635,56 @@ fn mentions(hay: &str, needle: &str) -> bool {
 
 /// The type an indented `pub fn` belongs to: the subject of the last `impl …`
 /// line at column zero before it. `impl Trait for Type` names `Type`.
+/// The parser must read a source the same way whichever line ending it has.
+///
+/// Windows checkouts hold `\r\n`, so a parser that walks byte offsets while
+/// taking its lines from `str::lines` (which drops the `\r`) falls one byte
+/// behind per line. The shape that breaks is a file whose only `impl` sits far
+/// down with its method just below it: by then the accumulated shortfall is
+/// larger than the distance from the `impl` to the method, the window handed to
+/// [`enclosing_type`] ends above the `impl`, and the method looks like a free
+/// function defined at an impossible indent — a panic on Windows alone, with
+/// every other target green. `src/simd.rs` has exactly that shape.
+///
+/// The fixture reproduces it without depending on the real sources staying that
+/// way, and the assertion is equality between the two line endings rather than
+/// a fixed expected list, so it keeps its teeth as the parser grows.
+#[test]
+fn the_parser_does_not_depend_on_the_line_ending() {
+    use std::fmt::Write as _;
+
+    let mut src = String::new();
+    for i in 0..400 {
+        writeln!(src, "// filler {i}").expect("writing to a String cannot fail");
+    }
+    src.push_str("impl Widget {\n");
+    src.push_str("    /// doc\n");
+    src.push_str("    #[inline]\n");
+    src.push_str("    pub fn method(x: f64) -> f64 {\n        x\n    }\n");
+    src.push_str("}\n");
+    src.push_str("pub fn free(x: f64) -> f64 {\n    x\n}\n");
+
+    let crlf = src.replace('\n', "\r\n");
+    assert!(crlf.len() > src.len(), "the CRLF fixture must differ");
+
+    let lf_out = parsed_fns("fixture", &src);
+    let crlf_out = parsed_fns("fixture", &crlf);
+
+    // the fixture has to actually exercise both arms, or the test proves nothing
+    assert_eq!(
+        lf_out,
+        vec![
+            (Some("Widget".to_owned()), "method".to_owned()),
+            (None, "free".to_owned()),
+        ],
+        "the LF fixture no longer parses as one method and one free function"
+    );
+    assert_eq!(
+        crlf_out, lf_out,
+        "the parser reads CRLF input differently from LF input"
+    );
+}
+
 fn enclosing_type(src: &str, upto: usize) -> Option<&str> {
     src[..upto]
         .lines()
@@ -657,10 +707,33 @@ fn enclosing_type(src: &str, upto: usize) -> Option<&str> {
 fn public_numeric_surface() -> Vec<Surface> {
     let mut out = Vec::new();
     for (module, src) in SOURCES {
+        for (ty, name) in parsed_fns(module, src) {
+            out.push(Surface { module, ty, name });
+        }
+    }
+    out.sort_unstable_by_key(Surface::id);
+    out
+}
+
+/// One source's `(enclosing type, function name)` pairs, in source order.
+///
+/// Split out of [`public_numeric_surface`] so that the parser can be fed text
+/// directly: [`the_parser_does_not_depend_on_the_line_ending`] runs the same
+/// source through it with both line endings and requires the same answer.
+///
+/// The byte offsets this walks are the reason that test exists. `str::lines`
+/// drops a trailing `\r`, so advancing by `line.len()` plus one byte is short
+/// by one byte per line on CRLF input, and the window handed to
+/// [`enclosing_type`] slides away from the `impl` it is supposed to find.
+/// Taking the terminator with the line keeps the arithmetic true for both.
+fn parsed_fns(module: &str, src: &str) -> Vec<(Option<String>, String)> {
+    let mut out = Vec::new();
+    {
         let mut at = 0usize;
-        for line in src.lines() {
+        for raw in src.split_inclusive('\n') {
             let start = at;
-            at += line.len() + 1;
+            at += raw.len();
+            let line = raw.trim_end_matches(['\n', '\r']);
             let body = line.trim_start();
             let Some(rest) = body
                 .strip_prefix("pub fn ")
@@ -688,14 +761,9 @@ fn public_numeric_surface() -> Vec<Surface> {
                 !module.is_empty(),
                 "the crate root defines `{name}`; extend this parser to see it"
             );
-            out.push(Surface {
-                module,
-                ty,
-                name: name.to_owned(),
-            });
+            out.push((ty, name.to_owned()));
         }
     }
-    out.sort_unstable_by_key(Surface::id);
     out
 }
 
