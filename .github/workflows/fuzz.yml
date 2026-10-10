@@ -8,6 +8,8 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'fuzz/**'
+      - 'scripts/fuzz_runs.py'
+      - 'scripts/test_fuzz_runs.py'
       - '.github/workflows/fuzz.yml'
   pull_request:
     branches: [main]
@@ -15,6 +17,8 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'fuzz/**'
+      - 'scripts/fuzz_runs.py'
+      - 'scripts/test_fuzz_runs.py'
       - '.github/workflows/fuzz.yml'
   schedule:
     - cron: '0 3 * * *'
@@ -37,8 +41,10 @@ jobs:
   fuzz:
     name: Fuzz — ${{ matrix.target }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
+      max-parallel: ${{ github.ref == 'refs/heads/main' && 3 || 2 }}
       matrix:
         target:
           - fuzz_simd_parity
@@ -53,6 +59,8 @@ jobs:
           workspaces: fuzz
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
+      - name: Test the run-count reader
+        run: python3 scripts/test_fuzz_runs.py
       # blocking: a fuzz target that does not compile is a red, not a warning
       - name: Build fuzz target
         run: |
@@ -78,21 +86,39 @@ jobs:
           else
             echo "no committed seeds for ${{ matrix.target }}"
           fi
+      # The time-boxed run is a gate: a crash, or a run that executed no
+      # input, fails the job (blocking; no continue-on-error). A crash input
+      # is uploaded for triage and, once fixed, committed to fuzz/seeds/ so
+      # that the blocking replay above keeps it.
       - name: Run fuzz target (time-boxed)
         id: run
-        continue-on-error: true
+        shell: bash
         run: |
+          set -o pipefail
           cd fuzz
-          cargo +nightly fuzz run "${{ matrix.target }}" -- \
-            -max_total_time=${{ steps.dur.outputs.seconds }}
+          mkdir -p "corpus/${{ matrix.target }}"
+          dirs=("corpus/${{ matrix.target }}")
+          [ -d "seeds/${{ matrix.target }}" ] && dirs+=("seeds/${{ matrix.target }}")
+          cargo +nightly fuzz run "${{ matrix.target }}" "${dirs[@]}" -- \
+            -max_total_time=${{ steps.dur.outputs.seconds }} 2>&1 | tee "$RUNNER_TEMP/fuzz.log"
+      # crash or 0 runs = red; runs / seconds / result per target in the summary
+      - name: Check the runs (crash or 0 runs = fail)
+        if: always() && steps.run.outcome != 'skipped'
+        shell: bash
+        run: |
+          {
+            echo "| target | runs | seconds | result |"
+            echo "|---|---|---|---|"
+            python3 scripts/fuzz_runs.py "${{ matrix.target }}" "$RUNNER_TEMP/fuzz.log"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload crash artifacts (if any)
-        if: steps.run.outcome == 'failure'
+        if: failure() && steps.run.outcome == 'failure'
         uses: actions/upload-artifact@v6
         with:
           name: fuzz-crash-${{ matrix.target }}
           path: fuzz/artifacts/${{ matrix.target }}
           if-no-files-found: ignore
           retention-days: 14
-      - name: Report crash (informational)
-        if: steps.run.outcome == 'failure'
-        run: echo "::warning::fuzz target ${{ matrix.target }} found a crash — see fuzz-crash-${{ matrix.target }} artifact"
+      - name: Report crash
+        if: failure() && steps.run.outcome == 'failure'
+        run: echo "::error::fuzz target ${{ matrix.target }} found a crash — see fuzz-crash-${{ matrix.target }} artifact"

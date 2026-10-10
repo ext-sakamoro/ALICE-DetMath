@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- CI: fuzz の time-boxed run を gate にした (`continue-on-error` を外した) crash も、1 件も入力を実行しなかった run も red になり、target ごとの実行回数・秒数・結果を job summary に出す (`scripts/fuzz_runs.py`、試験 `scripts/test_fuzz_runs.py` を fuzz job で走らせる) crash の入力は artifact に残し、直したら `fuzz/seeds/<target>/` に置いて replay の gate に加える branch では同時 2 target まで、job に上限時間 45 分を付けた
+
 ## [0.5.0] - 2026-10-08
 
 **Breaking:** `SEMANTICS_ID` changes, from
