@@ -103,6 +103,12 @@ python3 scripts/test_docs_lint.py
 step "ci.yml / docs-lint: Docs lint (public documents, CHANGELOG structure)"
 python3 scripts/docs_lint.py --check
 
+step "ci.yml / docs-lint: Licence check (tests)"
+python3 scripts/test_license_check.py
+
+step "ci.yml / docs-lint: Licence check (Cargo.toml, shipped files, cargo package --list, README)"
+python3 scripts/license_check.py
+
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 

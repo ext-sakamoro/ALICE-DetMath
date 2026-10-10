@@ -15,6 +15,10 @@ the set of functions it covers grew by 11. A consumer that mixes it into its
 own identifiers has to re-record them, and gains coverage of the `metric`
 module in exchange.
 
+### ライセンス
+
+- `MIT OR Apache-2.0` から **`Apache-2.0` のみ**に変えた (0.5.0 から) `LICENSE-MIT` を削除し、`LICENSE-APACHE` に加えて `NOTICE` (著作権表示と Cephes / fdlibm / musl の出典) と `TRADEMARK_NOTICE` (ALICE の名称の扱い、ライセンスとは独立) を置いた 0.4.0 までの公開版は `MIT OR Apache-2.0` のまま 依存する側が `alice-det-math` を permissive として扱う点は変わらない (Apache-2.0 は MIT / Apache / AGPL の crate から引ける) `scripts/license_check.py` が `Cargo.toml` の宣言・同梱 file・`cargo package --list`・README の記載の一致を検査する (CI と preflight、検査 0 件で失敗)
+
 ### Added
 
 - `PREVIOUS_SEMANTICS_IDS`, `SemanticsCheck` and `check_semantics`, so data

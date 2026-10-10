@@ -25,7 +25,7 @@ IEEE 754 の基本演算だけで組み立てる そのため各関数は x86_64
 演算順ではなく、固定の演算順 (`mul_add` なし) を守る 2 台のマシンが同じビットを
 出す必要がある場面で使う 値だけが問題ならプラットフォームの `libm` の方が適している
 
-License: MIT OR Apache-2.0
+License: Apache-2.0
 
 ## 目次
 
@@ -246,5 +246,8 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 
 ## ライセンス
 
-MIT OR Apache-2.0 係数とアルゴリズムは Cephes (Stephen L. Moshier)、fdlibm
-(Sun Microsystems)、musl による 出典はソースを参照
+Apache-2.0 (`LICENSE-APACHE` と `NOTICE`) 0.4.0 までの版は `MIT OR Apache-2.0` で
+公開した 係数とアルゴリズムは Cephes (Stephen L. Moshier)、fdlibm
+(Sun Microsystems)、musl による 出典はソースを参照 ソースでもバイナリでも再配布には
+`LICENSE-APACHE` と `NOTICE` を同梱する (画面に表示する必要はない) ALICE の名称は
+ライセンスでなく `TRADEMARK_NOTICE` が扱う

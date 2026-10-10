@@ -199,6 +199,10 @@ jobs:
         run: python scripts/test_docs_lint.py
       - name: Docs lint (public documents, CHANGELOG structure)
         run: python scripts/docs_lint.py --check
+      - name: Licence check (tests)
+        run: python scripts/test_license_check.py
+      - name: Licence check (Cargo.toml, shipped files, cargo package --list, README)
+        run: python scripts/license_check.py
 
   fmt:
     name: Format

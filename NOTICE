@@ -1,0 +1,5 @@
+This product includes ALICE-DetMath, Copyright 2025-2026 Moroya Sakamoto.
+
+ALICE-DetMath includes coefficients and algorithms from Cephes (Stephen L.
+Moshier), fdlibm (Copyright (C) 1993 by Sun Microsystems, Inc.) and musl
+libc; see the source files for the attribution of each kernel.

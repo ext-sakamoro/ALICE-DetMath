@@ -26,7 +26,7 @@ of correctly rounded, not correctly rounded, and they keep a fixed operation
 order (no `mul_add`) rather than the fastest one for each target. Use it where two machines must produce the same bits; where
 only the value matters, the platform `libm` is the better choice.
 
-License: MIT OR Apache-2.0
+License: Apache-2.0
 
 ## Contents
 
@@ -267,5 +267,9 @@ crate: its generators currently use `libm`.
 
 ## License
 
-MIT OR Apache-2.0. Coefficients and algorithms are from Cephes (Stephen L.
-Moshier), fdlibm (Sun Microsystems) and musl; see the source for attribution.
+Apache-2.0 (`LICENSE-APACHE`, with `NOTICE`). Releases up to and including
+0.4.0 were published as `MIT OR Apache-2.0`. Coefficients and algorithms are
+from Cephes (Stephen L. Moshier), fdlibm (Sun Microsystems) and musl; see the
+source for attribution. A redistribution, in source or binary form, must carry
+`LICENSE-APACHE` and `NOTICE`; they need not appear in a user interface. The
+ALICE name is covered by `TRADEMARK_NOTICE`, not by the licence.
