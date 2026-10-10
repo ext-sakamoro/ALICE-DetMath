@@ -15,6 +15,26 @@ the set of functions it covers grew by 11. A consumer that mixes it into its
 own identifiers has to re-record them, and gains coverage of the `metric`
 module in exchange.
 
+### Added
+
+- `PREVIOUS_SEMANTICS_IDS`, `SemanticsCheck` and `check_semantics`, so data
+  stamped with 0.4.0's identifier (`d2209b30…`) stays readable under 0.5.0.
+  The 0.4.0 identifier is accepted because its functions return the same bits
+  here, which a test proves: it carries 0.4.0's pin table verbatim, checks
+  that it folds to `d2209b30…`, and checks that all 40 of its pins equal the
+  pins this release recomputes (one renamed: `metric_norm_mix` → `metric_norm`).
+  An identifier is added only together with such a table, and the count of
+  identifiers must equal the count of tables. The result is three-way —
+  `Verified`, `VerifiedPrevious(id)`, `Mismatch` — so a reader never treats an
+  earlier identifier as silently equal. Two predicates name the two uses:
+  `is_reproducible()` (readers of stored residuals, law identifiers,
+  snapshots) and `is_current()` (identifiers compared as keys, and writers,
+  which always stamp `SEMANTICS_ID`). The module computes no floating-point
+  value and is outside the pinned numeric surface; a test fails if a float
+  appears in it. Five mutations are red: a changed hash in either table, an
+  extra identifier without a table, a float in the module, and a dropped
+  rename.
+
 ### Fixed
 
 - `SEMANTICS_ID` now covers the whole public numeric surface. It covered 37

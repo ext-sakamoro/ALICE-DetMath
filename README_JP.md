@@ -127,8 +127,8 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 
 `SEMANTICS_ID` は **この crate が算術をどう評価するか**を識別する 32 byte の定数
 <!-- claim-test: semantics_id_covers_every_public_numeric_function -->
-ここにあるどの関数かが同じ入力に対して違うビットを返すようになったときに変わり、
-そのときだけ変わる 値は `tests/golden.rs` の関数ごとのビット固定値を、関数名の
+ここにあるどの関数かが同じ入力に対して違うビットを返すようになったときと、
+覆う関数の集合が増えたときに変わる 値は `tests/golden.rs` の関数ごとのビット固定値を、関数名の
 昇順に、名前の長さを 4 byte の big-endian、続いて名前、続いてその 32 byte の
 固定値として連結した SHA-256 プラットフォームの `libm`、時刻、環境は一切入らない
 ので、固定値が再現する全ターゲットで同じ値になる
@@ -144,6 +144,19 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 0.4.0 で `atan64` の係数を修正して出力ビットが変わったため、この値も変わった
 これは意図した挙動で、この値を自分の識別子に混ぜている利用側は、算術の変更を
 黙って引き継ぐのではなく識別子の変化として受け取る
+0.5.0 ではもう 1 つの理由で変わった どの関数の出力も変わっていないが、表の外に
+あった `metric` の 11 の入口が表に加わった
+
+### 識別子を読み戻す
+
+前の版が書いたデータにはその版の識別子が付いている `check_semantics(&id)` は
+`SEMANTICS_ID` なら `Verified`、`PREVIOUS_SEMANTICS_IDS` の要素なら
+`VerifiedPrevious(id)`、それ以外は `Mismatch` を返す 要素になるのは、その版が
+固定した全関数でこの版が同じビットを返す版だけ (0.5.0 は出力を変えていないので
+0.4.0 が入る) で、その版の固定値の表から test が証明する
+<!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
+保存した値を読む側は `is_reproducible()` (検証済みの 2 つを受理)、識別子を鍵として
+比べる側は `is_current()` を使う 書く側は常に `SEMANTICS_ID` を付ける
 
 ## 利用側の方針
 

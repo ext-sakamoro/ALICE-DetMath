@@ -165,6 +165,19 @@ of silently inheriting it. It moved again in 0.5.0 for the other reason: no
 function changed, but the 11 `metric` entry points that had been outside the
 table joined it.
 
+### Reading an identifier back
+
+Data written by an earlier release carries that release's identifier.
+`check_semantics(&id)` returns `Verified` for `SEMANTICS_ID`,
+`VerifiedPrevious(id)` for an entry of `PREVIOUS_SEMANTICS_IDS`, and
+`Mismatch` otherwise. An entry is listed only when this release returns that
+release's bits on every function the release pinned — 0.4.0 is listed, since
+0.5.0 changed no output — and a test proves it from that release's pin table.
+<!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
+Readers of stored values use `is_reproducible()` (accepts both verified
+cases); code that compares identifiers as keys uses `is_current()`. Writers
+always stamp `SEMANTICS_ID`.
+
 ## Policy for consumers
 
 Add the platform `libm` methods to `clippy.toml` `disallowed-methods` and run
