@@ -27,7 +27,7 @@ class LicenseCheck(unittest.TestCase):
 
     def test_dual_licence_in_cargo_toml_is_red(self) -> None:
         p = self.d / "Cargo.toml"
-        p.write_text(p.read_text().replace('license = "Apache-2.0"', 'license = "MIT OR Apache-2.0"'))
+        p.write_text(p.read_text(encoding="utf-8").replace('license = "Apache-2.0"', 'license = "MIT OR Apache-2.0"'), encoding="utf-8")
         self.assertTrue(any("Cargo.toml license" in x for x in lc.check(self.d, PKG)[1]))
 
     def test_missing_notice_is_red(self) -> None:
@@ -39,12 +39,12 @@ class LicenseCheck(unittest.TestCase):
         self.assertTrue(any("NOTICE is not in the published package" in x for x in lc.check(self.d, pkg)[1]))
 
     def test_leftover_mit_file_is_red(self) -> None:
-        (self.d / "LICENSE-MIT").write_text("MIT")
+        (self.d / "LICENSE-MIT").write_text("MIT", encoding="utf-8")
         self.assertTrue(any("LICENSE-MIT exists" in x for x in lc.check(self.d, PKG)[1]))
 
     def test_readme_still_dual_is_red(self) -> None:
         p = self.d / "README_JP.md"
-        p.write_text(p.read_text().replace("License: Apache-2.0", "License: MIT OR Apache-2.0"))
+        p.write_text(p.read_text(encoding="utf-8").replace("License: Apache-2.0", "License: MIT OR Apache-2.0"), encoding="utf-8")
         self.assertTrue(any("README_JP.md" in x for x in lc.check(self.d, PKG)[1]))
 
 
