@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `sin` / `cos` / `sin_cos` が零点 `k·π/2` の近くで誤差 2 ulp の保証を外れていた 文書化した定義域 `|x| ≤ 100` で最大 14 ulp (`cos(-4.712389)`、`sin(-75.398224)`)、`|x| ≤ 8192` では scalar 478 ulp / `simd` 974 ulp 原因は引数還元 `x − k·π/2` の 3 片目 `k·PIO2_3` の丸め誤差と、π/2 を 3 片で打ち切った残り (零点の近くでは結果 `±sin(r)` の相対誤差がそのまま還元の相対誤差になる) 多項式は無関係 (正確な `r` を与えると 0.22 ulp)
+- `sin` / `cos` / `sin_cos` が零点 `k·π/2` の近くで誤差 2 ulp の保証を外れていた 文書化した定義域 `|x| ≤ 100` で最大 14 ulp (`cos(-4.712389)`、`sin(-75.398224)`)、`|x| ≤ 8192` では `sin` 478 ulp / `cos` 974 ulp (scalar と `simd` は同じ bit) 原因は引数還元 `x − k·π/2` の 3 片目 `k·PIO2_3` の丸め誤差と、π/2 を 3 片で打ち切った残り (零点の近くでは結果 `±sin(r)` の相対誤差がそのまま還元の相対誤差になる) 多項式は無関係 (正確な `r` を与えると 0.22 ulp)
   - `k·PIO2_3` を Dekker の two-product で正確に作り (fused multiply-add は使わない、分割は bit mask で overflow しない)、4 片目 `PIO2_4 = π/2 − (PIO2_1 + PIO2_2 + PIO2_3)` を引く scalar と `simd` は同じ演算を同じ順で行い bit 一致
   - 変わる出力は 9,000,000 入力 (`[-100, 100]` 4M / `[-1, 1]` 1M / `[-8192, 8192]` 4M の等間隔) のうち 672 (0.007%) golden の pin で動くのは 51 中 `sin` / `cos` / `sin_cos` の 3 つだけ
   - `tests/accuracy_trig_zeros.rs`: `|k| ≤ 63` (`|x| ≤ 100`) と `|k| ≤ 5215` (`|x| ≤ 8192`) の全零点の前後 64 ulp を scalar / `sin_cos` / `simd` で 2 ulp 以内と検査 (修正前の code で red を確認済) fuzz の seed 3 件 (`fuzz/seeds/fuzz_accuracy/`) も修正前の code で 14 / 6 / 14 ulp を出す

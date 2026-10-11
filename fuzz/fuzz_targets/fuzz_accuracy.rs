@@ -60,6 +60,13 @@ fuzz_target!(|data: (u32, u32)| {
     if x.is_finite() && y.is_finite() && x.abs() <= 1e4 && y.abs() <= 1e4 {
         within("atan2", x, atan2(y, x), f64::from(y).atan2(xd) as f32, 1);
     }
+    // the odd functions keep the sign of zero (an ulp compare reads -0 == +0)
+    if x == 0.0 {
+        for (name, v) in [("sin", sin(x)), ("sin_cos.0", sin_cos(x).0), ("tan", tan(x)), ("atan", atan(x)),
+                          ("asin", asin(x)), ("tanh", tanh(x)), ("cbrt", cbrt(x))] {
+            assert_eq!(v.to_bits(), x.to_bits(), "{name}({x:?}) = {v:?}");
+        }
+    }
     // NaN input: hardware quiets a signalling NaN (`round`) or propagates the
     // payload (`sqrt`); this crate passes the bits through / returns the
     // canonical NaN on purpose (platform-independent), so compare non-NaN only

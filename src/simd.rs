@@ -213,13 +213,20 @@ fn canon(x: f32x8, v: f32x8) -> f32x8 {
     finite.blend(v, nan)
 }
 
+/// Scalar `if x == 0.0 { return x }` of the odd functions: `±0` lanes return
+/// themselves (the polynomial's `r + p` turns `−0` into `+0`).
+#[inline(always)]
+fn keep_zero(x: f32x8, v: f32x8) -> f32x8 {
+    x.cmp_eq(C_0P0).blend(x, v)
+}
+
 /// Deterministic `sin` per lane (`NaN` for non-finite lanes).
 #[inline]
 #[must_use]
 pub fn sin(x: f32x8) -> f32x8 {
     let (q, r) = reduce_pio2(x);
     let (sv, _) = quadrant(q, sin_poly(r), cos_poly(r));
-    canon(x, sv)
+    keep_zero(x, canon(x, sv))
 }
 
 /// Deterministic `cos` per lane (`NaN` for non-finite lanes).
@@ -237,7 +244,7 @@ pub fn cos(x: f32x8) -> f32x8 {
 pub fn sin_cos(x: f32x8) -> (f32x8, f32x8) {
     let (q, r) = reduce_pio2(x);
     let (sv, cv) = quadrant(q, sin_poly(r), cos_poly(r));
-    (canon(x, sv), canon(x, cv))
+    (keep_zero(x, canon(x, sv)), canon(x, cv))
 }
 
 /// Deterministic `exp` per lane (`+inf` above ≈ 88.72, `0` below ≈ −103.97,

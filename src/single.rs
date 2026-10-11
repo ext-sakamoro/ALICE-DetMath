@@ -125,6 +125,9 @@ pub fn sin(x: f32) -> f32 {
     if !x.is_finite() {
         return f32::NAN;
     }
+    if x == 0.0 {
+        return x; // ±0 → ±0 (the polynomial's `r + p` would turn −0 into +0)
+    }
     let (k, r) = reduce_pio2(x);
     canon(match k {
         0 => sin_poly(r),
@@ -157,6 +160,9 @@ pub fn cos(x: f32) -> f32 {
 pub fn sin_cos(x: f32) -> (f32, f32) {
     if !x.is_finite() {
         return (f32::NAN, f32::NAN);
+    }
+    if x == 0.0 {
+        return (x, 1.0); // as `sin`: ±0 → ±0
     }
     let (k, r) = reduce_pio2(x);
     let s = sin_poly(r);
@@ -619,6 +625,9 @@ pub fn acos(x: f32) -> f32 {
 pub fn tan(x: f32) -> f32 {
     if !x.is_finite() {
         return f32::NAN;
+    }
+    if x == 0.0 {
+        return x; // ±0 → ±0, as `sin`
     }
     let (k, r) = reduce_pio2_64(f64::from(x));
     let (s, c) = (k_sin64(r), k_cos64(r));
