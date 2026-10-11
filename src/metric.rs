@@ -82,6 +82,15 @@ fn canonical(v: f32) -> f32 {
     }
 }
 
+/// `2⁻⁶⁰` / `2⁶⁰`: outside this range [`MetricWeights::lipschitz`] scales
+/// its radical (`(w₁+w∞)² + 2w₁²` would under- or overflow).
+const LIPSCHITZ_SCALE_LO: f32 = f32::from_bits((127 - 60) << 23);
+const LIPSCHITZ_SCALE_HI: f32 = f32::from_bits((127 + 60) << 23);
+/// `2¹⁰⁰` / `2⁻¹⁰⁰`, the scale factors (powers of two: multiplying by them is
+/// exact while the result stays normal).
+const TWO_POW_100: f32 = f32::from_bits((127 + 100) << 23);
+const TWO_POW_M100: f32 = f32::from_bits((127 - 100) << 23);
+
 /// √2 as `f32`, exact literal (never computed at run time).
 const SQRT_2: f32 = 1.414_213_5;
 /// √3 as `f32`, exact literal (never computed at run time).
@@ -99,7 +108,10 @@ pub enum MetricError {
     /// A weight was negative: the unit ball stops being convex, the triangle
     /// inequality fails, and the field is no longer a distance in any metric.
     NotConvex,
-    /// Every weight was zero: there is no norm to speak of.
+    /// Every weight was zero, or the weights are so small or so large that
+    /// [`MetricWeights::lipschitz`] is not a normal `f32` (it underflows to `0`
+    /// or overflows to `inf`), so [`MetricWeights::normalised`] cannot divide
+    /// by it: there is no usable norm to speak of.
     Degenerate,
 }
 
@@ -108,7 +120,9 @@ impl core::fmt::Display for MetricError {
         let s = match self {
             Self::NotFinite => "metric weight is not finite",
             Self::NotConvex => "metric weight is negative (unit ball not convex)",
-            Self::Degenerate => "all metric weights are zero",
+            Self::Degenerate => {
+                "metric weights are all zero or their Lipschitz constant is not a normal f32"
+            }
         };
         f.write_str(s)
     }
@@ -196,7 +210,9 @@ impl MetricWeights {
     /// [`MetricError::NotFinite`] if any weight is NaN or infinite,
     /// [`MetricError::NotConvex`] if any weight is negative — a negative
     /// weight dents the unit ball inwards and the triangle inequality stops
-    /// holding — and [`MetricError::Degenerate`] if all three are zero.
+    /// holding — and [`MetricError::Degenerate`] if all three are zero or
+    /// [`lipschitz`](Self::lipschitz) is not a normal `f32` (subnormal-sized
+    /// weights square to `0`, weights near `f32::MAX` square to `inf`).
     #[inline]
     pub fn new(l1: f32, l2: f32, linf: f32) -> Result<Self, MetricError> {
         if !l1.is_finite() || !l2.is_finite() || !linf.is_finite() {
@@ -205,10 +221,13 @@ impl MetricWeights {
         if l1 < 0.0 || l2 < 0.0 || linf < 0.0 {
             return Err(MetricError::NotConvex);
         }
-        if l1 + l2 + linf <= 0.0 {
+        let w = Self { l1, l2, linf };
+        // all zero, or so small / large that the Lipschitz constant underflows
+        // to 0 or overflows to inf: `normalised` would divide by it
+        if !w.lipschitz().is_normal() {
             return Err(MetricError::Degenerate);
         }
-        Ok(Self { l1, l2, linf })
+        Ok(w)
     }
 
     /// The three weights, in the order `(l1, l2, linf)`.
@@ -241,6 +260,23 @@ impl MetricWeights {
     #[must_use]
     pub fn lipschitz(self) -> f32 {
         let s = self.l1 + self.linf;
+        // `s² + 2·w₁²` underflows (gradually, then to 0) for `s < 2⁻⁶³` and
+        // overflows for `s > 2⁶⁴`. Outside `[2⁻⁶⁰, 2⁶⁰]` the radical is taken
+        // of the weights scaled by `2^m` (`m = ±100`) and scaled back:
+        // `s·2^m` and `w₁·2^m` are exact, their squares are `4^m` times the
+        // true squares, and `sqrt(4^m·z) = 2^m·sqrt(z)` with the same rounding,
+        // so this is the unscaled formula without the under/overflow. Inside
+        // the range the formula is evaluated as it always was (same bits).
+        if s < LIPSCHITZ_SCALE_LO || s > LIPSCHITZ_SCALE_HI {
+            let (up, down) = if s < LIPSCHITZ_SCALE_LO {
+                (TWO_POW_100, TWO_POW_M100)
+            } else {
+                (TWO_POW_M100, TWO_POW_100)
+            };
+            let (l1, linf) = (self.l1 * up, self.linf * up);
+            let s = l1 + linf;
+            return sqrt(s * s + 2.0 * l1 * l1) * down + self.l2;
+        }
         sqrt(s * s + 2.0 * self.l1 * self.l1) + self.l2
     }
 
