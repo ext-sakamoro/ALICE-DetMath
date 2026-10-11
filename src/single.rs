@@ -326,11 +326,15 @@ pub fn log10(x: f32) -> f32 {
 /// domain. Special cases follow IEEE `pow` for the inputs the engine uses:
 /// `x < 0 → NaN` (non-integer `y` is the common case here, so no
 /// integer-exponent sign rule is attempted), `x == 0 → 0 / 1 / inf` for
-/// `y > 0 / y == 0 / y < 0`, `y == 0 → 1`.
+/// `y > 0 / y == 0 / y < 0`, `y == 0 → 1` and `x == 1 → 1` for every `x` /
+/// `y` (NaN included, as IEEE `pow`).
 #[inline]
 #[must_use]
 pub fn powf(x: f32, y: f32) -> f32 {
-    if y == 0.0 {
+    // IEEE 754: pow(x, ±0) = 1 and pow(+1, y) = 1 for every x / y, NaN
+    // included (at x = 1 the exact product `y · ln x` would split an
+    // infinite or near-`MAX` y and overflow to a platform-signed NaN)
+    if y == 0.0 || x == 1.0 {
         return 1.0;
     }
     if x.is_nan() || y.is_nan() || x < 0.0 {
