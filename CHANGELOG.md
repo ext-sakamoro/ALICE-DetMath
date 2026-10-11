@@ -78,6 +78,7 @@ golden の pin は新設の `specials` を加えて 52 本 0.4.0 の pin table �
   without the identifier moving. Each one now has a pin in `tests/golden.rs`,
   and the `metric_weights` pin folds in `MetricWeights::{L1, L2, LINF}` and
   `Default` as well, so the three named metrics are covered too.
+- crate の doc の精度表で、code span の中の `|x|` / `|y|` が表の区切りとして読まれ、nightly の rustdoc (docs.rs が使う) では定義域の列が捨てられていた 表の行の code span 内の `|` を `\|` に直した (stable の rustdoc は警告しないので CI の doc job では見えなかった)
 - `SEMANTICS_ID` の doc の text block (docs.rs に出る値) が、公開していない途中の値 `a6fe7dc…` のままで定数 `135c407d…` と違っていた 値を直し、`tests/semantics_id_doc.rs` が doc block の値と定数の一致を検査する (修正前の source で red を確認済)
 
 ## [0.4.0] - 2026-10-07

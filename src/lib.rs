@@ -51,23 +51,23 @@
 //!
 //! | function | domain measured | max error |
 //! |----------|-----------------|-----------|
-//! | [`sin`] / [`cos`] / [`sin_cos`] | `|x| ≤ 100` | ≤ 2 ulp (Cephes single-precision coefficients), including every input within 64 ulp of a zero `k·π/2`; measured max 2 out to `|x| ≤ 8192` (`tests/accuracy_trig_zeros.rs`) |
+//! | [`sin`] / [`cos`] / [`sin_cos`] | `\|x\| ≤ 100` | ≤ 2 ulp (Cephes single-precision coefficients), including every input within 64 ulp of a zero `k·π/2`; measured max 2 out to `\|x\| ≤ 8192` (`tests/accuracy_trig_zeros.rs`) |
 //! | [`exp`] | `[-87, 88]` | ≤ 2 ulp |
 //! | [`ln`] | `[1e-30, 1e30]` | ≤ 1 ulp (musl `logf` algorithm) |
 //! | [`log2`] / [`log10`] | `[1e-30, 1e30]` | ≤ 1 ulp, measured max 0 ([`log2_64`] / [`log10_64`] rounded once; powers of two are exact) |
 //! | [`cbrt`] | `[1e-30, 1e30]` | ≤ 1 ulp (bit-hack seed + 3 Newton steps) |
 //! | [`hypot`] | finite | ≤ 1 ulp of `sqrt(x² + y²)` |
-//! | [`powf`] | `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` | ≤ 1 ulp (evaluated in `f64`, rounded once) |
-//! | [`atan`] / [`atan2`] | `|x| ≤ 1e4`, all quadrants | ≤ 1 ulp (fdlibm `s_atanf` / `e_atan2f`, single precision) |
+//! | [`powf`] | `x ∈ [1e-3, 1e3]`, `\|y\| ≤ 8` | ≤ 1 ulp (evaluated in `f64`, rounded once) |
+//! | [`atan`] / [`atan2`] | `\|x\| ≤ 1e4`, all quadrants | ≤ 1 ulp (fdlibm `s_atanf` / `e_atan2f`, single precision) |
 //! | [`asin`] / [`acos`] | `[-1, 1]` | ≤ 1 ulp (fdlibm in `f64`, rounded once) |
-//! | [`tan`] | `|x| ≤ 100` | ≤ 1 ulp (fdlibm `k_sin`/`k_cos` in `f64`) |
+//! | [`tan`] | `\|x\| ≤ 100` | ≤ 1 ulp (fdlibm `k_sin`/`k_cos` in `f64`) |
 //! | [`tanh`] | finite | ≤ 1 ulp (`exp64` based, `x` below 2^-14) |
 //! | [`sin64`] / [`cos64`] / [`sin_cos64`] | every finite `f64` (Cody–Waite below `2^20·π/2`, Payne–Hanek above) | ≤ 1 ulp of correctly rounded, measured max 1 over 6234 points of an independent 2400-bit reference (musl `sin.c` / `cos.c`) |
 //! | [`tan64`] | every finite `f64` (same reduction as [`sin64`]) | ≤ 1 ulp of correctly rounded, measured max 1 over 6310 points of an independent 2400-bit reference (fdlibm `k_tan.c`) |
 //! | [`atan64`] / [`atan2_64`] | every finite `f64`, all quadrants | ≤ 1 ulp of correctly rounded, measured max 1 over 1758 points of an independent 2400-bit reference covering every branch of the reduction (fdlibm `s_atan.c` / `e_atan2.c`) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
-//! | [`powf64`] | `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) ⚠️ outside this domain the result can be *wrong*, not just less accurate — see [`powf64`] |
+//! | [`powf64`] | `x ∈ [1e-3, 1e3]`, `\|y\| ≤ 8` | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) ⚠️ outside this domain the result can be *wrong*, not just less accurate — see [`powf64`] |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
 //!
 //! The reduction subtracts `k·π/2` in four `f32` pieces, the third formed
