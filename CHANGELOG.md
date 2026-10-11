@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- CI: `scripts/workflow_concurrency.py` と `scripts/test_workflow_concurrency.py` の冒頭に、ALICE-LOL / ALICE-SDF / ALICE-DetMath で同じ内容 (byte 一致) に保つ旨を書いた 検査の動作は変わらない
+
 ## [0.5.0] - 2026-10-11
 
 **破壊的変更:** `SEMANTICS_ID` が 0.4.0 の
