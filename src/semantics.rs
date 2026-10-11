@@ -13,9 +13,12 @@ use crate::SEMANTICS_ID;
 /// Identifiers of earlier releases whose functions return **the same bits** as
 /// this release on every input, but which covered fewer functions.
 ///
-/// | entry | release | why it differs from [`SEMANTICS_ID`] |
-/// |---|---|---|
-/// | `d2209b30…398e` | 0.4.0 | the 11 `metric` entry points had no pin (same bits, smaller coverage) |
+/// Empty: this release changed the bits of `sin` / `cos` / `sin_cos` (the
+/// reduction near their zeros), so neither 0.4.0's identifier
+/// (`d2209b30…398e`) nor the one recorded before this change
+/// (`a6fe7dc8…d6af`) is reproduced, and both now read as
+/// [`SemanticsCheck::Mismatch`]. `tests/golden.rs` keeps 0.4.0's pin table
+/// and proves that it differs from this release in exactly those three pins.
 ///
 /// An entry is added only together with that release's pin table in
 /// `tests/golden.rs`, and the test proves two things about it: the table
@@ -25,10 +28,7 @@ use crate::SEMANTICS_ID;
 /// any function's output never appears here.
 ///
 /// Writers always stamp [`SEMANTICS_ID`]. Readers use [`check_semantics`].
-pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[[
-    0xd2, 0x20, 0x9b, 0x30, 0xf6, 0xf1, 0xf4, 0x5b, 0xaa, 0x1b, 0x63, 0x8b, 0xcd, 0xfe, 0xe3, 0x4a,
-    0xc6, 0x47, 0x73, 0xb2, 0xe6, 0x3b, 0x9c, 0x08, 0x3b, 0x2e, 0x77, 0xaf, 0xc6, 0x91, 0x39, 0x8e,
-]];
+pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[];
 
 /// What a stored arithmetic identifier says about the data stamped with it.
 ///

@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Behavior change:** `sin` / `cos` / `sin_cos` (`f32`, scalar と `simd` の両方) の出力 bit が変わる `SEMANTICS_ID` は
+`a6fe7dc833d2a35012fc11eaf8e253eca6bfdb76db2931f056132f44bf79d6af` から
+`d85f363ff1b535c019010e43676c3c27a7c4f12b6a03cd74a730adff104984f0` に変わり、`PREVIOUS_SEMANTICS_IDS` は空になる (0.4.0 の `d2209b30…` も `check_semantics` で `Mismatch` になる) 識別子を自分の識別子に混ぜている消費者は再記録が要る
+
+### Added
+
+- `consts::PIO2_4` と `consts::SPLIT_MASK` (JIT / shader などで同じ法則を出力する生成器向け) 3 片の還元を自前で出力している生成器は、この版の bit と一致しなくなる
+
 ### Changed
 - CI: branch への push で走る workflow (ci / security-audit) の concurrency を fuzz と同じ形にした main では commit ごとに group を分けて run を取り消さず、取り消すのは branch の古い run だけ (以前は main への後の push が main の run や待機中の run を取り消し、結果が cancelled のまま残りえた) `scripts/workflow_concurrency.py` (試験 `scripts/test_workflow_concurrency.py`) が全 workflow をこの形か確かめ、CI と preflight で走る
 - CI: fuzz の time-boxed run を gate にした (`continue-on-error` を外した) crash も、1 件も入力を実行しなかった run も red になり、target ごとの実行回数・秒数・結果を job summary に出す (`scripts/fuzz_runs.py`、試験 `scripts/test_fuzz_runs.py` を fuzz job で走らせる) crash の入力は artifact に残し、直したら `fuzz/seeds/<target>/` に置いて replay の gate に加える branch では同時 2 target まで、job に上限時間 45 分を付けた
+
+### Fixed
+
+- `sin` / `cos` / `sin_cos` が零点 `k·π/2` の近くで誤差 2 ulp の保証を外れていた 文書化した定義域 `|x| ≤ 100` で最大 14 ulp (`cos(-4.712389)`、`sin(-75.398224)`)、`|x| ≤ 8192` では scalar 478 ulp / `simd` 974 ulp 原因は引数還元 `x − k·π/2` の 3 片目 `k·PIO2_3` の丸め誤差と、π/2 を 3 片で打ち切った残り (零点の近くでは結果 `±sin(r)` の相対誤差がそのまま還元の相対誤差になる) 多項式は無関係 (正確な `r` を与えると 0.22 ulp)
+  - `k·PIO2_3` を Dekker の two-product で正確に作り (fused multiply-add は使わない、分割は bit mask で overflow しない)、4 片目 `PIO2_4 = π/2 − (PIO2_1 + PIO2_2 + PIO2_3)` を引く scalar と `simd` は同じ演算を同じ順で行い bit 一致
+  - 変わる出力は 9,000,000 入力 (`[-100, 100]` 4M / `[-1, 1]` 1M / `[-8192, 8192]` 4M の等間隔) のうち 672 (0.007%) golden の pin で動くのは 51 中 `sin` / `cos` / `sin_cos` の 3 つだけ
+  - `tests/accuracy_trig_zeros.rs`: `|k| ≤ 63` (`|x| ≤ 100`) と `|k| ≤ 5215` (`|x| ≤ 8192`) の全零点の前後 64 ulp を scalar / `sin_cos` / `simd` で 2 ulp 以内と検査 (修正前の code で red を確認済) fuzz の seed 3 件 (`fuzz/seeds/fuzz_accuracy/`) も修正前の code で 14 / 6 / 14 ulp を出す
+  - 定義域の表記は `|x| ≤ 100` のまま `|x| ≤ 8192` までは実測で最大 2 ulp
 
 ## [0.5.0] - 2026-10-08
 

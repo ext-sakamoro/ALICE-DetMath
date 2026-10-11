@@ -15,6 +15,15 @@ pub const PIO2_1: f32 = 1.570_312_5;
 pub const PIO2_2: f32 = 4.837_512_969_970_703_125e-4;
 /// Third piece of π/2.
 pub const PIO2_3: f32 = 7.549_789_948_768_648e-8;
+/// Fourth piece of π/2: `π/2 − (PIO2_1 + PIO2_2 + PIO2_3)` rounded to `f32`.
+///
+/// With it, and with `k·PIO2_3` formed exactly (Dekker two-product, halves
+/// split with [`SPLIT_MASK`]), the reduced argument near a zero of `sin` /
+/// `cos` keeps its relative accuracy out to `|x| ≤ 8192` (the three-piece
+/// reduction lost up to 14 ulp at `|x| ≤ 100`).
+pub const PIO2_4: f32 = -1.715_124_510_005_881_9e-15;
+/// Bits kept by the high half of a Dekker split (12 of the 24 significand bits).
+pub const SPLIT_MASK: u32 = 0xFFFF_F000;
 /// `2/π`, the range-reduction multiplier.
 pub const FRAC_2_PI: f32 = core::f32::consts::FRAC_2_PI;
 
@@ -58,11 +67,33 @@ pub(crate) fn nearest_int(t: f32) -> f32 {
     ((t + half) as i32) as f32
 }
 
+/// High 12 significand bits of `a` (exact: the low bits are cleared, never
+/// rounded, so the split cannot overflow the way `4097·a` does).
+#[inline(always)]
+pub(crate) fn split_hi(a: f32) -> f32 {
+    f32::from_bits(a.to_bits() & SPLIT_MASK)
+}
+
+/// Dekker's exact product: `a·b = p + e` with `p = fl(a·b)`, using a split of
+/// both factors into 12-bit halves (every partial product is exact in `f32`)
+/// and no fused multiply-add.
+#[inline(always)]
+pub(crate) fn two_prod(a: f32, b: f32) -> (f32, f32) {
+    let p = a * b;
+    let (ah, bh) = (split_hi(a), split_hi(b));
+    let (al, bl) = (a - ah, b - bh);
+    (p, (((ah * bh - p) + ah * bl) + al * bh) + al * bl)
+}
+
 /// Reduce `x` to `(k mod 4, r)` with `x = k·π/2 + r`, `|r| ≤ π/4`.
+///
+/// `k·PIO2_1` and `k·PIO2_2` are exact for `|k| < 2^13`; `k·PIO2_3` is formed
+/// exactly as `p3 + e3`, and `PIO2_4` carries the rest of π/2.
 #[inline(always)]
 fn reduce_pio2(x: f32) -> (i32, f32) {
     let kf = nearest_int(x * FRAC_2_PI);
-    let r = ((x - kf * PIO2_1) - kf * PIO2_2) - kf * PIO2_3;
+    let (p3, e3) = two_prod(kf, PIO2_3);
+    let r = ((((x - kf * PIO2_1) - kf * PIO2_2) - p3) - e3) - kf * PIO2_4;
     // `kf` is integral and |kf| < 2^31 for every finite f32 we accept; the
     // cast saturates for huge inputs, which only affects the (already
     // meaningless) quadrant of astronomically large arguments.
@@ -620,5 +651,39 @@ pub fn tanh(x: f32) -> f32 {
         -t
     } else {
         t
+    }
+}
+
+#[cfg(test)]
+mod two_prod_tests {
+    use super::{two_prod, PIO2_3};
+
+    /// oracle: a 24×24-bit product is exact in `f64`, so `p + e` must equal it
+    fn exact(a: f32) {
+        let (p, e) = two_prod(a, PIO2_3);
+        let want = f64::from(a) * f64::from(PIO2_3);
+        assert_eq!(f64::from(p) + f64::from(e), want, "k = {a}");
+        assert_eq!(p, a * PIO2_3, "k = {a}");
+    }
+
+    #[test]
+    fn k_times_pio2_3_is_split_exactly() {
+        let mut n = 0;
+        for k in -(1 << 14)..=(1 << 14) {
+            exact(k as f32);
+            n += 1;
+        }
+        // a stride through 2^24, and the largest finite multiples
+        for k in ((1 << 14)..=(1 << 24)).step_by(4093) {
+            exact(k as f32);
+            exact(-(k as f32));
+            n += 2;
+        }
+        for k in [f32::MAX, -f32::MAX, 2.0e38, 1.0e35, 8.3e34] {
+            let (p, e) = two_prod(k, PIO2_3);
+            assert!(p.is_finite() && e.is_finite(), "k = {k}: {p} {e}");
+            n += 1;
+        }
+        assert!(n > 1 << 15);
     }
 }

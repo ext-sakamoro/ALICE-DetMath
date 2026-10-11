@@ -172,15 +172,15 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "sin",
-        "5e51709ffaa05b16afe14f2268c97633a0058eee46ff2f563e24fb8426967ef1",
+        "84cf4edf30a5b6f644c1dc74dde2640e4467770ed5c35a296353c9e5b1174bf7",
     ),
     (
         "cos",
-        "d80b955d724c77e2d64c58dab6e5dc32cbca3a8274db4b9065f1d8528011f896",
+        "8310296979062107b644a1d340ca181facf1be5ea5122af76a74ec26eb33b38c",
     ),
     (
         "sin_cos",
-        "e8fbc874df490f32d4bbd895cfa30b0d42c3624a58f042863e08ec6becd145fb",
+        "19566da559090072ddbde9238a32500d4f254162991648082813f0fe504f739f",
     ),
     (
         "exp",
@@ -1131,8 +1131,10 @@ fn simd_outputs_match_recorded_hashes() {
 // ---------------------------------------------------------------------------
 
 /// The pin table of release 0.4.0, copied verbatim from `tests/golden.rs` at
-/// tag `v0.4.0` (`git show v0.4.0:tests/golden.rs`). Not edited: the proof
-/// below depends on it being what that release pinned.
+/// tag `v0.4.0` (`git show v0.4.0:tests/golden.rs`). Not edited: the proofs
+/// below depend on it being what that release pinned. It is no longer an
+/// entry of [`alice_det_math::PREVIOUS_SEMANTICS_IDS`] (`sin` / `cos` /
+/// `sin_cos` changed); it stays to prove exactly that.
 const GOLDEN_V0_4_0: &[(&str, &str)] = &[
     (
         "smoothstep",
@@ -1304,7 +1306,7 @@ const RENAMED_SINCE_V0_4_0: &[(&str, &str)] = &[("metric_norm_mix", "metric_norm
 /// A pin table: `(name, 64 hex digits)` per function.
 type PinTable = &'static [(&'static str, &'static str)];
 
-const PREVIOUS_TABLES: &[(PinTable, PinTable)] = &[(GOLDEN_V0_4_0, RENAMED_SINCE_V0_4_0)];
+const PREVIOUS_TABLES: &[(PinTable, PinTable)] = &[];
 
 /// Every previous identifier is backed by its release's pin table, and this
 /// release reproduces every pin in it.
@@ -1318,10 +1320,6 @@ const PREVIOUS_TABLES: &[(PinTable, PinTable)] = &[(GOLDEN_V0_4_0, RENAMED_SINCE
 #[test]
 fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
     use alice_det_math::{check_semantics, SemanticsCheck, PREVIOUS_SEMANTICS_IDS, SEMANTICS_ID};
-    assert!(
-        !PREVIOUS_TABLES.is_empty(),
-        "no previous table: nothing was proved"
-    );
     assert_eq!(
         PREVIOUS_TABLES.len(),
         PREVIOUS_SEMANTICS_IDS.len(),
@@ -1355,7 +1353,47 @@ fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
         }
         assert_eq!(check_semantics(id), SemanticsCheck::VerifiedPrevious(*id));
     }
+    let pins: usize = PREVIOUS_TABLES.iter().map(|(t, _)| t.len()).sum();
+    assert_eq!(compared, pins, "pins compared");
+}
+
+/// Pins of an old table that this release no longer reproduces, by current name.
+fn moved_pins(table: PinTable, renames: PinTable) -> (Vec<&'static str>, usize) {
+    let mut moved = Vec::new();
+    for (name, hash) in table {
+        let current = renames
+            .iter()
+            .find(|(old, _)| old == name)
+            .map_or(*name, |(_, new)| *new);
+        let now = GOLDEN
+            .iter()
+            .find(|(n, _)| *n == current)
+            .unwrap_or_else(|| panic!("`{name}` (now `{current}`) is no longer pinned"));
+        if now.1 != *hash {
+            moved.push(now.0);
+        }
+    }
+    (moved, table.len())
+}
+
+/// 0.4.0's identifier is not accepted any more, and the reason is exactly the
+/// change of `sin` / `cos` / `sin_cos`: its other 37 pins are still
+/// reproduced. A further change to any function moves this set and fails here.
+#[test]
+fn the_0_4_0_identifier_is_rejected_because_exactly_sin_and_cos_changed() {
+    use alice_det_math::{check_semantics, SemanticsCheck, PREVIOUS_SEMANTICS_IDS, SEMANTICS_ID};
+    let id = fold_semantics_id(GOLDEN_V0_4_0).expect("the 0.4.0 table folds");
+    assert_eq!(
+        id,
+        hex32("d2209b30f6f1f45baa1b638bcdfee34ac64773b2e63b9c083b2e77afc691398e").unwrap(),
+        "the 0.4.0 table does not fold to the 0.4.0 identifier"
+    );
+    assert_ne!(id, SEMANTICS_ID);
+    assert!(!PREVIOUS_SEMANTICS_IDS.contains(&id));
+    assert_eq!(check_semantics(&id), SemanticsCheck::Mismatch);
+    let (moved, compared) = moved_pins(GOLDEN_V0_4_0, RENAMED_SINCE_V0_4_0);
     assert_eq!(compared, 40, "pins compared");
+    assert_eq!(moved, ["sin", "cos", "sin_cos"]);
 }
 
 /// The three-way result and the two predicates, including an identifier one

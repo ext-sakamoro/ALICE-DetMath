@@ -26,7 +26,7 @@ use wide::{f32x8, i32x8, CmpEq, CmpGe, CmpGt, CmpLe, CmpLt};
 
 use crate::single::{
     COS_P, EXP_HI, EXP_LO, EXP_P, FRAC_2_PI, LG1, LG2, LG3, LG4, LN2_HI, LN2_LO, LOG2E, PIO2_1,
-    PIO2_2, PIO2_3, SIN_P, SQRT2_BITS,
+    PIO2_2, PIO2_3, PIO2_4, SIN_P, SPLIT_MASK, SQRT2_BITS,
 };
 
 /// Constant vectors as `const` items: they live in rodata and load with one
@@ -71,6 +71,7 @@ const C_LOG2E: f32x8 = f32x8::new([LOG2E; 8]);
 const C_PIO21: f32x8 = f32x8::new([PIO2_1; 8]);
 const C_PIO22: f32x8 = f32x8::new([PIO2_2; 8]);
 const C_PIO23: f32x8 = f32x8::new([PIO2_3; 8]);
+const C_PIO24: f32x8 = f32x8::new([PIO2_4; 8]);
 const C_SINP0: f32x8 = f32x8::new([SIN_P[0]; 8]);
 const C_SINP1: f32x8 = f32x8::new([SIN_P[1]; 8]);
 const C_SINP2: f32x8 = f32x8::new([SIN_P[2]; 8]);
@@ -154,6 +155,22 @@ fn cos_poly(r: f32x8) -> f32x8 {
     C_1P0 - C_0P5 * z + p
 }
 
+/// `single::split_hi` per lane.
+#[inline(always)]
+fn split_hi(a: f32x8) -> f32x8 {
+    let bits: i32x8 = cast(a);
+    cast(bits & i32x8::splat(SPLIT_MASK as i32))
+}
+
+/// `single::two_prod` per lane, the same operations in the same order.
+#[inline(always)]
+fn two_prod(a: f32x8, b: f32x8) -> (f32x8, f32x8) {
+    let p = a * b;
+    let (ah, bh) = (split_hi(a), split_hi(b));
+    let (al, bl) = (a - ah, b - bh);
+    (p, (((ah * bh - p) + ah * bl) + al * bh) + al * bl)
+}
+
 /// `(k mod 4 as a float, r)` with `x = k·π/2 + r`.
 ///
 /// `k mod 4` is `kf - 4·floor(kf/4)` (exact: `kf` is integral, and a
@@ -162,7 +179,8 @@ fn cos_poly(r: f32x8) -> f32x8 {
 #[inline(always)]
 fn reduce_pio2(x: f32x8) -> (f32x8, f32x8) {
     let kf = nearest_int(x * C_FRAC2PI);
-    let r = ((x - kf * C_PIO21) - kf * C_PIO22) - kf * C_PIO23;
+    let (p3, e3) = two_prod(kf, C_PIO23);
+    let r = ((((x - kf * C_PIO21) - kf * C_PIO22) - p3) - e3) - kf * C_PIO24;
     let q = kf - C_4P0 * (kf * C_0P25).floor();
     let q = kf.cmp_ge(C_2147483648P0).blend(C_3P0, q);
     let q = kf.cmp_le(C_NEG2147483648P0).blend(C_0P0, q);
