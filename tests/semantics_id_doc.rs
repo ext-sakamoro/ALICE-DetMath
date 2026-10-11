@@ -28,7 +28,12 @@ fn documented_ids(src: &str) -> Vec<String> {
 }
 
 fn hex(id: &[u8; 32]) -> String {
-    id.iter().map(|b| format!("{b:02x}")).collect()
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(64);
+    for b in id {
+        write!(out, "{b:02x}").expect("writing to a String does not fail");
+    }
+    out
 }
 
 #[test]
