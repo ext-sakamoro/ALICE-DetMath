@@ -143,14 +143,25 @@ pub fn norm_l2(v: [f32; 3]) -> f32 {
 }
 
 /// `‖v‖∞` — the cubic (Chebyshev) norm.
+///
+/// A NaN component, in any position, gives the canonical NaN: the maximum is
+/// taken by comparisons, which are false against NaN and would otherwise keep
+/// a NaN in the last position and drop it in the first two.
 #[inline]
 #[must_use]
 pub fn norm_linf(v: [f32; 3]) -> f32 {
+    if v[0].is_nan() || v[1].is_nan() || v[2].is_nan() {
+        return f32::NAN;
+    }
     let a = v[0].abs();
     let b = v[1].abs();
     let c = v[2].abs();
     let m = if a > b { a } else { b };
-    canonical(if m > c { m } else { c })
+    if m > c {
+        m
+    } else {
+        c
+    }
 }
 
 /// A norm built as a non-negative combination of `‖·‖₁`, `‖·‖₂` and `‖·‖∞`.
@@ -353,13 +364,14 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 
 /// `x` restricted to `[low, high]`.
 ///
-/// A NaN `x` gives the canonical NaN (`f32::clamp` passes the payload through,
-/// and also panics on inverted bounds). With `low > high` the low bound wins, which keeps the
-/// function total.
+/// A NaN in any argument gives the canonical NaN (`f32::clamp` passes a NaN
+/// `x` through with its payload, ignores no bound, and panics on inverted
+/// bounds). With `low > high` the low bound wins, which keeps the function
+/// total.
 #[inline]
 #[must_use]
 pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
-    if x.is_nan() {
+    if x.is_nan() || low.is_nan() || high.is_nan() {
         return f32::NAN;
     }
     let y = if x > high { high } else { x };
@@ -379,15 +391,15 @@ pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
 /// within its Lipschitz budget.
 ///
 /// A degenerate or inverted interval (`e1 ≤ e0`) is treated as a step at
-/// `e0`: below it `0`, at or above it `1`, with no division. A NaN `x`, and
-/// a NaN the division creates, give the canonical NaN.
+/// `e0`: below it `0`, at or above it `1`, with no division. A NaN in any
+/// argument, and a NaN the division creates, give the canonical NaN.
 #[inline]
 #[must_use]
 pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
-    if x.is_nan() {
+    if x.is_nan() || edge0.is_nan() || edge1.is_nan() {
         return f32::NAN;
     }
-    if edge1 <= edge0 || edge1.is_nan() || edge0.is_nan() {
+    if edge1 <= edge0 {
         return if x < edge0 { 0.0 } else { 1.0 };
     }
     let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);

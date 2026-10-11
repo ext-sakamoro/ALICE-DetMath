@@ -422,29 +422,36 @@ pub fn lerp(a: f32x8, b: f32x8, t: f32x8) -> f32x8 {
 
 /// [`crate::metric::clamp`] per lane.
 ///
-/// Both comparisons are false for a NaN lane, so the input falls through and
-/// is then replaced by the canonical NaN, as the scalar early return does.
+/// A NaN in any argument gives the canonical NaN, as the scalar early return
+/// does (the comparisons alone are false against NaN and would keep a NaN
+/// `x` but ignore a NaN bound).
 #[inline]
 #[must_use]
 pub fn clamp(x: f32x8, low: f32x8, high: f32x8) -> f32x8 {
     let y = high.cmp_lt(x).blend(high, x);
-    canonical_nan(y.cmp_lt(low).blend(low, y))
+    let y = y.cmp_lt(low).blend(low, y);
+    any_nan3(x, low, high).blend(C_NAN, y)
+}
+
+/// Lanes where any of the three arguments is NaN.
+#[inline(always)]
+fn any_nan3(a: f32x8, b: f32x8, c: f32x8) -> f32x8 {
+    !(a.cmp_eq(a) & b.cmp_eq(b) & c.cmp_eq(c))
 }
 
 /// [`crate::metric::smoothstep`] per lane — `3t² − 2t³` over the clamped
-/// interval, a step where the interval is degenerate, a NaN `x` → the
-/// canonical NaN.
+/// interval, a step where the interval is degenerate, a NaN in any argument
+/// → the canonical NaN.
 #[inline]
 #[must_use]
 pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
-    // `!(e1 > e0)` also catches a NaN edge, as the scalar `is_nan` arms do
     let degenerate = !edge1.cmp_gt(edge0);
     let step = x.cmp_lt(edge0).blend(C_0P0, C_1P0);
     // the division is garbage in degenerate lanes and blended away there
     let t = clamp((x - edge0) / (edge1 - edge0), C_0P0, C_1P0);
     let cubic = canonical_nan(t * t * (C_3P0 - C_2P0 * t));
     let r = degenerate.blend(step, cubic);
-    x.cmp_eq(x).blend(r, C_NAN)
+    any_nan3(edge0, edge1, x).blend(C_NAN, r)
 }
 
 /// [`crate::metric::MetricWeights`] broadcast to lanes.
@@ -488,5 +495,8 @@ pub fn metric_norm(w: MetricWeightsX8, x: f32x8, y: f32x8, z: f32x8) -> f32x8 {
     let l2 = sqrt(x * x + y * y + z * z);
     let m = ax.cmp_gt(ay).blend(ax, ay);
     let linf = m.cmp_gt(az).blend(m, az);
+    // the blends drop a NaN in the first two positions, but a NaN component
+    // also makes `l1` and `l2` NaN, and `0 · NaN` is NaN: the sum is NaN for
+    // every metric, as the scalar `norm` (whose `norm_linf` rejects it outright)
     canonical_nan(w.l1 * l1 + w.l2 * l2 + w.linf * linf)
 }
