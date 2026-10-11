@@ -17,6 +17,8 @@
 
 #![allow(clippy::cast_precision_loss)]
 
+mod common;
+
 use sha2::{Digest, Sha256};
 
 fn grid32() -> Vec<f32> {
@@ -116,7 +118,7 @@ fn check(name: &str, got: &str, want: &str) {
 const GOLDEN: &[(&str, &str)] = &[
     (
         "smoothstep",
-        "d43e5a4972e13773caf1da15db30501850e505f361fd7526c908c35ff8e7cc7b",
+        "184e9e4776478a4608497033c7e9f39e14b6b629b691a9bb9ac2a4313f2de33e",
     ),
     (
         "metric_norm",
@@ -124,11 +126,11 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "metric_lipschitz",
-        "566d51df6ba7ba7358f51c25b8c19b8ad85879caca497bd6f6f22ad8d332076e",
+        "ff8c5743709b8a02beb42eb169064e2bd7f290096c9c99ac40551583be3b1f58",
     ),
     (
         "norm_l1",
-        "d42b5308210f6ccd35b2b30c7d147f4e500e702babfc88f9940911687c652cc3",
+        "522716e421c074fd03f831a1fb5b51280da91c573c90530b02c522982c677839",
     ),
     (
         "norm_l2",
@@ -136,7 +138,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "norm_linf",
-        "803bba978f40181193b704539f30a458d85e487116ccab92ae2a1083de7934f9",
+        "d4446c6e32de4948c74bbb5b76daa0e1de4daebe00e44503e720f149b981da18",
     ),
     (
         "lerp",
@@ -144,31 +146,31 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "clamp",
-        "64f40a7cb1c1b64a8b1c9d8c662d7a2a58c8f8d8afda24e9808d5520c2bca267",
+        "626399c500e7ae66f5afed4ac55321304b7c488dd12889bb149188a604e65942",
     ),
     (
         "metric_new",
-        "604816265b1dd7bae1a41e479345ee0a4280b59eb46d229c21393a7121aa1849",
+        "b472f053e4fe43fedcff6e06189ce4ca6cff559cafe0326cdccf449f6596bff5",
     ),
     (
         "metric_weights",
-        "087ef0b899081bebeff373bffaee6df5c675b7851b2c78da12c3a8192fd7a927",
+        "f73d181f731d1d95280a5855ffcc3bd7413ccc974395d6be5add6be82e89337a",
     ),
     (
         "metric_minimum",
-        "7c8f001eef1728c8b70b22396b3c7f7c4deeeb8bce252226ea0fc7d0ecf16927",
+        "92f1a9f945518c7aeeb964edfd07e8920ca3f45a4f2158c6a6fa07a57e6ecf08",
     ),
     (
         "metric_axis_extent",
-        "71be828d7ad082fc09e0a4d50c0f1111fab3af528cfa31d93b0af81f759e5632",
+        "631977eb6838a15b591abe0c3734da5dc1526735934c3994aeebf6c9b540338a",
     ),
     (
         "metric_euclidean_radius",
-        "ab01bbc9917308157470c5cf5d8fdc7f1025cbc339d619682a17ed5646b1341c",
+        "99caadab73f41d5a4419a900e5995dfeb5a14d657ac2b747f9aab1b7257b8a41",
     ),
     (
         "metric_normalised",
-        "75ac63304282eaf0596bc81a30d77eb0324e412332b13b578bc04c5a7f28556e",
+        "0584c61ae6d933378863f0b612e59bbbb36db0c0d7fc958a316568f93bc2cb56",
     ),
     (
         "sin",
@@ -208,7 +210,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "cbrt",
-        "b363cc6aa6be74c982b4351f0db1700a31d65ef68a00ab60503f495a9278ea65",
+        "bbdce4d0d01cac1ca2389e7bfdee76fdba318edf3801cdc2a70888611105f3f3",
     ),
     (
         "hypot",
@@ -240,7 +242,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "round",
-        "7e92a4c7958c2972273ae47988f4818dfe01d16a30803e9b7cd3f06f14261359",
+        "3f4ae38799a1c0e4e19ed084c94b07dd2f65c052c7b4a3572a818ed3656aaf41",
     ),
     (
         "sqrt",
@@ -284,7 +286,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "round64",
-        "5e10f4fa0a2251cca43b0caf760c57906703bb9de8008efc6652195a10fddef2",
+        "b0cfa27c69e463997beae85c03c962fa14995026c465dba50005833862049284",
     ),
     (
         "sqrt64",
@@ -317,6 +319,10 @@ const GOLDEN: &[(&str, &str)] = &[
     (
         "sin_cos64",
         "37e1a316a90d2f09b318b52950c4ddaa2103b6410a075b1b43ac70101debc1a8",
+    ),
+    (
+        "specials",
+        "2a9c0afc67d6cf6fef6d8a5ff3159abebe96dc48b8b7b5d9ddf19c4ca5653bec",
     ),
 ];
 
@@ -502,6 +508,92 @@ fn scalar_outputs_match_recorded_hashes() {
     // the tangent's kernel branches on |reduced| ≥ 0.6744 and on the parity
     // of the quadrant, so the dense grid covers all four combinations
     check("tan64_dense", &hash64(&dense, tan64), want("tan64_dense"));
+}
+
+/// Hashes what [`common::specials::visit`] reports: each pin name
+/// (length-prefixed) followed by its outputs' bits.
+struct HashSink {
+    h: Sha256,
+    names: Vec<&'static str>,
+}
+
+impl common::specials::Sink for HashSink {
+    fn name(&mut self, name: &'static str) {
+        self.names.push(name);
+        self.h
+            .update(u32::try_from(name.len()).unwrap().to_le_bytes());
+        self.h.update(name.as_bytes());
+    }
+    fn v32(&mut self, v: f32) {
+        self.h.update(v.to_bits().to_le_bytes());
+    }
+    fn v64(&mut self, v: f64) {
+        self.h.update(v.to_bits().to_le_bytes());
+    }
+}
+
+/// The `specials` pin: every public scalar function at the IEEE special values
+/// (±0, ±smallest subnormal, ±smallest normal, ±1, ±largest finite, ±inf,
+/// NaN; all pairs and triples for two- and three-argument functions). The
+/// grids above walk through `+0` but never `−0` and reach the other specials
+/// only by chance, so the sign of zero, subnormal and non-finite behaviour
+/// — and the NaN bits, which differ between targets when a function forgets
+/// to canonicalise — are in the identifier only through this pin.
+fn specials_hash(sin: fn(f32) -> f32) -> (String, Vec<&'static str>) {
+    let mut s = HashSink {
+        h: Sha256::new(),
+        names: Vec::new(),
+    };
+    common::specials::visit(&mut s, sin);
+    (format!("{:x}", s.h.finalize()), s.names)
+}
+
+/// The specials pin is a pin like the others. It is new in this release: no
+/// earlier pin table has it, so it moves no old pin.
+#[test]
+fn every_function_at_the_ieee_specials_matches_the_recorded_hash() {
+    let (hash, names) = specials_hash(alice_det_math::sin);
+    check("specials", &hash, want("specials"));
+    assert_eq!(names.len(), 48, "functions hashed at the specials");
+}
+
+/// The specials cover exactly the functions [`GOLDEN`] pins by name, so a
+/// function added to the crate (which must get a pin) must be added there too.
+#[test]
+fn the_specials_cover_every_public_numeric_function() {
+    let (_, names) = specials_hash(alice_det_math::sin);
+    let mut covered: Vec<&str> = names.clone();
+    covered.sort_unstable();
+    covered.dedup();
+    assert_eq!(
+        covered.len(),
+        names.len(),
+        "a function is visited twice: {names:?}"
+    );
+    let mut wanted: Vec<String> = public_numeric_surface()
+        .into_iter()
+        .filter(|s| !s.module.starts_with("simd"))
+        .map(|s| s.pin())
+        .collect();
+    wanted.sort_unstable();
+    assert_eq!(wanted.len(), 48);
+    assert_eq!(covered, wanted, "the specials miss or add a function");
+}
+
+/// A `sin` that loses the sign of zero (and only that) moves the pin.
+#[test]
+fn a_lost_sign_of_zero_moves_the_specials_pin() {
+    fn sin_without_signed_zero(x: f32) -> f32 {
+        let y = alice_det_math::sin(x);
+        if y == 0.0 {
+            0.0
+        } else {
+            y
+        }
+    }
+    let (good, _) = specials_hash(alice_det_math::sin);
+    let (bad, _) = specials_hash(sin_without_signed_zero);
+    assert_ne!(good, bad);
 }
 
 // ---------------------------------------------------------------------------
@@ -813,8 +905,9 @@ fn identifier_modules_compute_no_float() {
 
 /// Pins in [`GOLDEN`] that do not name a public function: the second, denser
 /// input grid used for the functions whose first reduction cases the coarse
-/// grid barely samples.
-const EXTRA_PINS: &[&str] = &["sin64_dense", "cos64_dense", "tan64_dense"];
+/// grid barely samples, and `specials` (every function at the IEEE special
+/// values, [`specials_hash`]).
+const EXTRA_PINS: &[&str] = &["sin64_dense", "cos64_dense", "tan64_dense", "specials"];
 
 /// Every module the crate declares is in [`SOURCES`], and every entry in
 /// [`SOURCES`] is declared somewhere.
@@ -918,7 +1011,7 @@ fn semantics_id_covers_every_public_numeric_function() {
         );
     }
     let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
-    assert_eq!(pinned.len(), 51, "golden pins: {pinned:?}");
+    assert_eq!(pinned.len(), 52, "golden pins: {pinned:?}");
     let wanted: Vec<String> = scalar.iter().map(Surface::pin).collect();
     for s in &scalar {
         assert!(
@@ -1377,10 +1470,15 @@ fn moved_pins(table: PinTable, renames: PinTable) -> (Vec<&'static str>, usize) 
 }
 
 /// 0.4.0's identifier is not accepted any more, and the reason is exactly the
-/// change of `sin` / `cos` / `sin_cos`: its other 37 pins are still
-/// reproduced. A further change to any function moves this set and fails here.
+/// changes of this release, each visible in its pins: `sin` / `cos` /
+/// `sin_cos` (the reduction near their zeros), `round` / `round64` / `cbrt` /
+/// `smoothstep` (a NaN argument returns the canonical NaN instead of its own
+/// payload) and `metric_lipschitz` (exact for weights whose radical under- or
+/// overflowed). Its other 32 pins are still reproduced. The `specials` pin is
+/// new in this release and is not in this table. A further change to any
+/// function moves this set and fails here.
 #[test]
-fn the_0_4_0_identifier_is_rejected_because_exactly_sin_and_cos_changed() {
+fn the_0_4_0_identifier_is_rejected_because_exactly_these_functions_changed() {
     use alice_det_math::{check_semantics, SemanticsCheck, PREVIOUS_SEMANTICS_IDS, SEMANTICS_ID};
     let id = fold_semantics_id(GOLDEN_V0_4_0).expect("the 0.4.0 table folds");
     assert_eq!(
@@ -1393,7 +1491,20 @@ fn the_0_4_0_identifier_is_rejected_because_exactly_sin_and_cos_changed() {
     assert_eq!(check_semantics(&id), SemanticsCheck::Mismatch);
     let (moved, compared) = moved_pins(GOLDEN_V0_4_0, RENAMED_SINCE_V0_4_0);
     assert_eq!(compared, 40, "pins compared");
-    assert_eq!(moved, ["sin", "cos", "sin_cos"]);
+    assert_eq!(
+        moved,
+        [
+            "smoothstep",
+            "metric_lipschitz",
+            "sin",
+            "cos",
+            "sin_cos",
+            "cbrt",
+            "round",
+            "round64"
+        ]
+    );
+    assert!(!GOLDEN_V0_4_0.iter().any(|(n, _)| *n == "specials"));
 }
 
 /// The three-way result and the two predicates, including an identifier one

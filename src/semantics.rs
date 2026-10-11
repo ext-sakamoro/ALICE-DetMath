@@ -14,11 +14,15 @@ use crate::SEMANTICS_ID;
 /// this release on every input, but which covered fewer functions.
 ///
 /// Empty: this release changed the bits of `sin` / `cos` / `sin_cos` (the
-/// reduction near their zeros), so neither 0.4.0's identifier
+/// reduction near their zeros and the sign of zero), `round` / `round64` /
+/// `cbrt` / `smoothstep` and the other metric functions (the canonical NaN),
+/// `MetricWeights::lipschitz` / `new` (exact for tiny and huge weights) and
+/// both precisions of `powf` (`pow(1, y) = 1`), so neither 0.4.0's identifier
 /// (`d2209b30…398e`) nor the one recorded before this change
 /// (`a6fe7dc8…d6af`) is reproduced, and both now read as
 /// [`SemanticsCheck::Mismatch`]. `tests/golden.rs` keeps 0.4.0's pin table
-/// and proves that it differs from this release in exactly those three pins.
+/// and proves that it differs from this release in exactly the pins of those
+/// functions.
 ///
 /// An entry is added only together with that release's pin table in
 /// `tests/golden.rs`, and the test proves two things about it: the table

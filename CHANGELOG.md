@@ -7,13 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-**Behavior change:** `sin` / `cos` / `sin_cos` (`f32`, scalar と `simd` の両方) の出力 bit が変わる `SEMANTICS_ID` は
+**Behavior change:** 次の関数の出力 bit が変わる (scalar と `simd` の両方) `SEMANTICS_ID` は
 `a6fe7dc833d2a35012fc11eaf8e253eca6bfdb76db2931f056132f44bf79d6af` から
-`d85f363ff1b535c019010e43676c3c27a7c4f12b6a03cd74a730adff104984f0` に変わり、`PREVIOUS_SEMANTICS_IDS` は空になる (0.4.0 の `d2209b30…` も `check_semantics` で `Mismatch` になる) 識別子を自分の識別子に混ぜている消費者は再記録が要る
+`135c407d4249c1c200e4d1be79a12e848ce5c355fc3a918da965849e697ef000` に変わり、`PREVIOUS_SEMANTICS_IDS` は空になる (0.4.0 の `d2209b30…` も `check_semantics` で `Mismatch` になる) 識別子を自分の識別子に混ぜている消費者は再記録が要る
+
+- `sin` / `cos` / `sin_cos`: 零点 `k·π/2` の近くの引数還元 (下の Fixed)
+- `sin` / `sin_cos` / `tan`: `-0` に `-0` を返す (従来は `+0`)
+- NaN の出力はすべて正準 NaN (`f32::NAN` = `0x7FC0_0000`、`f64::NAN` = `0x7FF8_0000_0000_0000`) NaN の引数を payload ごと返していた `round` / `round64` / `cbrt` / `metric::clamp` / `metric::smoothstep` / `metric::norm_l1` / `metric::norm_linf` / `MetricWeights::axis_extent` / `MetricWeights::euclidean_radius` (と `simd` の `round` / `clamp` / `smoothstep`) が変わる
+- 多引数の関数は、どの位置の引数が NaN でも正準 NaN を返す (IEEE 754 の特例 `pow(+1, NaN) = 1`、`pow(NaN, ±0) = 1`、`hypot(±inf, NaN) = inf` を除く) 従来は `metric::norm_linf` が先頭 2 つの位置の NaN を落とし (`norm_linf([NaN, 1, 1]) = 1`)、`metric::clamp` が NaN の境界を、`metric::smoothstep` が NaN の端を無視していた (`simd` の `clamp` / `smoothstep` も同じ)
+- `MetricWeights::lipschitz`: 重みが小さい (`w1 + winf < 2^-60`) か大きい (`> 2^60`) 時も閉形式どおり `MetricWeights::new` は Lipschitz 定数が正規数でない重みを `MetricError::Degenerate` で拒否する (従来は `(0, 0, 2^-149)` 等を受け付け、`normalised` が `0/0` を返した)
+- `powf` / `powf64`: `x = 1` は `y` によらず `1` (IEEE 754、`y` が NaN・無限大・`f64::MAX` でも)
+
+golden の pin は新設の `specials` を加えて 52 本 0.4.0 の pin table と比べて動くのは `sin` / `cos` / `sin_cos` / `round` / `round64` / `cbrt` / `smoothstep` / `metric_lipschitz` の 8 本で、残る 32 本は同じ bit (`tests/golden.rs` が検査する) `specials` は 0.4.0 の table に無い新しい pin で、旧 pin を動かさない
 
 ### Added
 
 - `consts::PIO2_4` と `consts::SPLIT_MASK` (JIT / shader などで同じ法則を出力する生成器向け) 3 片の還元を自前で出力している生成器は、この版の bit と一致しなくなる
+- golden の pin `specials`: 全公開 scalar 関数 48 本を IEEE の特殊値 13 個 (`±0`、`±` 最小の非正規数、`±` 最小の正規数、`±1`、`±` 最大の有限値、`±inf`、NaN、2 引数は全対、3 引数は全 3 組) で評価した出力の hash 従来の格子は `+0` を通るが `-0` を通らず、他の特殊値には偶然しか当たらなかった 符号付きゼロ・非正規数・非有限値・NaN の bit がこの pin で識別子に入る 評価の列挙は `tests/common/specials.rs` で、公開関数の一覧と一致することを検査する (関数を足すとここにも足す必要がある) aarch64 と x86_64 で同じ hash (`2a9c0afc…`) を確認した
+- `tests/nan_policy.rs`: 上の正準 NaN の規則を、全公開関数の特殊値・payload 付き NaN の引数・`simd` の各 lane・ゼロ重みの metric の `0·inf` で検査する
+- `tests/nan_in_nan_out.rs`: 多引数の全公開関数 (scalar / `f64` / `simd`) で NaN を各位置に置き、他の引数を特殊値で振って正準 NaN を検査する
+- `tests/signed_zero.rs` / `tests/pow_ieee_one.rs` / `tests/metric_degenerate.rs`: 上の各変更の検査 (どれも修正前の code で red を確認済)
 
 ### Changed
 - CI: branch への push で走る workflow (ci / security-audit) の concurrency を fuzz と同じ形にした main では commit ごとに group を分けて run を取り消さず、取り消すのは branch の古い run だけ (以前は main への後の push が main の run や待機中の run を取り消し、結果が cancelled のまま残りえた) `scripts/workflow_concurrency.py` (試験 `scripts/test_workflow_concurrency.py`) が全 workflow をこの形か確かめ、CI と preflight で走る
@@ -23,9 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `sin` / `cos` / `sin_cos` が零点 `k·π/2` の近くで誤差 2 ulp の保証を外れていた 文書化した定義域 `|x| ≤ 100` で最大 14 ulp (`cos(-4.712389)`、`sin(-75.398224)`)、`|x| ≤ 8192` では `sin` 478 ulp / `cos` 974 ulp (scalar と `simd` は同じ bit) 原因は引数還元 `x − k·π/2` の 3 片目 `k·PIO2_3` の丸め誤差と、π/2 を 3 片で打ち切った残り (零点の近くでは結果 `±sin(r)` の相対誤差がそのまま還元の相対誤差になる) 多項式は無関係 (正確な `r` を与えると 0.22 ulp)
   - `k·PIO2_3` を Dekker の two-product で正確に作り (fused multiply-add は使わない、分割は bit mask で overflow しない)、4 片目 `PIO2_4 = π/2 − (PIO2_1 + PIO2_2 + PIO2_3)` を引く scalar と `simd` は同じ演算を同じ順で行い bit 一致
-  - 変わる出力は 9,000,000 入力 (`[-100, 100]` 4M / `[-1, 1]` 1M / `[-8192, 8192]` 4M の等間隔) のうち 672 (0.007%) golden の pin で動くのは 51 中 `sin` / `cos` / `sin_cos` の 3 つだけ
+  - 変わる出力は 9,000,000 入力 (`[-100, 100]` 4M / `[-1, 1]` 1M / `[-8192, 8192]` 4M の等間隔) のうち 672 (0.007%) この修正で動く golden の pin は `sin` / `cos` / `sin_cos` の 3 つだけ
   - `tests/accuracy_trig_zeros.rs`: `|k| ≤ 63` (`|x| ≤ 100`) と `|k| ≤ 5215` (`|x| ≤ 8192`) の全零点の前後 64 ulp を scalar / `sin_cos` / `simd` で 2 ulp 以内と検査 (修正前の code で red を確認済) fuzz の seed 3 件 (`fuzz/seeds/fuzz_accuracy/`) も修正前の code で 14 / 6 / 14 ulp を出す
   - 定義域の表記は `|x| ≤ 100` のまま `|x| ≤ 8192` までは実測で最大 2 ulp
+- `sin` / `sin_cos` / `tan` が `-0` に `+0` を返していた Cephes の多項式 `r + p` で `p` の符号が `-(+0)(-0) = +0` になり、`-0 + +0 = +0` になっていた fdlibm / musl と同じく `±0` は引数をそのまま返す (0 以外の入力の bit は変わらない) fuzz_accuracy は奇関数の `±0` の符号を検査する (ulp の比較は `-0 == +0` を区別できない) seed `fuzz/seeds/fuzz_accuracy/sin_neg_zero`
+- `MetricWeights::lipschitz` の根号 `(w1 + winf)^2 + 2 w1^2` が `w1 + winf < 2^-63` で非正規数化・`0` になり、`2^64` 超で overflow していた 閉形式と比べて 2 ulp を超えて外れる入力は格子 300,003 点で 92,673 点 範囲 `[2^-60, 2^60]` の外では重みを `2^±100` 倍して評価し戻す (2 の冪の拡縮は積と `sqrt` と交換し正確) 範囲内は従来の式のまま bit 一致 (格子・乱数 200 万・両端の前後 64 ulp で検査) 精度は範囲内と同じ 2 ulp
+- `MetricWeights::normalised` / `powf64(1, ±f64::MAX)` が算術の NaN (符号が aarch64 と x86_64 で異なる) を返していた 上の 2 つの変更で、どちらも target によらない bit になる 新設の `specials` pin を両 target で計算して見つかった
 
 ## [0.5.0] - 2026-10-08
 
