@@ -127,7 +127,8 @@ pub fn round(x: f32x8) -> f32x8 {
     // |x| < 0.5 → ±0 with the sign of x (`bits & 0x8000_0000`): `x * 0.0`
     // keeps the sign of x, including for -0.0 (which is not `< 0`)
     let signed_zero = x * C_0P0;
-    integral.blend(x, small.blend(signed_zero, y))
+    // a NaN lane (any payload) → the canonical NaN, as the scalar
+    canonical_nan(integral.blend(x, small.blend(signed_zero, y)))
 }
 
 /// `f32::sqrt` per lane, correctly rounded; canonical NaN for negative / NaN
@@ -421,18 +422,18 @@ pub fn lerp(a: f32x8, b: f32x8, t: f32x8) -> f32x8 {
 
 /// [`crate::metric::clamp`] per lane.
 ///
-/// The scalar code's NaN early-return needs no mask here: both comparisons
-/// are false for a NaN lane, so the input falls through unchanged, which is
-/// exactly what the scalar version returns.
+/// Both comparisons are false for a NaN lane, so the input falls through and
+/// is then replaced by the canonical NaN, as the scalar early return does.
 #[inline]
 #[must_use]
 pub fn clamp(x: f32x8, low: f32x8, high: f32x8) -> f32x8 {
     let y = high.cmp_lt(x).blend(high, x);
-    y.cmp_lt(low).blend(low, y)
+    canonical_nan(y.cmp_lt(low).blend(low, y))
 }
 
 /// [`crate::metric::smoothstep`] per lane — `3t² − 2t³` over the clamped
-/// interval, a step where the interval is degenerate, NaN passed through.
+/// interval, a step where the interval is degenerate, a NaN `x` → the
+/// canonical NaN.
 #[inline]
 #[must_use]
 pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
@@ -443,7 +444,7 @@ pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
     let t = clamp((x - edge0) / (edge1 - edge0), C_0P0, C_1P0);
     let cubic = canonical_nan(t * t * (C_3P0 - C_2P0 * t));
     let r = degenerate.blend(step, cubic);
-    x.cmp_eq(x).blend(r, x)
+    x.cmp_eq(x).blend(r, C_NAN)
 }
 
 /// [`crate::metric::MetricWeights`] broadcast to lanes.

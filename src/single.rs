@@ -384,7 +384,10 @@ pub fn powi(x: f32, n: i32) -> f32 {
 #[inline]
 #[must_use]
 pub fn cbrt(x: f32) -> f32 {
-    if x == 0.0 || !x.is_finite() {
+    if x.is_nan() {
+        return f32::NAN;
+    }
+    if x == 0.0 || x.is_infinite() {
         return x;
     }
     let ax = x.abs();

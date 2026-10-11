@@ -25,8 +25,8 @@ pub fn round(x: f32) -> f32 {
     let bits = x.to_bits();
     let e = (bits >> 23) & 0xff;
     if e >= 0x7f + 23 {
-        // already integral (or inf / NaN)
-        return x;
+        // already integral or inf; a NaN of any payload → the canonical NaN
+        return if x.is_nan() { f32::NAN } else { x };
     }
     let neg = bits >> 31 != 0;
     let ax = if neg { -x } else { x };
@@ -57,7 +57,7 @@ pub fn round64(x: f64) -> f64 {
     let bits = x.to_bits();
     let e = (bits >> 52) & 0x7ff;
     if e >= 0x3ff + 52 {
-        return x;
+        return if x.is_nan() { f64::NAN } else { x };
     }
     let neg = bits >> 63 != 0;
     let ax = if neg { -x } else { x };

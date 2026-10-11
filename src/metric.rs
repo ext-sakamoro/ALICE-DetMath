@@ -68,11 +68,9 @@ use crate::ops::sqrt;
 /// dependent: `+NaN` (`0x7fc0_0000`) on `aarch64` and `wasm32`, `−NaN`
 /// (`0xffc0_0000`) on `x86_64`. Measured, not assumed — a sweep of the
 /// special values over [`smoothstep`] differs in 293 of 8000 triples between
-/// the two, all of them generated NaNs. Propagating an *input* NaN keeps its
-/// payload identically on every target, so the pass-through arms
-/// ([`clamp`], and the NaN arm of [`smoothstep`]) need no canonicalisation;
-/// only results that arithmetic could have created do. Same policy as
-/// [`sqrt`].
+/// the two, all of them generated NaNs. An *input* NaN is not passed through
+/// either: every NaN this crate returns is the canonical one, whatever its
+/// origin (`tests/nan_policy.rs`). Same policy as [`sqrt`].
 #[inline]
 fn canonical(v: f32) -> f32 {
     if v.is_nan() {
@@ -134,7 +132,7 @@ impl core::error::Error for MetricError {}
 #[inline]
 #[must_use]
 pub fn norm_l1(v: [f32; 3]) -> f32 {
-    v[0].abs() + v[1].abs() + v[2].abs()
+    canonical(v[0].abs() + v[1].abs() + v[2].abs())
 }
 
 /// `‖v‖₂` — the Euclidean norm, via the deterministic [`sqrt`].
@@ -152,11 +150,7 @@ pub fn norm_linf(v: [f32; 3]) -> f32 {
     let b = v[1].abs();
     let c = v[2].abs();
     let m = if a > b { a } else { b };
-    if m > c {
-        m
-    } else {
-        c
-    }
+    canonical(if m > c { m } else { c })
 }
 
 /// A norm built as a non-negative combination of `‖·‖₁`, `‖·‖₂` and `‖·‖∞`.
@@ -309,7 +303,7 @@ impl MetricWeights {
     #[inline]
     #[must_use]
     pub fn axis_extent(self, r: f32) -> f32 {
-        r / (self.l1 + self.l2 + self.linf)
+        canonical(r / (self.l1 + self.l2 + self.linf))
     }
 
     /// The Euclidean radius reached by a ball of radius `r` in this metric.
@@ -320,7 +314,7 @@ impl MetricWeights {
     #[inline]
     #[must_use]
     pub fn euclidean_radius(self, r: f32) -> f32 {
-        r / self.minimum()
+        canonical(r / self.minimum())
     }
 
     /// The same metric scaled to be 1-Lipschitz.
@@ -359,14 +353,14 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 
 /// `x` restricted to `[low, high]`.
 ///
-/// NaN passes through unchanged (`f32::clamp` would too, but it also panics on
-/// inverted bounds). With `low > high` the low bound wins, which keeps the
+/// A NaN `x` gives the canonical NaN (`f32::clamp` passes the payload through,
+/// and also panics on inverted bounds). With `low > high` the low bound wins, which keeps the
 /// function total.
 #[inline]
 #[must_use]
 pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
     if x.is_nan() {
-        return x;
+        return f32::NAN;
     }
     let y = if x > high { high } else { x };
     if y < low {
@@ -385,13 +379,13 @@ pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
 /// within its Lipschitz budget.
 ///
 /// A degenerate or inverted interval (`e1 ≤ e0`) is treated as a step at
-/// `e0`: below it `0`, at or above it `1`, with no division. NaN in `x`
-/// propagates with its payload; a NaN the division created is canonicalised.
+/// `e0`: below it `0`, at or above it `1`, with no division. A NaN `x`, and
+/// a NaN the division creates, give the canonical NaN.
 #[inline]
 #[must_use]
 pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     if x.is_nan() {
-        return x;
+        return f32::NAN;
     }
     if edge1 <= edge0 || edge1.is_nan() || edge0.is_nan() {
         return if x < edge0 { 0.0 } else { 1.0 };

@@ -1039,13 +1039,14 @@ fn bit_exact_pins() {
     assert_eq!(powf64(3.0f64, 2.5).to_bits(), 0x402f_2d4a_4563_563d);
 }
 
-/// A NaN input must produce a platform-independent NaN: either the canonical
-/// `f32::NAN` / `f64::NAN` bits or (for the pass-through functions `round`
-/// and `cbrt`) the input bits unchanged. Letting a NaN *propagate* through
+/// A NaN input must produce the canonical `f32::NAN` / `f64::NAN` bits, from
+/// every function (`round`, `round64` and `cbrt` included: they used to pass
+/// the input bits through, which is deterministic but not the one NaN the
+/// crate returns; see `tests/nan_policy.rs`). Letting a NaN *propagate* through
 /// arithmetic is not allowed — which payload / sign survives `1.0 - NaN`
 /// differs between aarch64, x86 and wasm (found by the wasm golden lane).
 #[test]
-fn nan_inputs_yield_canonical_or_pass_through_nan() {
+fn nan_inputs_yield_the_canonical_nan() {
     let payloads32 = [
         0x7fc0_0001u32,
         0xffc0_0000,
@@ -1087,8 +1088,8 @@ fn nan_inputs_yield_canonical_or_pass_through_nan() {
         same("tan", tan(x));
         same("tanh", tanh(x));
         same("sqrt", sqrt(x));
-        assert_eq!(round(x).to_bits(), b, "round passes NaN through");
-        assert_eq!(cbrt(x).to_bits(), b, "cbrt passes NaN through");
+        same("round", round(x));
+        same("cbrt", cbrt(x));
     }
     let canon64 = f64::NAN.to_bits();
     for &b in &[
@@ -1120,7 +1121,7 @@ fn nan_inputs_yield_canonical_or_pass_through_nan() {
                 v.to_bits()
             );
         }
-        assert_eq!(round64(x).to_bits(), b, "round64 passes NaN through");
+        assert_eq!(round64(x).to_bits(), canon64, "round64({b:#018x})");
     }
 }
 
