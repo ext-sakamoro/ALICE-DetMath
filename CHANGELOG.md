@@ -37,7 +37,8 @@ golden の pin は新設の `specials` を加えて 52 本 0.4.0 の pin table �
 
 - The coverage check reads the `pub fn` / `pub const fn` definitions out of
   every source file the crate compiles, rather than the re-export lists, and
-  asserts the surface size (48) and the pin count (51) exactly, so a parser
+  asserts the surface size (48) and the pin count (52: one per function plus
+  `specials`) exactly, so a parser
   that stopped seeing the surface fails instead of comparing nothing. A new
   test asserts that every module the crate declares is one the parser reads,
   which is what let the `metric` module stay outside until now. Measured
@@ -56,6 +57,9 @@ golden の pin は新設の `specials` を加えて 52 本 0.4.0 の pin table �
   release is.
 - CI: branch への push で走る workflow (ci / security-audit) の concurrency を fuzz と同じ形にした main では commit ごとに group を分けて run を取り消さず、取り消すのは branch の古い run だけ (以前は main への後の push が main の run や待機中の run を取り消し、結果が cancelled のまま残りえた) `scripts/workflow_concurrency.py` (試験 `scripts/test_workflow_concurrency.py`) が全 workflow をこの形か確かめ、CI と preflight で走る
 - CI: fuzz の time-boxed run を gate にした (`continue-on-error` を外した) crash も、1 件も入力を実行しなかった run も red になり、target ごとの実行回数・秒数・結果を job summary に出す (`scripts/fuzz_runs.py`、試験 `scripts/test_fuzz_runs.py` を fuzz job で走らせる) crash の入力は artifact に残し、直したら `fuzz/seeds/<target>/` に置いて replay の gate に加える branch では同時 2 target まで、job に上限時間 45 分を付けた
+- CI: branch (`ci/**`) への push でも 3 workflow (ci / security-audit / fuzz) を走らせる main に入れる前に同じ検査を branch で通すため
+- CI: wasm32-wasip1 を wasmtime で実行する lane で、`nan_policy` / `nan_in_nan_out` / `signed_zero` の試験も走らせる (正準 NaN と符号付きゼロの規則を wasm でも検査する)
+- CI: fuzz の workflow の token の権限を `contents: read` に絞った `scripts/fuzz_runs.py` は AddressSanitizer / LeakSanitizer の報告 (`==N==ERROR: AddressSanitizer` / `SUMMARY: AddressSanitizer: … leaked`) も crash として読む (以前は libFuzzer の行だけを見て、`Done N runs` の行があれば ok としていた) `scripts/workflow_concurrency.py` は、全 job が 1 台の self-hosted runner で走る workflow に限り、理由の comment がある時だけ ref ごとの group を認める (この repo の workflow には該当が無い)
 
 ### Fixed
 
