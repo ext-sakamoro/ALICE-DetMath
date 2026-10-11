@@ -18,8 +18,8 @@ use crate::SEMANTICS_ID;
 /// `cbrt` / `smoothstep` and the other metric functions (the canonical NaN),
 /// `MetricWeights::lipschitz` / `new` (exact for tiny and huge weights) and
 /// both precisions of `powf` (`pow(1, y) = 1`), so neither 0.4.0's identifier
-/// (`d2209b30…398e`) nor the one recorded before this change
-/// (`a6fe7dc8…d6af`) is reproduced, and both now read as
+/// (`d2209b30…398e`) nor the one recorded on the main branch before this
+/// change and never published (`a6fe7dc8…d6af`) is reproduced, and both read as
 /// [`SemanticsCheck::Mismatch`]. `tests/golden.rs` keeps 0.4.0's pin table
 /// and proves that it differs from this release in exactly the pins of those
 /// functions.

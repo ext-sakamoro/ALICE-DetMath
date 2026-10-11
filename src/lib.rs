@@ -112,7 +112,7 @@
 /// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// a6fe7dc833d2a35012fc11eaf8e253eca6bfdb76db2931f056132f44bf79d6af
+/// 135c407d4249c1c200e4d1be79a12e848ce5c355fc3a918da965849e697ef000
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
