@@ -15,9 +15,11 @@ on:
   pull_request:
     branches: [main]
 
+# on main each commit has a group of its own and a run there is never
+# cancelled; a newer push cancels an older run only off main
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -200,6 +202,10 @@ jobs:
         run: python scripts/test_docs_lint.py
       - name: Docs lint (public documents, CHANGELOG structure)
         run: python scripts/docs_lint.py --check
+      - name: Concurrency of every branch-push workflow (test, then check)
+        run: |
+          python scripts/test_workflow_concurrency.py
+          python scripts/workflow_concurrency.py
       - name: Licence check (tests)
         run: python scripts/test_license_check.py
       - name: Licence check (Cargo.toml, shipped files, cargo package --list, README)

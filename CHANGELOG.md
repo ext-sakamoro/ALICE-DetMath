@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- CI: branch への push で走る workflow (ci / security-audit) の concurrency を fuzz と同じ形にした main では commit ごとに group を分けて run を取り消さず、取り消すのは branch の古い run だけ (以前は main への後の push が main の run や待機中の run を取り消し、結果が cancelled のまま残りえた) `scripts/workflow_concurrency.py` (試験 `scripts/test_workflow_concurrency.py`) が全 workflow をこの形か確かめ、CI と preflight で走る
 - CI: fuzz の time-boxed run を gate にした (`continue-on-error` を外した) crash も、1 件も入力を実行しなかった run も red になり、target ごとの実行回数・秒数・結果を job summary に出す (`scripts/fuzz_runs.py`、試験 `scripts/test_fuzz_runs.py` を fuzz job で走らせる) crash の入力は artifact に残し、直したら `fuzz/seeds/<target>/` に置いて replay の gate に加える branch では同時 2 target まで、job に上限時間 45 分を付けた
 
 ## [0.5.0] - 2026-10-08
