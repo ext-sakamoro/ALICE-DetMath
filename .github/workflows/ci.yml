@@ -99,10 +99,10 @@ jobs:
         uses: bytecodealliance/actions/wasmtime/setup@v1
       - name: Build tests (wasm32-wasip1)
         run: cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --no-run
-      - name: Run golden + accuracy + simd_parity + unit tests via wasmtime
+      - name: Run golden + accuracy + simd_parity + NaN / signed-zero + unit tests via wasmtime
         run: |
           set -euo pipefail
-          for t in golden accuracy simd_parity alice_det_math; do
+          for t in golden accuracy simd_parity nan_policy nan_in_nan_out signed_zero alice_det_math; do
             WASM_BIN=$(find target/wasm32-wasip1/debug/deps -name "${t}-*.wasm" -not -name '*.d' | head -1)
             echo "Executing: $WASM_BIN"
             wasmtime "$WASM_BIN"
