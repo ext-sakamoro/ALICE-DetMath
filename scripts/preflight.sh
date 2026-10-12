@@ -113,6 +113,10 @@ python3 scripts/test_license_check.py
 step "ci.yml / docs-lint: Licence check (Cargo.toml, shipped files, cargo package --list, README)"
 python3 scripts/license_check.py
 
+step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
+python3 scripts/test_changed_paths.py
+python3 scripts/changed_paths.py sync
+
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 
