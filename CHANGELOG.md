@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - CI: fuzz と security-audit の paths の判定を `changes` job (`scripts/changed_paths.py`) に移した on.push の paths は新しい branch で既存の commit しか持たない時に比較の対象が空になり、`ci/**` の push で走らないことがあった 各 workflow に `Gate` job を置き、走るべき時に重い job が skip / cancel / 失敗なら red にする pattern は `.github/paths/<workflow>.txt` (pull_request の paths と同じ、`changed_paths.py sync` で突合)
+- CI: `changed_paths.py sync` が、各 workflow の `Gate` job の needs に `changes` と他の全 job が入っているかを検査する (後から足した job が Gate の外で失敗・skip しても気付かない状態を防ぐ、Gate が 0 個・2 個以上・検査する job が無い場合も fail) `.github/paths/*.txt` の見出しを「結果を変えうる file を全て載せる」に改めた
 - CI: `scripts/workflow_concurrency.py` と `scripts/test_workflow_concurrency.py` の冒頭に、ALICE-LOL / ALICE-SDF / ALICE-DetMath で同じ内容 (byte 一致) に保つ旨を書いた 検査の動作は変わらない
 
 ## [0.5.0] - 2026-10-11

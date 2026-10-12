@@ -1,8 +1,9 @@
 # the paths that run .github/workflows/security-audit.yml (scripts/changed_paths.py decide)
 # on.pull_request.paths of the workflow must list the same patterns in the same order
 # (scripts/changed_paths.py sync)
-# every file a job of the workflow executes or reads is listed: a missing one skips the
-# job on a change that alters it
+# every file that can change a job's result is listed: a missing one skips the job on a
+# change that alters it (a file a job reads that cannot change the result is not listed,
+# e.g. .gitignore, which `cargo package` reads but which cannot change the packed tracked files)
 # audit / deny / semver-checks / coverage resolve the dependency graph
 Cargo.toml
 Cargo.lock
