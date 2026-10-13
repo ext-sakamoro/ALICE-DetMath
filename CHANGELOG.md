@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI: 上限の無かった 18 job に `timeout-minutes` を付けた (止まった step は共有 runner を GitHub の上限の 6 時間まで占有しうる) 値は直近の成功した run 12 本の所要時間の最大の 2 倍・中央値の 4 倍の大きい方を 5 分単位に切り上げ、cargo を使う job は最低 15 分 (cache が外れた build のため)、他は最低 10 分 既に上限のある job は変えていない `scripts/workflow_timeouts.py` (試験 `scripts/test_workflow_timeouts.py`、ALICE-LOL と byte 一致) が全 job の上限を検査し、job を 1 つも読めなければ失敗する CI (actionlint job) と preflight で走る
 - CI: fuzz と security-audit の paths の判定を `changes` job (`scripts/changed_paths.py`) に移した on.push の paths は新しい branch で既存の commit しか持たない時に比較の対象が空になり、`ci/**` の push で走らないことがあった 各 workflow に `Gate` job を置き、走るべき時に重い job が skip / cancel / 失敗なら red にする pattern は `.github/paths/<workflow>.txt` (pull_request の paths と同じ、`changed_paths.py sync` で突合)
 - CI: `changed_paths.py sync` が、各 workflow の `Gate` job の needs に `changes` と他の全 job が入っているかを検査する (後から足した job が Gate の外で失敗・skip しても気付かない状態を防ぐ、Gate が 0 個・2 個以上・検査する job が無い場合も fail) `.github/paths/*.txt` の見出しを「結果を変えうる file を全て載せる」に改めた
 - CI: `scripts/workflow_concurrency.py` と `scripts/test_workflow_concurrency.py` の冒頭に、ALICE-LOL / ALICE-SDF / ALICE-DetMath で同じ内容 (byte 一致) に保つ旨を書いた 検査の動作は変わらない
