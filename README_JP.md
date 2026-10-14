@@ -268,7 +268,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G7 handshake-carries-id | 対象外 | G7 governs a Law-bearing value crossing a crate boundary carrying its producer's G6 identifier. alice-det-math is the root compute library: its public API is … |
 | G8 persisted-semantics-id | 対象外 | G8 governs Law-bearing values written to a durable form carrying their own persisted identifier. alice-det-math persists nothing: it is a no_std, no_alloc … |
 | G9 persisted-meaning-change-is-major | 適合 | the identifier moves on a meaning change and only then, recorded as the semver-major equivalent. The crate's one identifier move is CHANGELOG [0.5.0]: … |
-| G10 no-run-varying-artifacts | 未達 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID: a lexical scan of the 15 clock/RNG/UUID forms over every library source … |
+| G10 no-run-varying-artifacts | 適合 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID, and the absence is ratcheted by two layers with the clock-via-elapsed hole … |
 | G11 gate-self-tests | 未達 | the three self-test ideas exist, but ad hoc per infrastructure check rather than as a per-Law-gate triad, and most Law gates (G1-G6, G10, G13, G14) have no … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
 | G13 no-unspecified-order | 未達 | the published crate's library src/ names HashMap / HashSet / BTreeMap nowhere (a full scan returned zero), and it is no_std without alloc, so the standard … |
