@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: `changed_paths.py sync` が、各 workflow の `Gate` job の needs に `changes` と他の全 job が入っているかを検査する (後から足した job が Gate の外で失敗・skip しても気付かない状態を防ぐ、Gate が 0 個・2 個以上・検査する job が無い場合も fail) `.github/paths/*.txt` の見出しを「結果を変えうる file を全て載せる」に改めた
 - CI: `scripts/workflow_concurrency.py` と `scripts/test_workflow_concurrency.py` の冒頭に、ALICE-LOL / ALICE-SDF / ALICE-DetMath で同じ内容 (byte 一致) に保つ旨を書いた 検査の動作は変わらない
 - CI: 公開する文面の検査 (`Public text` workflow、`scripts/public_text.sh`) を追加 ALICE-Law の `scripts/public_text_check.py` を `.github/public-text-pin` の revision で取得し、SHA-256 が一致した時だけ使って、HEAD の全 tracked file (path と本文) と送った commit (message・追加行・追加 path) を読む 何も比較できなければ失敗する preflight でも走る `.public-text.toml` は文書の linter とその試験が意図して持つ語を、種類ごとの行数で許可する (行数が変われば失敗)
+- CI: 決定論ゲート (G10) を追加 `clippy.toml` の `disallowed-methods` (`Instant::now` / `SystemTime::now` / `RandomState::new`) に加えて `scripts/entropy_guard.py` が `src/**/*.rs` の production code (test module 外) を同じ語彙 (`getrandom` / `OsRng` / `thread_rng` / `rand::random` / `from_entropy` / `UNIX_EPOCH` / `Uuid::new_v4` を含む) で走査する 何も比較できなければ失敗する CI と preflight でも走る 現状は該当なし (0 problems)
 
 ## [0.5.0] - 2026-10-11
 
