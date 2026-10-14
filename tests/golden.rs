@@ -249,6 +249,22 @@ const GOLDEN: &[(&str, &str)] = &[
         "64877c5a8a670097edf21dd0aeca4faf56ad9925952e7c48cb460ea5b7fb829d",
     ),
     (
+        "max",
+        "93fd4a229d231ca16606ded184e71469c8dbffb54e62232d6086edf858240c78",
+    ),
+    (
+        "min",
+        "49f0b49b870d11dc1be9d2ffbf1f1f887400e93217943daaa885e145d6c9c571",
+    ),
+    (
+        "max64",
+        "5056ec09256b338efed0db868be493e2b865ae5f767aaf1652cf26bea19d9ddc",
+    ),
+    (
+        "min64",
+        "a530e09fdc3ee7168d7a712e0054667ccc3ed316ef5c8e70c0c86cbf34a08ec3",
+    ),
+    (
         "atan64",
         "110c479ea68f1a9acd63fef9328f388d5ddf39ac1082274e9a35855dd60784e1",
     ),
@@ -322,7 +338,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "specials",
-        "2a9c0afc67d6cf6fef6d8a5ff3159abebe96dc48b8b7b5d9ddf19c4ca5653bec",
+        "697892405de97e9649f9a3455d3a02aa20b2e4f68404f5319b821ce3c8fd1e83",
     ),
 ];
 
@@ -368,6 +384,16 @@ fn scalar_outputs_match_recorded_hashes() {
     check("tanh", &hash32(&g, tanh), want("tanh"));
     check("round", &hash32(&g, round), want("round"));
     check("sqrt", &hash32(&g, sqrt), want("sqrt"));
+    check(
+        "max",
+        &hash32x2(&g, |x, y| max(x, y * 0.37 - 1.0)),
+        want("max"),
+    );
+    check(
+        "min",
+        &hash32x2(&g, |x, y| min(x, y * 0.37 - 1.0)),
+        want("min"),
+    );
     check(
         "smoothstep",
         &hash32x3(&g, metric::smoothstep),
@@ -488,6 +514,16 @@ fn scalar_outputs_match_recorded_hashes() {
     );
     check("round64", &hash64(&g, round64), want("round64"));
     check("sqrt64", &hash64(&g, sqrt64), want("sqrt64"));
+    check(
+        "max64",
+        &hash64(&g, |x| max64(x, x * 0.37 - 1.0)),
+        want("max64"),
+    );
+    check(
+        "min64",
+        &hash64(&g, |x| min64(x, x * 0.37 - 1.0)),
+        want("min64"),
+    );
     check("sin64", &hash64(&g, sin64), want("sin64"));
     check("cos64", &hash64(&g, cos64), want("cos64"));
     check(
@@ -554,7 +590,7 @@ fn specials_hash(sin: fn(f32) -> f32) -> (String, Vec<&'static str>) {
 fn every_function_at_the_ieee_specials_matches_the_recorded_hash() {
     let (hash, names) = specials_hash(alice_det_math::sin);
     check("specials", &hash, want("specials"));
-    assert_eq!(names.len(), 48, "functions hashed at the specials");
+    assert_eq!(names.len(), 52, "functions hashed at the specials");
 }
 
 /// The specials cover exactly the functions [`GOLDEN`] pins by name, so a
@@ -576,7 +612,7 @@ fn the_specials_cover_every_public_numeric_function() {
         .map(|s| s.pin())
         .collect();
     wanted.sort_unstable();
-    assert_eq!(wanted.len(), 48);
+    assert_eq!(wanted.len(), 52);
     assert_eq!(covered, wanted, "the specials miss or add a function");
 }
 
@@ -977,14 +1013,15 @@ fn semantics_id_covers_every_public_numeric_function() {
     let (simd, scalar): (Vec<Surface>, Vec<Surface>) = public_numeric_surface()
         .into_iter()
         .partition(|s| s.module.starts_with("simd"));
-    // 48 = 13 `double` (9 of its own + 4 from its private `trig`)
-    //    + 4 `ops` + 17 `single`
+    // 52 = 13 `double` (9 of its own + 4 from its private `trig`)
+    //    + 8 `ops` (round / round64 / sqrt / sqrt64 / max / min / max64 / min64)
+    //    + 17 `single`
     //    + 14 `metric` (6 free functions + 8 methods on `MetricWeights`).
     // Adding one means adding its golden pin and raising this number in the
     // same commit.
     assert_eq!(
         scalar.len(),
-        48,
+        52,
         "public numeric surface: {:?}",
         ids(&scalar)
     );
@@ -1011,7 +1048,7 @@ fn semantics_id_covers_every_public_numeric_function() {
         );
     }
     let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
-    assert_eq!(pinned.len(), 52, "golden pins: {pinned:?}");
+    assert_eq!(pinned.len(), 56, "golden pins: {pinned:?}");
     let wanted: Vec<String> = scalar.iter().map(Surface::pin).collect();
     for s in &scalar {
         assert!(

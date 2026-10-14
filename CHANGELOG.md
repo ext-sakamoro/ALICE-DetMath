@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `max` / `min` / `max64` / `min64` を追加 `f32::max` / `f32::min` (と `f64` 版) は等しい大きさの ±0 の組の符号を規定せず、target ごとに違う (AArch64 のハードウェア命令は既に +0/-0 を返す、IEEE 754-2019 の `maximumNumber`/`minimumNumber` と同じ、x86_64 の命令はどちらかの引数をそのまま返すため `0.0f32.max(-0.0)` はそこで `-0.0` になる) 他の ALICE-\* crate が内部に private で持っていた同じ比較だけの式をこの crate の公開 API として 1 箇所に集約した oracle: ±inf / ±1 / ±subnormal / ±0 / NaN の 9 値格子の全組 (両 width、324 件) を規則から計算した期待値と bit 一致で比較 変異試験: platform の `f32::max`/`min` がこの実装と x86_64 (Rosetta 経由の build で確認) では食い違うが aarch64 (ハードウェアが既に一致) では食い違わないことを確認 `SEMANTICS_ID` が動く (公開数値関数の数が 48 から 52 に増えた、既存の関数の bit は変わっていない)
+
 ### Changed
 
 - CI: 上限の無かった 18 job に `timeout-minutes` を付けた (止まった step は共有 runner を GitHub の上限の 6 時間まで占有しうる) 値は直近の成功した run 12 本の所要時間の最大の 2 倍・中央値の 4 倍の大きい方を 5 分単位に切り上げ、cargo を使う job は最低 15 分 (cache が外れた build のため)、他は最低 10 分 既に上限のある job は変えていない `scripts/workflow_timeouts.py` (試験 `scripts/test_workflow_timeouts.py`、ALICE-LOL と byte 一致) が全 job の上限を検査し、job を 1 つも読めなければ失敗する CI (actionlint job) と preflight で走る

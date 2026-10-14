@@ -16,6 +16,17 @@
 //! `sqrt(NaN)` and `sqrt(x < 0)` return the canonical positive quiet NaN on
 //! every target (a hardware `sqrt` of a negative number returns the *default*
 //! NaN, whose sign bit differs between `x86` and `AArch64`).
+//!
+//! * [`max`] / [`min`] / [`max64`] / [`min64`]: `f32::max` / `f32::min` (and
+//!   the `f64` forms) leave the sign of an equal pair of zeros unspecified,
+//!   and the targets differ (`AArch64`'s hardware `fmax`/`fmin` already
+//!   return `+0`/`-0` there, matching IEEE 754-2019's `maximumNumber` /
+//!   `minimumNumber`; `x86_64`'s `maxss`/`minss` return one of the two
+//!   operands unchanged, so `0.0f32.max(-0.0)` is `-0.0` there, and even that
+//!   differs between a debug build and one the optimizer has reordered). A
+//!   NaN operand yields the other operand (as `f32::max`/`min` already do);
+//!   every other pair is ordered by value. Pure comparisons, so the result is
+//!   the same bits on every target and optimization level.
 
 /// `f32::round` — nearest integer, ties away from zero (musl `roundf`).
 #[inline]
@@ -116,6 +127,60 @@ pub fn sqrt64(x: f64) -> f64 {
     #[cfg(not(feature = "std"))]
     {
         soft_sqrt64(x)
+    }
+}
+
+/// `max` with a defined zero sign: a NaN operand yields the other operand,
+/// `max(-0.0, 0.0)` and `max(0.0, -0.0)` are `+0.0`.
+#[inline]
+#[must_use]
+pub fn max(a: f32, b: f32) -> f32 {
+    if a.is_nan() || b > a {
+        b
+    } else if b.is_nan() || a > b || !a.is_sign_negative() {
+        a
+    } else {
+        b
+    }
+}
+
+/// `min` with a defined zero sign: a NaN operand yields the other operand,
+/// `min(-0.0, 0.0)` and `min(0.0, -0.0)` are `-0.0`.
+#[inline]
+#[must_use]
+pub fn min(a: f32, b: f32) -> f32 {
+    if a.is_nan() || b < a {
+        b
+    } else if b.is_nan() || a < b || a.is_sign_negative() {
+        a
+    } else {
+        b
+    }
+}
+
+/// [`max`] for `f64`.
+#[inline]
+#[must_use]
+pub fn max64(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b > a {
+        b
+    } else if b.is_nan() || a > b || !a.is_sign_negative() {
+        a
+    } else {
+        b
+    }
+}
+
+/// [`min`] for `f64`.
+#[inline]
+#[must_use]
+pub fn min64(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b < a {
+        b
+    } else if b.is_nan() || a < b || a.is_sign_negative() {
+        a
+    } else {
+        b
     }
 }
 
@@ -308,5 +373,190 @@ mod tests {
         assert_eq!(sqrt(f32::INFINITY), f32::INFINITY);
         assert_eq!(sqrt(-1.0).to_bits(), f32::NAN.to_bits());
         assert_eq!(sqrt64(-1.0).to_bits(), f64::NAN.to_bits());
+    }
+
+    /// `max` / `min` oracle: every pair from a lattice of {-inf, -1, -subnormal,
+    /// -0, 0, subnormal, 1, inf, NaN}, compared bit-for-bit against an expected
+    /// value computed by rule (not with the functions under test). f32 and f64
+    /// each get their own native lattice (so the f32 functions see a genuine
+    /// f32 subnormal, not an f64 subnormal that flushed to 0.0 on cast).
+    mod max_min_tests {
+        use super::{max, max64, min, min64};
+
+        fn expected_max64(a: f64, b: f64) -> f64 {
+            match (a.is_nan(), b.is_nan()) {
+                (true, _) => b,
+                (_, true) => a,
+                _ if a > b => a,
+                _ if b > a => b,
+                _ => {
+                    if a != 0.0 {
+                        a
+                    } else if a.is_sign_negative() && b.is_sign_negative() {
+                        -0.0
+                    } else {
+                        0.0
+                    }
+                }
+            }
+        }
+
+        fn expected_min64(a: f64, b: f64) -> f64 {
+            match (a.is_nan(), b.is_nan()) {
+                (true, _) => b,
+                (_, true) => a,
+                _ if a < b => a,
+                _ if b < a => b,
+                _ => {
+                    if a == 0.0 && (a.is_sign_negative() || b.is_sign_negative()) {
+                        -0.0
+                    } else {
+                        a
+                    }
+                }
+            }
+        }
+
+        fn expected_max32(a: f32, b: f32) -> f32 {
+            match (a.is_nan(), b.is_nan()) {
+                (true, _) => b,
+                (_, true) => a,
+                _ if a > b => a,
+                _ if b > a => b,
+                _ => {
+                    if a != 0.0 {
+                        a
+                    } else if a.is_sign_negative() && b.is_sign_negative() {
+                        -0.0
+                    } else {
+                        0.0
+                    }
+                }
+            }
+        }
+
+        fn expected_min32(a: f32, b: f32) -> f32 {
+            match (a.is_nan(), b.is_nan()) {
+                (true, _) => b,
+                (_, true) => a,
+                _ if a < b => a,
+                _ if b < a => b,
+                _ => {
+                    if a == 0.0 && (a.is_sign_negative() || b.is_sign_negative()) {
+                        -0.0
+                    } else {
+                        a
+                    }
+                }
+            }
+        }
+
+        fn same64(x: f64, y: f64) -> bool {
+            (x.is_nan() && y.is_nan()) || x.to_bits() == y.to_bits()
+        }
+
+        fn same32(x: f32, y: f32) -> bool {
+            (x.is_nan() && y.is_nan()) || x.to_bits() == y.to_bits()
+        }
+
+        const LATTICE64: [f64; 9] = [
+            f64::NEG_INFINITY,
+            -1.0,
+            -5e-324, // f64::from_bits(1), the smallest-magnitude negative subnormal
+            -0.0,
+            0.0,
+            5e-324, // f64::from_bits(1), the smallest-magnitude positive subnormal
+            1.0,
+            f64::INFINITY,
+            f64::NAN,
+        ];
+
+        const LATTICE32: [f32; 9] = [
+            f32::NEG_INFINITY,
+            -1.0,
+            -1e-45, // f32::from_bits(1), the smallest-magnitude negative subnormal
+            -0.0,
+            0.0,
+            1e-45, // f32::from_bits(1), the smallest-magnitude positive subnormal
+            1.0,
+            f32::INFINITY,
+            f32::NAN,
+        ];
+
+        #[test]
+        fn lattice_values_are_actually_subnormal_or_the_extremes_they_claim_to_be() {
+            // a sanity check on the lattice itself: if these literals ever
+            // stopped meaning what their comments say (e.g. rounded to 0 or to
+            // a normal number), the oracle below would silently stop covering
+            // the cases it claims to
+            assert!(LATTICE64[2].is_subnormal() && LATTICE64[2] < 0.0);
+            assert!(LATTICE64[5].is_subnormal() && LATTICE64[5] > 0.0);
+            assert!(LATTICE32[2].is_subnormal() && LATTICE32[2] < 0.0);
+            assert!(LATTICE32[5].is_subnormal() && LATTICE32[5] > 0.0);
+        }
+
+        #[test]
+        fn max64_and_min64_follow_the_rule_on_the_signed_zero_and_subnormal_lattice() {
+            let mut compared = 0;
+            for &a in &LATTICE64 {
+                for &b in &LATTICE64 {
+                    let (x, y) = (core::hint::black_box(a), core::hint::black_box(b));
+                    assert!(
+                        same64(max64(x, y), expected_max64(a, b)),
+                        "max64({a:?}, {b:?}) = {:?}",
+                        max64(x, y)
+                    );
+                    assert!(
+                        same64(min64(x, y), expected_min64(a, b)),
+                        "min64({a:?}, {b:?}) = {:?}",
+                        min64(x, y)
+                    );
+                    compared += 2;
+                }
+            }
+            assert_eq!(compared, 2 * 81);
+        }
+
+        #[test]
+        fn max_and_min_follow_the_rule_on_the_signed_zero_and_subnormal_lattice() {
+            let mut compared = 0;
+            for &a in &LATTICE32 {
+                for &b in &LATTICE32 {
+                    let (x, y) = (core::hint::black_box(a), core::hint::black_box(b));
+                    assert!(
+                        same32(max(x, y), expected_max32(a, b)),
+                        "max({a:?}, {b:?}) = {:?}",
+                        max(x, y)
+                    );
+                    assert!(
+                        same32(min(x, y), expected_min32(a, b)),
+                        "min({a:?}, {b:?}) = {:?}",
+                        min(x, y)
+                    );
+                    compared += 2;
+                }
+            }
+            assert_eq!(compared, 2 * 81);
+        }
+
+        #[test]
+        fn the_zero_pair_has_the_documented_sign_in_both_orders() {
+            let (p, n) = (
+                core::hint::black_box(0.0f32),
+                core::hint::black_box(-0.0f32),
+            );
+            assert_eq!(max(p, n).to_bits(), 0x0000_0000);
+            assert_eq!(max(n, p).to_bits(), 0x0000_0000);
+            assert_eq!(min(p, n).to_bits(), 0x8000_0000);
+            assert_eq!(min(n, p).to_bits(), 0x8000_0000);
+            let (p, n) = (
+                core::hint::black_box(0.0f64),
+                core::hint::black_box(-0.0f64),
+            );
+            assert_eq!(max64(p, n).to_bits(), 0);
+            assert_eq!(max64(n, p).to_bits(), 0);
+            assert_eq!(min64(p, n).to_bits(), 0x8000_0000_0000_0000);
+            assert_eq!(min64(n, p).to_bits(), 0x8000_0000_0000_0000);
+        }
     }
 }
