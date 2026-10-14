@@ -258,11 +258,11 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "max64",
-        "5056ec09256b338efed0db868be493e2b865ae5f767aaf1652cf26bea19d9ddc",
+        "6ae804e54c77d6cc2d690465511daa4bfa73f3345751c521bba499d49925d89c",
     ),
     (
         "min64",
-        "a530e09fdc3ee7168d7a712e0054667ccc3ed316ef5c8e70c0c86cbf34a08ec3",
+        "24b06cd31dc3324a15bad0de2605ba8177ef471e30aae60c95104e0a9f009aa4",
     ),
     (
         "atan64",

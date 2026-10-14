@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `max` / `min` / `max64` / `min64` を追加 `f32::max` / `f32::min` (と `f64` 版) は等しい大きさの ±0 の組の符号を規定せず、target ごとに違う (AArch64 のハードウェア命令は既に +0/-0 を返す、IEEE 754-2019 の `maximumNumber`/`minimumNumber` と同じ、x86_64 の命令はどちらかの引数をそのまま返すため `0.0f32.max(-0.0)` はそこで `-0.0` になる) 他の ALICE-\* crate が内部に private で持っていた同じ比較だけの式をこの crate の公開 API として 1 箇所に集約した oracle: ±inf / ±1 / ±subnormal / ±0 / NaN の 9 値格子の全組 (両 width、324 件) を規則から計算した期待値と bit 一致で比較 変異試験: platform の `f32::max`/`min` がこの実装と x86_64 (Rosetta 経由の build で確認) では食い違うが aarch64 (ハードウェアが既に一致) では食い違わないことを確認 `SEMANTICS_ID` が動く (公開数値関数の数が 48 から 52 に増えた、既存の関数の bit は変わっていない)
+- `max` / `min` / `max64` / `min64` を追加 `f32::max` / `f32::min` (と `f64` 版) は等しい大きさの ±0 の組の符号を規定せず、target ごとに違う (AArch64 のハードウェア命令は既に +0/-0 を返す、IEEE 754-2019 の `maximumNumber`/`minimumNumber` と同じ、x86_64 の命令はどちらかの引数をそのまま返すため `0.0f32.max(-0.0)` はそこで `-0.0` になる) 他の ALICE-\* crate が内部に private で持っていた同じ比較だけの式をこの crate の公開 API として 1 箇所に集約した 両オペランドが NaN の時はこの crate の既存の canonical-NaN 方針 (`tests/nan_policy.rs`) どおり常に canonical NaN を返す (どちらかの payload をそのまま通さない) oracle: ±inf / ±1 / ±subnormal / ±0 / NaN の 9 値格子の全組 (両 width、324 件) を規則から計算した期待値と bit 一致で比較、加えて異なる payload を持つ NaN の全組合せ (f32 36 件 / f64 25 件) が canonical NaN を返すことを別途比較 変異試験: platform の `f32::max`/`min` がこの実装と x86_64 (Rosetta 経由の build で確認) では食い違うが aarch64 (ハードウェアが既に一致) では食い違わないことを確認、また canonical 化を外すと両方の変異で red になることを確認 `SEMANTICS_ID` が動く (公開数値関数の数が 48 から 52 に増えた、既存の関数の bit は変わっていない)
 
 ### Changed
 
