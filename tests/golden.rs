@@ -1431,22 +1431,448 @@ const GOLDEN_V0_4_0: &[(&str, &str)] = &[
 /// Pins renamed since 0.4.0 without changing what they hash: `(old, new)`.
 const RENAMED_SINCE_V0_4_0: &[(&str, &str)] = &[("metric_norm_mix", "metric_norm")];
 
+/// The pin table of release 0.5.0, copied verbatim from `tests/golden.rs` at
+/// tag `v0.5.0` (`git show v0.5.0:tests/golden.rs`). Not edited: the proofs
+/// below depend on it being what that release pinned. Every function in it
+/// still returns these exact bits (this release only adds `max` / `min` /
+/// `max64` / `min64`, which 0.5.0 did not have), so its identifier is a
+/// [`alice_det_math::PREVIOUS_SEMANTICS_IDS`] entry rather than rejected.
+const GOLDEN_V0_5_0: &[(&str, &str)] = &[
+    (
+        "smoothstep",
+        "184e9e4776478a4608497033c7e9f39e14b6b629b691a9bb9ac2a4313f2de33e",
+    ),
+    (
+        "metric_norm",
+        "00f35aac72ff55e1069259196427d703926b47f7b4349fb4cc7f3f7b8effdc60",
+    ),
+    (
+        "metric_lipschitz",
+        "ff8c5743709b8a02beb42eb169064e2bd7f290096c9c99ac40551583be3b1f58",
+    ),
+    (
+        "norm_l1",
+        "522716e421c074fd03f831a1fb5b51280da91c573c90530b02c522982c677839",
+    ),
+    (
+        "norm_l2",
+        "69e09bc27dee17bbdc9eeeb4ab0f984f6539e4c487463c725b34b9f48426dbf9",
+    ),
+    (
+        "norm_linf",
+        "d4446c6e32de4948c74bbb5b76daa0e1de4daebe00e44503e720f149b981da18",
+    ),
+    (
+        "lerp",
+        "fe010775a3074825cbf8e3b28cf598d7e7d3a598e7c3da185f7f9525c7b6e6a6",
+    ),
+    (
+        "clamp",
+        "626399c500e7ae66f5afed4ac55321304b7c488dd12889bb149188a604e65942",
+    ),
+    (
+        "metric_new",
+        "b472f053e4fe43fedcff6e06189ce4ca6cff559cafe0326cdccf449f6596bff5",
+    ),
+    (
+        "metric_weights",
+        "f73d181f731d1d95280a5855ffcc3bd7413ccc974395d6be5add6be82e89337a",
+    ),
+    (
+        "metric_minimum",
+        "92f1a9f945518c7aeeb964edfd07e8920ca3f45a4f2158c6a6fa07a57e6ecf08",
+    ),
+    (
+        "metric_axis_extent",
+        "631977eb6838a15b591abe0c3734da5dc1526735934c3994aeebf6c9b540338a",
+    ),
+    (
+        "metric_euclidean_radius",
+        "99caadab73f41d5a4419a900e5995dfeb5a14d657ac2b747f9aab1b7257b8a41",
+    ),
+    (
+        "metric_normalised",
+        "0584c61ae6d933378863f0b612e59bbbb36db0c0d7fc958a316568f93bc2cb56",
+    ),
+    (
+        "sin",
+        "84cf4edf30a5b6f644c1dc74dde2640e4467770ed5c35a296353c9e5b1174bf7",
+    ),
+    (
+        "cos",
+        "8310296979062107b644a1d340ca181facf1be5ea5122af76a74ec26eb33b38c",
+    ),
+    (
+        "sin_cos",
+        "19566da559090072ddbde9238a32500d4f254162991648082813f0fe504f739f",
+    ),
+    (
+        "exp",
+        "fa74cbe1433a80c6a2c1f02332275bdd624da09f773c69877696d989948010c8",
+    ),
+    (
+        "ln",
+        "f740b2d9021d091ae3f5a18ecf346fbe5205b2d3b0209e96dca70b710da2e924",
+    ),
+    (
+        "log2",
+        "31911ba674cb7bce895b09de45c8d9ea1a84a5c26ba5936ef5a01faa05ac551e",
+    ),
+    (
+        "log10",
+        "2acdd36905c9d2ae3bb1d97db141d37f6c4823f630703fd8efede750a5c1caa1",
+    ),
+    (
+        "powf",
+        "aeeb77e2053b833490655db02c832d6305502dfb873b2bbb03b2557f64460e0e",
+    ),
+    (
+        "powi",
+        "769743b0123bb1c3926c8ec7445002b3de11fb6476f438dc67139313c2064117",
+    ),
+    (
+        "cbrt",
+        "bbdce4d0d01cac1ca2389e7bfdee76fdba318edf3801cdc2a70888611105f3f3",
+    ),
+    (
+        "hypot",
+        "0cae2245259eaa5ec7267c3abe0db438088ebf5f53d33e28319bfe2579a3c4cd",
+    ),
+    (
+        "atan",
+        "3c5b4e38c7b09d816a5815073c8128d698b92173c2c443eef9a12fb06043dc78",
+    ),
+    (
+        "atan2",
+        "6fcbd5192a639e6e9b6b431485a4c3421b009b28f5d667b8a263124bf3ea28a4",
+    ),
+    (
+        "asin",
+        "ca20e5817f24d9970dca42171443c33af93ed8123c2eb9bb3441cd5427fb2fb7",
+    ),
+    (
+        "acos",
+        "b2e19e15112788c5523f4d7e53fcc143b58a1f24be543ffc76219c430fe56a56",
+    ),
+    (
+        "tan",
+        "ba94160fda3f50340c31f1abe034701d4bda9993cf0608635e802db72a9164fb",
+    ),
+    (
+        "tanh",
+        "8ae2d42020033aebfa823eb7ff3996d03ce8c0b4f5fd1f38c58d6197af1a3ff4",
+    ),
+    (
+        "round",
+        "3f4ae38799a1c0e4e19ed084c94b07dd2f65c052c7b4a3572a818ed3656aaf41",
+    ),
+    (
+        "sqrt",
+        "64877c5a8a670097edf21dd0aeca4faf56ad9925952e7c48cb460ea5b7fb829d",
+    ),
+    (
+        "atan64",
+        "110c479ea68f1a9acd63fef9328f388d5ddf39ac1082274e9a35855dd60784e1",
+    ),
+    (
+        "atan2_64",
+        "f2263508c440333a745930d61fb5b65ab7efa441f7846f7048ca701af46caa26",
+    ),
+    (
+        "asin64",
+        "3f1953ff567f5d6c4e69b61a0b0b31100528d0f837788693a5617bf042dcc32d",
+    ),
+    (
+        "acos64",
+        "fe196c16623f5b61946c47cb78b286ca6ee1ad04233a5e438dd90b7c4e9fa43b",
+    ),
+    (
+        "exp64",
+        "a3782891336fb2cf0385790ea3589fd05fce413c4bbf5252048a6f8b72d54a39",
+    ),
+    (
+        "ln64",
+        "053aec9251fe146bb064b9a66a5f662ca59eb31b8507b9a50f27135f39dfc8c9",
+    ),
+    (
+        "log2_64",
+        "c3586ee8c0d3d001f36b1d57846cc1172d0b42b7629588054c050fc74126fd07",
+    ),
+    (
+        "log10_64",
+        "b3e8502088c819da30e0f12076d08b0fc52ef6f3496970b4600d1ff2f1c97934",
+    ),
+    (
+        "powf64",
+        "6bd59fa5f716c2adc9d5d9a4bdecf4f600889587ba0b5a927d4826fa1b593969",
+    ),
+    (
+        "round64",
+        "b0cfa27c69e463997beae85c03c962fa14995026c465dba50005833862049284",
+    ),
+    (
+        "sqrt64",
+        "45b138399157594f7ce1e36a01940a185ec7f04de57fe041e47ecf99aa40bf00",
+    ),
+    (
+        "sin64",
+        "f67cfac4494c1bc738191d44db12d9a02df667dc86c5bf9471dded124824b367",
+    ),
+    (
+        "cos64",
+        "c8b013bf72744ff237e34a15b5cb05c3b33391970917db0074446fd70b349377",
+    ),
+    (
+        "tan64",
+        "bb8669e863c925b799c8d73eaf50965b2e7c60eab00a9bacbc24644025d7d3d6",
+    ),
+    (
+        "sin64_dense",
+        "ce7f4729ce2f51e9c0fccd9657ffee833d04cfdb4497f72b4ab70da89e0dd525",
+    ),
+    (
+        "cos64_dense",
+        "4de5c741eb8cb0fb9cfea9aeda36ffeebbd0de8b4f1ad3b697f0ed9eb6e60918",
+    ),
+    (
+        "tan64_dense",
+        "cf5945d72c4e963e438588ff84821a51bc2b2d909db13239dea400667f6ea80e",
+    ),
+    (
+        "sin_cos64",
+        "37e1a316a90d2f09b318b52950c4ddaa2103b6410a075b1b43ac70101debc1a8",
+    ),
+    (
+        "specials",
+        "2a9c0afc67d6cf6fef6d8a5ff3159abebe96dc48b8b7b5d9ddf19c4ca5653bec",
+    ),
+];
+
+/// No pin was renamed between 0.5.0 and this release.
+const RENAMED_SINCE_V0_5_0: &[(&str, &str)] = &[];
+
 /// One pin table per entry of [`alice_det_math::PREVIOUS_SEMANTICS_IDS`], in
 /// the same order, with the renames that map its names onto [`GOLDEN`].
 /// A pin table: `(name, 64 hex digits)` per function.
 type PinTable = &'static [(&'static str, &'static str)];
 
-const PREVIOUS_TABLES: &[(PinTable, PinTable)] = &[];
+/// Recomputes a past release's `specials` aggregate pin, restricted to the
+/// function list that release's own specials sweep covered.
+///
+/// `specials` is not a per-function pin: it is one hash folded over every
+/// function `common::specials::visit` calls, and that function list grows
+/// whenever a release adds a public numeric function. So a stored `specials`
+/// hash can never be "reproduced" by comparing it to the live `specials`
+/// pin in [`GOLDEN`] once the two releases cover different function sets —
+/// the live aggregate necessarily differs even when every function the old
+/// release covered still returns the same bits. Each historical table that
+/// had a `specials` pin instead freezes its own recomputation: the exact
+/// historical call sequence (copied verbatim, never edited), run against
+/// this release's current implementations. If it still folds to the stored
+/// hash, every one of those old functions' special-value (and NaN,
+/// subnormal, signed-zero) behaviour is unchanged; a function this release
+/// added is not exercised by it at all, by construction.
+type SpecialsRecompute = fn() -> String;
+
+/// 0.5.0's `specials` sweep, frozen: copied verbatim from
+/// `tests/common/specials.rs` at tag `v0.5.0`
+/// (`git show v0.5.0:tests/common/specials.rs`), minus the two lines that do
+/// not exist until this release (`f2(s, "max", max)`, `f2(s, "min", min)`,
+/// `d2(s, "max64", max64)`, `d2(s, "min64", min64)`). Not edited beyond that
+/// omission: adding a 0.5.1-only function here would defeat the point (this
+/// must call only what 0.5.0 called). [`recompute`] is this release's only
+/// caller of it.
+mod specials_v0_5_0 {
+    use super::common::specials::{Sink, SPECIALS32, SPECIALS64};
+    use super::HashSink;
+    use alice_det_math::metric::{MetricError, MetricWeights};
+    use sha2::{Digest, Sha256};
+
+    fn f1(s: &mut impl Sink, name: &'static str, f: impl Fn(f32) -> f32) {
+        s.name(name);
+        for x in SPECIALS32 {
+            s.v32(f(x));
+        }
+    }
+
+    fn f2(s: &mut impl Sink, name: &'static str, f: impl Fn(f32, f32) -> f32) {
+        s.name(name);
+        for x in SPECIALS32 {
+            for y in SPECIALS32 {
+                s.v32(f(x, y));
+            }
+        }
+    }
+
+    fn f3(s: &mut impl Sink, name: &'static str, f: impl Fn(f32, f32, f32) -> f32) {
+        s.name(name);
+        for x in SPECIALS32 {
+            for y in SPECIALS32 {
+                for z in SPECIALS32 {
+                    s.v32(f(x, y, z));
+                }
+            }
+        }
+    }
+
+    fn d1(s: &mut impl Sink, name: &'static str, f: impl Fn(f64) -> f64) {
+        s.name(name);
+        for x in SPECIALS64 {
+            s.v64(f(x));
+        }
+    }
+
+    fn d2(s: &mut impl Sink, name: &'static str, f: impl Fn(f64, f64) -> f64) {
+        s.name(name);
+        for x in SPECIALS64 {
+            for y in SPECIALS64 {
+                s.v64(f(x, y));
+            }
+        }
+    }
+
+    fn visit(s: &mut impl Sink) {
+        use alice_det_math::*;
+        let weights = |a: f32, b: f32, c: f32| MetricWeights::new(a.abs(), b.abs(), c.abs());
+        f1(s, "sin", sin);
+        f1(s, "cos", cos);
+        s.name("sin_cos");
+        for x in SPECIALS32 {
+            let (a, b) = sin_cos(x);
+            s.v32(a);
+            s.v32(b);
+        }
+        f1(s, "exp", exp);
+        f1(s, "ln", ln);
+        f1(s, "log2", log2);
+        f1(s, "log10", log10);
+        f2(s, "powf", powf);
+        s.name("powi");
+        for x in SPECIALS32 {
+            for n in [-3, -2, -1, 0, 1, 2, 3, i32::MIN, i32::MAX] {
+                s.v32(powi(x, n));
+            }
+        }
+        f1(s, "cbrt", cbrt);
+        f2(s, "hypot", hypot);
+        f1(s, "atan", atan);
+        f2(s, "atan2", atan2);
+        f1(s, "asin", asin);
+        f1(s, "acos", acos);
+        f1(s, "tan", tan);
+        f1(s, "tanh", tanh);
+        f1(s, "round", round);
+        f1(s, "sqrt", sqrt);
+        f3(s, "smoothstep", metric::smoothstep);
+        s.name("metric_norm");
+        for w in [
+            MetricWeights::new(0.3, 0.5, 0.2).unwrap(),
+            MetricWeights::L1,
+            MetricWeights::L2,
+            MetricWeights::LINF,
+        ] {
+            for x in SPECIALS32 {
+                for y in SPECIALS32 {
+                    for z in SPECIALS32 {
+                        s.v32(w.norm([x, y, z]));
+                    }
+                }
+            }
+        }
+        f3(s, "metric_lipschitz", |a, b, c| {
+            weights(a, b, c).map_or(-1.0, MetricWeights::lipschitz)
+        });
+        f3(s, "norm_l1", |x, y, z| metric::norm_l1([x, y, z]));
+        f3(s, "norm_l2", |x, y, z| metric::norm_l2([x, y, z]));
+        f3(s, "norm_linf", |x, y, z| metric::norm_linf([x, y, z]));
+        f3(s, "lerp", metric::lerp);
+        f3(s, "clamp", metric::clamp);
+        f3(s, "metric_new", |a, b, c| {
+            match MetricWeights::new(a, b, c) {
+                Ok(w) => super::fold_weights(w),
+                Err(MetricError::NotFinite) => -1.0,
+                Err(MetricError::NotConvex) => -2.0,
+                Err(MetricError::Degenerate) => -3.0,
+                Err(_) => -4.0,
+            }
+        });
+        f3(s, "metric_weights", |a, b, c| {
+            weights(a, b, c).map_or(-1.0, super::fold_weights)
+        });
+        f3(s, "metric_minimum", |a, b, c| {
+            weights(a, b, c).map_or(-1.0, MetricWeights::minimum)
+        });
+        f3(s, "metric_axis_extent", |a, b, c| {
+            weights(a, b, c).map_or(-1.0, |w| w.axis_extent(a))
+        });
+        f3(s, "metric_euclidean_radius", |a, b, c| {
+            weights(a, b, c).map_or(-1.0, |w| w.euclidean_radius(b))
+        });
+        s.name("metric_normalised");
+        for a in SPECIALS32 {
+            for b in SPECIALS32 {
+                for c in SPECIALS32 {
+                    match weights(a, b, c) {
+                        Ok(w) => {
+                            let (x, y, z) = w.normalised().weights();
+                            s.v32(x);
+                            s.v32(y);
+                            s.v32(z);
+                        }
+                        Err(_) => s.v32(-1.0),
+                    }
+                }
+            }
+        }
+        d1(s, "atan64", atan64);
+        d2(s, "atan2_64", atan2_64);
+        d1(s, "asin64", asin64);
+        d1(s, "acos64", acos64);
+        d1(s, "exp64", exp64);
+        d1(s, "ln64", ln64);
+        d1(s, "log2_64", log2_64);
+        d1(s, "log10_64", log10_64);
+        d1(s, "tan64", tan64);
+        d2(s, "powf64", powf64);
+        d1(s, "round64", round64);
+        d1(s, "sqrt64", sqrt64);
+        d1(s, "sin64", sin64);
+        d1(s, "cos64", cos64);
+        s.name("sin_cos64");
+        for x in SPECIALS64 {
+            let (a, b) = sin_cos64(x);
+            s.v64(a);
+            s.v64(b);
+        }
+    }
+
+    pub fn recompute() -> String {
+        let mut s = HashSink {
+            h: Sha256::new(),
+            names: Vec::new(),
+        };
+        visit(&mut s);
+        format!("{:x}", s.h.finalize())
+    }
+}
+
+const PREVIOUS_TABLES: &[(PinTable, PinTable, Option<SpecialsRecompute>)] = &[(
+    GOLDEN_V0_5_0,
+    RENAMED_SINCE_V0_5_0,
+    Some(specials_v0_5_0::recompute),
+)];
 
 /// Every previous identifier is backed by its release's pin table, and this
 /// release reproduces every pin in it.
 ///
 /// The tests above recompute every hash in [`GOLDEN`] from this release's
-/// code. So if each pin of a previous table is equal to the [`GOLDEN`] entry
-/// for the same function, this release returns that release's bits on every
-/// function the release covered; and if the table folds to the identifier,
-/// the identifier is that release's. Both together are what lets a reader
-/// accept the identifier as [`SemanticsCheck::VerifiedPrevious`].
+/// code. So if each per-function pin of a previous table is equal to the
+/// [`GOLDEN`] entry for the same function, and its `specials` pin (if it has
+/// one) is equal to that release's own frozen recomputation
+/// ([`SpecialsRecompute`]), this release returns that release's bits on
+/// every function the release covered; and if the table folds to the
+/// identifier, the identifier is that release's. Both together are what
+/// lets a reader accept the identifier as [`SemanticsCheck::VerifiedPrevious`].
 #[test]
 fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
     use alice_det_math::{check_semantics, SemanticsCheck, PREVIOUS_SEMANTICS_IDS, SEMANTICS_ID};
@@ -1456,7 +1882,7 @@ fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
         "each previous identifier needs exactly one pin table"
     );
     let mut compared = 0usize;
-    for ((table, renames), id) in PREVIOUS_TABLES.iter().zip(PREVIOUS_SEMANTICS_IDS) {
+    for ((table, renames, recompute), id) in PREVIOUS_TABLES.iter().zip(PREVIOUS_SEMANTICS_IDS) {
         assert_eq!(
             fold_semantics_id(table).expect("the previous table folds"),
             *id,
@@ -1467,6 +1893,18 @@ fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
             "a previous identifier equals the current one"
         );
         for (name, hash) in *table {
+            if *name == "specials" {
+                let got = recompute.unwrap_or_else(|| {
+                    panic!("`specials` is pinned but this table has no frozen recomputation")
+                })();
+                assert_eq!(
+                    &got, hash,
+                    "`specials`, recomputed over its frozen function list, returns different \
+                     bits than the release that stamped this identifier"
+                );
+                compared += 1;
+                continue;
+            }
             let current = renames
                 .iter()
                 .find(|(old, _)| old == name)
@@ -1483,7 +1921,7 @@ fn every_previous_identifier_is_backed_by_a_reproduced_pin_table() {
         }
         assert_eq!(check_semantics(id), SemanticsCheck::VerifiedPrevious(*id));
     }
-    let pins: usize = PREVIOUS_TABLES.iter().map(|(t, _)| t.len()).sum();
+    let pins: usize = PREVIOUS_TABLES.iter().map(|(t, _, _)| t.len()).sum();
     assert_eq!(compared, pins, "pins compared");
 }
 
