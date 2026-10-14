@@ -1,0 +1,9 @@
+# Determinism gate (G10): no OS entropy and no wall clock in the crate's
+# production code. Every function here is a pure function of its input bits
+# on every platform; a path that reads the clock or draws OS randomness would
+# make the result depend on when or how many times it ran.
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::time::SystemTime::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::collections::hash_map::RandomState::new", reason = "seeds from OS randomness, which this crate's output must never depend on" },
+]

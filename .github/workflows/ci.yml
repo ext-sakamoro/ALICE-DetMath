@@ -219,6 +219,13 @@ jobs:
         run: python scripts/test_license_check.py
       - name: Licence check (Cargo.toml, shipped files, cargo package --list, README)
         run: python scripts/license_check.py
+      # G10: no OS entropy or wall clock in src/ (clippy's disallowed-methods
+      # in clippy.toml is the compiled first layer; this is the second,
+      # compile-free layer, run on every OS)
+      - name: Entropy guard (tests)
+        run: python scripts/test_entropy_guard.py
+      - name: Entropy guard (no OS entropy or wall clock in src/)
+        run: python scripts/entropy_guard.py
       # the changes / gate jobs of the path-filtered workflows (fuzz / security-audit): the
       # script's own tests, and each .github/paths/<workflow>.txt equal to its pull_request paths
       - name: Changed paths tests + pattern sync
