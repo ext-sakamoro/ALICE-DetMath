@@ -103,6 +103,10 @@ python3 scripts/test_docs_lint.py
 step "ci.yml / docs-lint: Docs lint (public documents, CHANGELOG structure)"
 python3 scripts/docs_lint.py --check
 
+step "ci.yml / docs-lint: tracked binaries (build した library を commit しない、走査 0 件で fail)"
+python3 scripts/test_tracked_binaries.py
+python3 scripts/tracked_binaries.py
+
 step "ci.yml / docs-lint: Concurrency of every branch-push workflow"
 python3 scripts/test_workflow_concurrency.py
 python3 scripts/workflow_concurrency.py
