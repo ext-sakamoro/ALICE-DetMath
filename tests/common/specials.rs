@@ -133,6 +133,8 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     f1(s, "tanh", tanh);
     f1(s, "round", round);
     f1(s, "sqrt", sqrt);
+    f2(s, "max", max);
+    f2(s, "min", min);
     f3(s, "smoothstep", metric::smoothstep);
     // a mixed metric, and the named ones (two zero weights each: `0·inf`)
     s.name("metric_norm");
@@ -207,6 +209,8 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     d2(s, "powf64", powf64);
     d1(s, "round64", round64);
     d1(s, "sqrt64", sqrt64);
+    d2(s, "max64", max64);
+    d2(s, "min64", min64);
     d1(s, "sin64", sin64);
     d1(s, "cos64", cos64);
     s.name("sin_cos64");
