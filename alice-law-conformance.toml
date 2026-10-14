@@ -1,0 +1,138 @@
+# ALICE-Law conformance manifest for this crate (alice-det-math). One entry
+# per gate defined in ALICE-Law's conformance/gates.toml. Schema (status /
+# evidence / since / note / reference_repo) is docs/CONFORMANCE.md's
+# "Manifest" section in that repository; a `pass` or `n/a` entry also names
+# the red mutant (for `n/a`, the change that would add a relevant site and
+# make the gate apply, so the absence is demonstrated rather than assumed).
+#
+# Entries here are written from what this repository's own commits, CI
+# workflows and test suites actually show at origin/main, checked directly
+# rather than assumed: a gate without concrete evidence is `unverified`, not
+# guessed `pass`. alice-det-math is the root arithmetic crate of the chain:
+# it defines the deterministic f32/f64 transcendentals every other crate
+# calls, so it is the one crate G1 names as the place those methods may live,
+# and it is the bottom of the identifier fold (no upstream Law crate sits
+# below it). It is `no_std` with no `alloc`, a pure-computation library that
+# persists nothing and receives no Law-bearing value across a boundary.
+
+[G1]
+status = "pass"
+evidence = ["src/single.rs", "src/double.rs", "src/double/trig.rs", "src/simd.rs", "tests/golden.rs", ".github/workflows/ci.yml test job", ".github/workflows/ci.yml simd-paths job"]
+mutant = "replace a kernel's IEEE-basic computation with the platform intrinsic (return x.sin() from single::sin, or introduce an a.mul_add(b,c)) -> the recorded golden hash for that function fails to reproduce on a diverging leg: a transcendental on macos-15-intel / ubuntu-latest / windows-latest / wasm32 (x86_64 and wasm libm differ in the last ulp from the aarch64-apple-darwin baseline bits), a contracted fma on the simd-paths avx2-fma leg against sse2-only"
+since = ""
+note = "G1 bans the platform transcendentals outside alice-det-math; this is that crate, so the gate here is the inverse claim it names it to carry: its own implementations are built from IEEE-basic operations only. A scan of every library source (single.rs, double.rs, double/trig.rs, ops.rs, metric.rs, simd.rs) finds zero calls to any f32/f64 transcendental method and zero mul_add (lib.rs states the same: built from the guaranteed operations only, mul_add not used anywhere). That property is machine-checked, dynamically, by the cross-target golden: tests/golden.rs pins a SHA-256 over each function's output on fixed integer-built grids, recorded on aarch64-apple-darwin, and CI reproduces every pin on macos-latest (aarch64), macos-15-intel (x86_64), ubuntu-latest (x86_64), ubuntu-24.04-arm (aarch64), windows-latest (x86_64), wasm32-wasip1, and the simd-paths legs (sse2-only, avx2-fma, target-cpu=native) -- any platform-divergent op reddens a leg. There is no clippy disallowed-methods self-ban (the crate has no clippy.toml on main) and G1 does not ask the exception crate for one; a static self-ban that catches a stray libm call before it diverges on a leg is the C2 clippy-list rollout, additive to this. The fma-contraction-under-release residual is accounted for separately in G3/G4/G5 (no release leg)."
+reference_repo = ""
+
+[G2]
+status = "fail-known"
+evidence = ["src/simd.rs:270", "tests/golden.rs", "tests/simd_parity.rs"]
+since = ""
+note = "the published crate's one Law-bearing f32/f64 max/min is src/simd.rs:270, kf.max(C_NEG126P0).min(C_127P0) -- a wide::f32x8 exponent clamp in the SIMD exp kernel -- not an IEEE maximumNumber/minimumNumber Law helper; the scalar paths use no max/min at all (metric.rs:328 self.minimum() is a MetricWeights accessor, not a float max/min). The crate has no raw_* default-deny manifest and no clippy ban on max/min (C5). The bits of that one site are pinned cross-target by tests/golden.rs (the simd_outputs pin) and tests/simd_parity.rs (lane-for-lane equality to the scalar exp over the special values including NaN, +/-0, subnormals), so a divergence would redden; but G2's own mechanism -- an IEEE-semantics Law helper, a named raw_* exception manifest, and a per-SIMD-width helper test -- does not exist here."
+reference_repo = ""
+
+[G3]
+status = "fail-known"
+evidence = ["src/single.rs", "src/simd.rs", ".github/workflows/ci.yml simd-paths job"]
+since = ""
+note = "no library source calls mul_add or fma at all (the G1 scan returned zero), so there is no outer-negation-of-fma to catch today, and the simd-paths avx2-fma leg would redden if codegen contracted a multiply-add into an fma in the SIMD kernels. But the gate's mechanism -- a syntax-tree checker over src/ with its own tests over each negation shape (a.mul_add(b,c) negated as a whole vs the conforming (-a).mul_add(b,-c)) -- does not exist, so nothing ratchets the absence if a mul_add is introduced into the scalar paths later (C5), and the dynamic backstop that would catch a release-profile contraction (the aarch64 release leg) is itself absent (see G4/G5)."
+reference_repo = ""
+
+[G4]
+status = "fail-known"
+evidence = ["tests/golden.rs", "tests/signed_zero.rs", ".github/workflows/ci.yml test job", ".github/workflows/ci.yml simd-paths job"]
+since = ""
+note = "the bit-pattern goldens exist and are strong -- tests/golden.rs pins every function over large integer-built grids (with an emptiness guard: the fold rejects an empty table), tests/signed_zero.rs checks the +/-0 sign rule and the smallest subnormals, and the specials pin covers every public scalar function at the IEEE special values -- and the arch coverage exists (x86_64 and aarch64 both present: macos-15-intel / ubuntu-latest / windows-latest vs macos-latest / ubuntu-24.04-arm). What is missing is the release dimension: CI runs the whole suite under the DEBUG profile only; there is no --release anywhere in the test, simd-paths or wasm jobs. So the {debug, release} x {x86_64, aarch64} matrix this gate requires has neither release leg (C5). (ALICE-Law's measure_conformance.py reports 'release test found' for this crate; that is the known A12 false positive -- it matches the --release-type patch argument in security-audit.yml:277, not a --release profile test.) Mutant once the release legs exist: flip one digest in tests/golden.rs -> fails on every leg."
+reference_repo = ""
+
+[G5]
+status = "fail-known"
+evidence = [".github/workflows/ci.yml", "scripts/preflight.sh"]
+since = ""
+note = "no job anywhere runs the Law-bearing test suite under --release, on aarch64 or any arch: the test matrix runs cargo test in debug on all five native runners (macos-latest provides the aarch64 runner, but debug), the simd-paths legs run cargo test in debug, and the wasm leg is debug. The only --release-looking token in any workflow is security-audit.yml:277's cargo-semver-checks --release-type patch, which is an argument name, not a profile. The required aarch64 release leg -- the one leg that executes a hardware fma instruction and can catch a G3/G4 regression -- does not exist (C5)."
+reference_repo = ""
+
+[G6]
+status = "pass"
+evidence = ["src/lib.rs:148", "src/semantics.rs", "tests/golden.rs", "tests/semantics_id_doc.rs"]
+mutant = "change any pinned function's output by one bit (or add a pub fn with no golden pin) -> tests/golden.rs::semantics_id_matches_the_recorded_constant fails because the fold no longer equals the recorded SEMANTICS_ID (or ::semantics_id_covers_every_public_numeric_function fails because the surface grew without a pin); editing the documented hex in the src/lib.rs doc block without re-recording fails tests/semantics_id_doc.rs::the_documented_value_is_the_constant"
+since = ""
+note = "alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending name order with a length prefix, so it is a property of this crate's arithmetic alone -- no platform libm, timing or environment enters it. tests/golden.rs::semantics_id_matches_the_recorded_constant recomputes the fold and fails unless it equals the constant; ::semantics_id_covers_every_public_numeric_function reads every pub fn out of the sources and fails if one has no pin (count pinned at 52); ::every_pin_moves_the_identifier proves each pin is load-bearing; ::every_module_declaration_is_parsed keeps the module list complete; ::identifier_modules_compute_no_float keeps the semantics module float-free; tests/semantics_id_doc.rs keeps the documented value from drifting. This is the root of the chain, so the gate's 'folding with upstream crates' identifiers' clause is vacuous -- there is no Law crate below alice-det-math; its identifier is the one every downstream crate folds in. It is deliberately independent of the crate version and toolchain (it must move only when the bits move, not on a version bump); staleness is made visible by the recompute, coverage and doc tests rather than by a version fold, and by the cross-target golden that proves the bits reproduce on every target."
+reference_repo = ""
+
+[G7]
+status = "n/a"
+evidence = ["src/lib.rs", "src/semantics.rs"]
+mutant = "add a pub fn that receives a Law-bearing value tagged with a foreign producer's identifier and routes it into a computation without comparing that identifier against this crate's own -> G7 would then apply and require a distinctly-typed mismatch error naming both identifiers; today no such boundary exists, so there is nothing to carry the id across"
+since = ""
+note = "G7 governs a Law-bearing value crossing a crate boundary carrying its producer's G6 identifier. alice-det-math is the root compute library: its public API is pure f32/f64 functions that take and return raw floats, not identified Law-bearing values, so a scan of its pub surface finds no inbound boundary that receives a foreign identifier to gate a Law value. A raw float it returns is identified by the consumer, not by this crate. What this crate provides is the classifier downstream crates use for THEIR G7: check_semantics(id) -> SemanticsCheck (Verified / VerifiedPrevious(id) / Mismatch), which keeps an earlier identifier from being treated as silently equal to the current one (src/semantics.rs); that is id-classification, not a Law-value handshake, so the handshake boundary G7 guards is the consumer's, not this crate's. The gate does not apply to this crate's own surface."
+reference_repo = ""
+
+[G8]
+status = "n/a"
+evidence = ["src/lib.rs", "src/semantics.rs"]
+mutant = "add an encode / to_bytes path that writes a Law-bearing value to a durable form -> G8 would then apply and require a persisted-meaning identifier distinct from SEMANTICS_ID stamped into and compared from the stored bytes; today src/ has no serialization of a Law value at all, so there are no stored bytes whose meaning an identifier could describe"
+since = ""
+note = "G8 governs Law-bearing values written to a durable form carrying their own persisted identifier. alice-det-math persists nothing: it is a no_std, no_alloc pure-computation library, and a scan of src/ finds no serialization, encode/decode or to_bytes path for a Law value and no container format of its own. It supplies the pieces consumers use for their own G8/G9 -- SEMANTICS_ID to stamp, PREVIOUS_SEMANTICS_IDS to accept same-bit earlier releases, and check_semantics to classify a stored identifier on read-back (src/semantics.rs) -- but writes no durable Law bytes itself, so the gate does not apply to this crate's own surface."
+reference_repo = ""
+
+[G9]
+status = "pass"
+evidence = ["CHANGELOG.md", "src/semantics.rs", "tests/golden.rs"]
+mutant = "revert SEMANTICS_ID to the 0.4.0 value d2209b30... without re-recording the golden pins -> tests/golden.rs::semantics_id_matches_the_recorded_constant fails (the constant no longer folds from the current pins); claim the 0.4.0 identifier is still current -> ::the_0_4_0_identifier_is_rejected_because_exactly_these_functions_changed and ::check_semantics_classifies_current_previous_and_unknown fail (0.4.0's id must read Mismatch, not Verified)"
+since = ""
+note = "the identifier moves on a meaning change and only then, recorded as the semver-major equivalent. The crate's one identifier move is CHANGELOG [0.5.0]: SEMANTICS_ID went from 0.4.0's d2209b30... to 135c407d... because the output bits of sin / cos / sin_cos and the metric functions changed and the covered surface grew 37 -> 48 functions -- a breaking change (a 0.x minor, the major equivalent for a 0.x crate). PREVIOUS_SEMANTICS_IDS is empty by design (src/semantics.rs documents why: this release changed bits, so 0.4.0's identifier is not reproduced and reads Mismatch, and the unpublished interim main value a6fe7dc8... is excluded too); an entry is added only with that release's pin table, and ::every_previous_identifier_is_backed_by_a_reproduced_pin_table proves each listed identifier folds from a table this release reproduces bit for bit. tests/golden.rs keeps 0.4.0's pin table (the old id pinned at line 1486) and ::the_0_4_0_identifier_is_rejected_because_exactly_these_functions_changed proves the differing pins are exactly those functions. alice-det-math persists no bytes of its own (G8 n/a), so the identifier under G9 discipline is its G6 SEMANTICS_ID -- the one downstream crates persist and fold -- making its history the persisted-meaning history for the chain. The move-list completeness is an audit re-done at each major release; the machine tooth keeping a meaning change from landing silently is the identifier goldens named in the mutant field."
+reference_repo = ""
+
+[G10]
+status = "fail-known"
+evidence = ["src/single.rs", "src/double.rs", "src/ops.rs", "src/metric.rs", "src/simd.rs"]
+since = ""
+note = "the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID: a lexical scan of the 15 clock/RNG/UUID forms over every library source returns zero (ALICE-Law's measure_conformance.py confirms: 'no lint; none of the forms in library sources'), and the crate is no_std without alloc, so most of those forms cannot even be named. But the gate's evidence is a lint/scan with a canary, and on main there is no clippy.toml and no determinism scan -- so the absence is a manual snapshot, not a ratcheted gate (C3). The C3 branch ci/20261015-detmath-g10-entropy-guard adds clippy.toml (disallowed-methods for Instant::now / SystemTime::now / RandomState::new) and scripts/entropy_guard.py wired in CI, which flips this to pass once it is on main; this manifest describes main as it stands before that lands."
+reference_repo = ""
+
+[G11]
+status = "fail-known"
+evidence = ["scripts/test_tracked_binaries.py", "scripts/test_public_text.py", "scripts/test_workflow_concurrency.py", "scripts/test_workflow_timeouts.py", "scripts/test_license_check.py", "tests/golden.rs", ".github/workflows/ci.yml docs-lint job"]
+since = ""
+note = "the three self-test ideas exist, but ad hoc per infrastructure check rather than as a per-Law-gate triad, and most Law gates (G1-G6, G10, G13, G14) have no dedicated checker here to self-test. Present: (b) compared-nothing guards -- tracked_binaries.py fails on a zero-file scan and test_tracked_binaries.py is its canary; public_text.sh exits 2 when it compared nothing; the golden fold rejects an empty table and the specials test covers every function; workflow_concurrency / workflow_timeouts / license_check / changed_paths each have a test_*.py run first in the docs-lint job; (a) canaries exist for those shared checkers; (c) the one externally shared checker (ALICE-Law's public_text_check.py) carries its cross-repo byte-identity via the .github/public-text-pin sha256. What is missing is the uniform 'every machine-pass gate carries (a),(b),(c)' structure, which cannot be complete while the Law gates above lack their own checkers (C5)."
+reference_repo = ""
+
+[G12]
+status = "pass"
+evidence = [".github/workflows/public-text.yml", "scripts/public_text.sh", ".github/public-text-pin", "scripts/test_public_text.py", "scripts/preflight.sh"]
+mutant = "add one of the refused internal words to a tracked document -> the public-text step fails"
+since = ""
+note = "the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names (rev ca96d9214ffe0da43e9cb034417a4f6c041ba4be) and refuses it unless its SHA-256 matches the pin (3aef3cdd095b374153dbb74f228828d559cb88f78b33f36570c96cbcb80eb6d5) -- so a crate's own checker does not count, it is ALICE-Law's byte-identical file. It checks the tree at HEAD and the pushed commit range and fails when it compared nothing; scripts/test_public_text.py runs first as the checker's own test, and the whole thing is mirrored in scripts/preflight.sh. (measure_conformance.py reports G12 'not found' for this crate because it greps the literal public_text_check in the workflow text; this workflow invokes it through scripts/public_text.sh, the same shape as the rest of the chain.)"
+reference_repo = "ALICE-Law"
+
+[G13]
+status = "fail-known"
+evidence = ["src/lib.rs", "src/simd.rs", "tests/simd_parity.rs"]
+since = ""
+note = "the published crate's library src/ names HashMap / HashSet / BTreeMap nowhere (a full scan returned zero), and it is no_std without alloc, so the standard collections cannot appear in Law output at all -- the property is structural, not merely a current snapshot. The simd feature's f32x8 kernels are lane-deterministic (a fixed-order element map, no cross-lane float reduction whose combination order could vary), pinned lane-for-lane against the scalar functions by tests/simd_parity.rs. But the gate's evidence is a lint or reasoned allowlist that ratchets the absence, and there is none, so nothing would catch a std::collections iteration if alloc were later enabled (C6)."
+reference_repo = ""
+
+[G14]
+status = "fail-known"
+evidence = ["Cargo.toml", ".github/workflows/ci.yml", "tests/golden.rs", "tests/signed_zero.rs", "tests/accuracy.rs"]
+since = ""
+note = "no shipped build sets a fast-math-style flag or target-cpu=native: there is no .cargo/config* in the tree and no build.rs, and Cargo.toml carries no such profile flag. The one target-cpu=native in CI is a deliberate test leg (the simd-paths 'native' matrix entry, which runs the golden to prove native codegen still reproduces the pins), not a shipped artifact. What the gate also requires and is missing: (a) a CI scan step over the build-configuration files for fast-math / native in shipped builds, and (b) explicit tests asserting round-to-nearest-even and no flush-to-zero (C5). Subnormals are exercised as inputs and pinned (tests/golden.rs grids reach the smallest subnormal, tests/signed_zero.rs checks +/-2^-149, tests/accuracy.rs sweeps them), so a flush-to-zero or non-RNE environment would redden a golden -- but no test asserts the floating-point environment itself, and no scan keeps the good state."
+reference_repo = ""
+
+# Per-feature classification: whether each Cargo feature of alice-det-math is
+# inside or outside the Law guarantee, per docs/CONFORMANCE.md "Features and
+# the guarantee". `inside` requires all three: same arithmetic generation
+# (same SEMANTICS_ID, no float path the gates do not cover), same values (same
+# bits, or a golden for a feature-added computation), and coverage (an e2e
+# check or a named external-reference oracle). Anything else is `outside`,
+# with the note saying which condition fails.
+
+[features.std]
+guarantee = "inside"
+evidence = ["src/ops.rs", "tests/golden.rs", ".github/workflows/ci.yml test job (Test (no_std, software sqrt) step)"]
+note = "std enables the hardware sqrt instruction for ops::sqrt / sqrt64 (IEEE 754 requires sqrt correctly rounded, so the hardware result is bit-identical to the correctly rounded software fallback used without std); lib.rs states nothing else in the crate needs std. SEMANTICS_ID does not change with the feature (sqrt is pinned in tests/golden.rs and reproduces both ways), and CI runs the whole golden suite under cargo test --no-default-features --features simd, asserting the SAME hashes as the std build (the 'Test (no_std, software sqrt)' step) -- so the feature adds no float path and produces identical bits with and without it. Conditions 1-3 met."
+
+[features.simd]
+guarantee = "inside"
+evidence = ["src/simd.rs", "tests/simd_parity.rs", "tests/golden.rs", ".github/workflows/ci.yml simd-paths job"]
+note = "simd enables the wide::f32x8 kernels. They are lane-for-lane bit-identical to the scalar f32 functions, proven by tests/simd_parity.rs over dense sweeps and the special values (+/-0, +/-inf, NaN, subnormals, the exp overflow/underflow edges, |x| >= 2^31) and pinned by tests/golden.rs::simd_outputs_match_recorded_hashes; the SIMD kernels carry no SEMANTICS_ID pin of their own on purpose (an identifier that changed with the feature set would not identify the arithmetic), and tests/golden.rs::every_simd_function_has_a_parity_test keeps every kernel covered by a parity test. The simd-paths CI legs run the suite with the f32x8 ops lowered through sse2-only, avx2+fma and target-cpu=native, all reproducing the scalar bits. Conditions 1-3 met: no new arithmetic, same bits, covered by parity and the target matrix."

@@ -244,10 +244,10 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 [ALICE-Zip](https://github.com/ext-sakamoro/ALICE-Zip) はこの crate に依存して
 いない 生成器は現在 `libm` を使っている
 
-<!-- law-integration:begin law=6a0a5587c15205c25647a16a842e1c3b30bb6abc -->
+<!-- law-integration:begin law=986f6fb1915b11777677b56397fb49e215f94518 -->
 ## ALICE-Law との統合
 
-ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `6a0a5587c152` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
+ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
 
 | | |
 |---|---|
@@ -257,31 +257,29 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `6a0a5587c152` と
 
 ### 適合 (G1-G14)
 
-この repository には `alice-law-conformance.toml` が無い すべての gate は未申告
-
 | gate | 状態 | 注記 |
 |---|---|---|
-| G1 no-libm-direct | 未申告 |  |
-| G2 ieee-max-min | 未申告 |  |
-| G3 no-outer-fneg-of-fma | 未申告 |  |
-| G4 debug-release-arch-goldens | 未申告 |  |
-| G5 release-profile-test-leg | 未申告 |  |
-| G6 semantics-id | 未申告 |  |
-| G7 handshake-carries-id | 未申告 |  |
-| G8 persisted-semantics-id | 未申告 |  |
-| G9 persisted-meaning-change-is-major | 未申告 |  |
-| G10 no-run-varying-artifacts | 未申告 |  |
-| G11 gate-self-tests | 未申告 |  |
-| G12 public-repo-text-rules | 未申告 |  |
-| G13 no-unspecified-order | 未申告 |  |
-| G14 float-environment-invariants | 未申告 |  |
+| G1 no-libm-direct | 適合 | G1 bans the platform transcendentals outside alice-det-math; this is that crate, so the gate here is the inverse claim it names it to carry: its own … |
+| G2 ieee-max-min | 未達 | the published crate's one Law-bearing f32/f64 max/min is src/simd.rs:270, kf.max(C_NEG126P0).min(C_127P0) -- a wide::f32x8 exponent clamp in the SIMD exp … |
+| G3 no-outer-fneg-of-fma | 未達 | no library source calls mul_add or fma at all (the G1 scan returned zero), so there is no outer-negation-of-fma to catch today, and the simd-paths avx2-fma leg … |
+| G4 debug-release-arch-goldens | 未達 | the bit-pattern goldens exist and are strong -- tests/golden.rs pins every function over large integer-built grids (with an emptiness guard: the fold rejects … |
+| G5 release-profile-test-leg | 未達 | no job anywhere runs the Law-bearing test suite under --release, on aarch64 or any arch: the test matrix runs cargo test in debug on all five native runners … |
+| G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending … |
+| G7 handshake-carries-id | 対象外 | G7 governs a Law-bearing value crossing a crate boundary carrying its producer's G6 identifier. alice-det-math is the root compute library: its public API is … |
+| G8 persisted-semantics-id | 対象外 | G8 governs Law-bearing values written to a durable form carrying their own persisted identifier. alice-det-math persists nothing: it is a no_std, no_alloc … |
+| G9 persisted-meaning-change-is-major | 適合 | the identifier moves on a meaning change and only then, recorded as the semver-major equivalent. The crate's one identifier move is CHANGELOG [0.5.0]: … |
+| G10 no-run-varying-artifacts | 未達 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID: a lexical scan of the 15 clock/RNG/UUID forms over every library source … |
+| G11 gate-self-tests | 未達 | the three self-test ideas exist, but ad hoc per infrastructure check rather than as a per-Law-gate triad, and most Law gates (G1-G6, G10, G13, G14) have no … |
+| G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
+| G13 no-unspecified-order | 未達 | the published crate's library src/ names HashMap / HashSet / BTreeMap nowhere (a full scan returned zero), and it is no_std without alloc, so the standard … |
+| G14 float-environment-invariants | 未達 | no shipped build sets a fast-math-style flag or target-cpu=native: there is no .cargo/config* in the tree and no build.rs, and Cargo.toml carries no such … |
 
 ### feature と保証の範囲
 
 | feature | 保証 | 注記 |
 |---|---|---|
-| `simd` | 未申告 |  |
-| `std` | 未申告 |  |
+| `simd` | 範囲内 | simd enables the wide::f32x8 kernels. They are lane-for-lane bit-identical to the scalar f32 functions, proven by tests/simd_parity.rs over dense sweeps and … |
+| `std` | 範囲内 | std enables the hardware sqrt instruction for ops::sqrt / sqrt64 (IEEE 754 requires sqrt correctly rounded, so the hardware result is bit-identical to the … |
 <!-- law-integration:end -->
 
 ## ライセンス
