@@ -14,7 +14,7 @@
 mod common;
 
 use alice_det_math::metric::{self, MetricWeights};
-use alice_det_math::{atan2, atan2_64, hypot, powf, powf64};
+use alice_det_math::{atan2, atan2_64, hypot, max, max64, min, min64, powf, powf64};
 use common::specials::{SPECIALS32, SPECIALS64};
 
 const NAN32: u32 = 0x7fc0_0000;
@@ -25,6 +25,12 @@ fn exempt(name: &str, args: &[f64]) -> bool {
     match name {
         "powf" | "powf64" => args[0] == 1.0 || args[1] == 0.0,
         "hypot" => args.iter().any(|a| a.is_infinite()),
+        // a NaN operand yields the *other* operand: the result is NaN (and
+        // must be canonical) only when both are NaN; with exactly one NaN
+        // the defined value is the other, non-NaN operand, so this file's
+        // "must be canonical NaN" check does not apply (that value is
+        // checked by tests/golden.rs's mutation tests instead)
+        "max" | "min" | "max64" | "min64" => !(args[0].is_nan() && args[1].is_nan()),
         _ => false,
     }
 }
@@ -87,6 +93,8 @@ fn a_nan_in_any_position_gives_the_canonical_nan() {
                 c.f32("powf", &v, powf(v[0], v[1]));
                 c.f32("hypot", &v, hypot(v[0], v[1]));
                 c.f32("atan2", &v, atan2(v[0], v[1]));
+                c.f32("max", &v, max(v[0], v[1]));
+                c.f32("min", &v, min(v[0], v[1]));
             }
         }
         c.f32("axis_extent", &[nan], w.axis_extent(nan));
@@ -98,6 +106,8 @@ fn a_nan_in_any_position_gives_the_canonical_nan() {
             v[pos] = f64::NAN;
             c.f64("powf64", &v, powf64(v[0], v[1]));
             c.f64("atan2_64", &v, atan2_64(v[0], v[1]));
+            c.f64("max64", &v, max64(v[0], v[1]));
+            c.f64("min64", &v, min64(v[0], v[1]));
         }
     }
     assert!(c.n > 5000, "compared {}", c.n);

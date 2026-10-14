@@ -130,31 +130,47 @@ pub fn sqrt64(x: f64) -> f64 {
     }
 }
 
-/// `max` with a defined zero sign: a NaN operand yields the other operand,
-/// `max(-0.0, 0.0)` and `max(0.0, -0.0)` are `+0.0`.
+/// `max` with a defined zero sign: `max(-0.0, 0.0)` and `max(0.0, -0.0)` are `+0.0`.
+///
+/// A NaN operand yields the other operand; if that operand is also NaN, the
+/// canonical NaN (this crate's NaN policy), not whichever payload the
+/// chosen operand carried.
 #[inline]
 #[must_use]
 pub fn max(a: f32, b: f32) -> f32 {
-    if a.is_nan() || b > a {
+    let r = if a.is_nan() || b > a {
         b
     } else if b.is_nan() || a > b || !a.is_sign_negative() {
         a
     } else {
         b
+    };
+    if r.is_nan() {
+        f32::NAN
+    } else {
+        r
     }
 }
 
-/// `min` with a defined zero sign: a NaN operand yields the other operand,
-/// `min(-0.0, 0.0)` and `min(0.0, -0.0)` are `-0.0`.
+/// `min` with a defined zero sign: `min(-0.0, 0.0)` and `min(0.0, -0.0)` are `-0.0`.
+///
+/// A NaN operand yields the other operand; if that operand is also NaN, the
+/// canonical NaN (this crate's NaN policy), not whichever payload the
+/// chosen operand carried.
 #[inline]
 #[must_use]
 pub fn min(a: f32, b: f32) -> f32 {
-    if a.is_nan() || b < a {
+    let r = if a.is_nan() || b < a {
         b
     } else if b.is_nan() || a < b || a.is_sign_negative() {
         a
     } else {
         b
+    };
+    if r.is_nan() {
+        f32::NAN
+    } else {
+        r
     }
 }
 
@@ -162,12 +178,17 @@ pub fn min(a: f32, b: f32) -> f32 {
 #[inline]
 #[must_use]
 pub fn max64(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b > a {
+    let r = if a.is_nan() || b > a {
         b
     } else if b.is_nan() || a > b || !a.is_sign_negative() {
         a
     } else {
         b
+    };
+    if r.is_nan() {
+        f64::NAN
+    } else {
+        r
     }
 }
 
@@ -175,12 +196,17 @@ pub fn max64(a: f64, b: f64) -> f64 {
 #[inline]
 #[must_use]
 pub fn min64(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b < a {
+    let r = if a.is_nan() || b < a {
         b
     } else if b.is_nan() || a < b || a.is_sign_negative() {
         a
     } else {
         b
+    };
+    if r.is_nan() {
+        f64::NAN
+    } else {
+        r
     }
 }
 
@@ -385,8 +411,9 @@ mod tests {
 
         fn expected_max64(a: f64, b: f64) -> f64 {
             match (a.is_nan(), b.is_nan()) {
-                (true, _) => b,
-                (_, true) => a,
+                (true, true) => f64::NAN,
+                (true, false) => b,
+                (false, true) => a,
                 _ if a > b => a,
                 _ if b > a => b,
                 _ => {
@@ -403,8 +430,9 @@ mod tests {
 
         fn expected_min64(a: f64, b: f64) -> f64 {
             match (a.is_nan(), b.is_nan()) {
-                (true, _) => b,
-                (_, true) => a,
+                (true, true) => f64::NAN,
+                (true, false) => b,
+                (false, true) => a,
                 _ if a < b => a,
                 _ if b < a => b,
                 _ => {
@@ -419,8 +447,9 @@ mod tests {
 
         fn expected_max32(a: f32, b: f32) -> f32 {
             match (a.is_nan(), b.is_nan()) {
-                (true, _) => b,
-                (_, true) => a,
+                (true, true) => f32::NAN,
+                (true, false) => b,
+                (false, true) => a,
                 _ if a > b => a,
                 _ if b > a => b,
                 _ => {
@@ -437,8 +466,9 @@ mod tests {
 
         fn expected_min32(a: f32, b: f32) -> f32 {
             match (a.is_nan(), b.is_nan()) {
-                (true, _) => b,
-                (_, true) => a,
+                (true, true) => f32::NAN,
+                (true, false) => b,
+                (false, true) => a,
                 _ if a < b => a,
                 _ if b < a => b,
                 _ => {
@@ -451,12 +481,19 @@ mod tests {
             }
         }
 
+        // a bit-exact comparison, not "both NaN": this crate's NaN policy makes
+        // every NaN this crate returns the canonical one (`tests/nan_policy.rs`,
+        // `tests/nan_in_nan_out.rs`), so a reference function that expects a
+        // payload-carrying NaN (`f64::NAN` only ever is the canonical one) and
+        // compares bit-exact is the oracle that actually has teeth: treating
+        // "both NaN" as equal regardless of payload let a payload NaN
+        // (`max(0x7fa12345, 0xffc00001) = 0xffc00001`) through uncaught.
         fn same64(x: f64, y: f64) -> bool {
-            (x.is_nan() && y.is_nan()) || x.to_bits() == y.to_bits()
+            x.to_bits() == y.to_bits()
         }
 
         fn same32(x: f32, y: f32) -> bool {
-            (x.is_nan() && y.is_nan()) || x.to_bits() == y.to_bits()
+            x.to_bits() == y.to_bits()
         }
 
         const LATTICE64: [f64; 9] = [
@@ -557,6 +594,69 @@ mod tests {
             assert_eq!(max64(n, p).to_bits(), 0);
             assert_eq!(min64(p, n).to_bits(), 0x8000_0000_0000_0000);
             assert_eq!(min64(n, p).to_bits(), 0x8000_0000_0000_0000);
+        }
+
+        /// A real defect found in review: when both operands are NaN, `max`
+        /// / `min` returned one operand's raw payload instead of the
+        /// canonical NaN this crate's NaN policy requires everywhere
+        /// (`tests/nan_policy.rs`) — `max(f32::from_bits(0x7fa1_2345),
+        /// f32::from_bits(0xffc0_0001))` returned `0xffc0_0001`, not
+        /// `0x7fc0_0000`. The lattice/specials sweeps elsewhere in this
+        /// module, and `tests/nan_in_nan_out.rs`, only ever put the
+        /// canonical NaN into the grid, so none of them could have caught
+        /// this; this test uses distinct payload-carrying bit patterns on
+        /// both sides (never the canonical one on either side alone).
+        #[test]
+        fn both_operands_nan_with_different_payloads_yield_the_canonical_nan() {
+            let payloads32 = [
+                0x7fc0_0001u32, // quiet, positive, nonzero payload
+                0xffc0_0000,    // quiet, negative, zero payload (the default NaN sign on x86-64)
+                0xffc0_0001,    // quiet, negative, nonzero payload
+                0x7fa1_2345,    // quiet, positive, a different nonzero payload
+                0x7f80_0001,    // signalling, positive
+                0xff80_0001,    // signalling, negative
+            ];
+            let mut compared = 0;
+            for &ab in &payloads32 {
+                for &bb in &payloads32 {
+                    let (a, b) = (f32::from_bits(ab), f32::from_bits(bb));
+                    assert_eq!(
+                        max(a, b).to_bits(),
+                        f32::NAN.to_bits(),
+                        "max({ab:#010x}, {bb:#010x})"
+                    );
+                    assert_eq!(
+                        min(a, b).to_bits(),
+                        f32::NAN.to_bits(),
+                        "min({ab:#010x}, {bb:#010x})"
+                    );
+                    compared += 2;
+                }
+            }
+            let payloads64 = [
+                0x7ff8_0000_0000_0001u64,
+                0xfff8_0000_0000_0000,
+                0xfff8_0000_0000_0002,
+                0x7ff0_0000_0000_0001,
+                0xfff0_0000_0000_0001,
+            ];
+            for &ab in &payloads64 {
+                for &bb in &payloads64 {
+                    let (a, b) = (f64::from_bits(ab), f64::from_bits(bb));
+                    assert_eq!(
+                        max64(a, b).to_bits(),
+                        f64::NAN.to_bits(),
+                        "max64({ab:#018x}, {bb:#018x})"
+                    );
+                    assert_eq!(
+                        min64(a, b).to_bits(),
+                        f64::NAN.to_bits(),
+                        "min64({ab:#018x}, {bb:#018x})"
+                    );
+                    compared += 2;
+                }
+            }
+            assert_eq!(compared, 2 * 36 + 2 * 25, "compared");
         }
     }
 }

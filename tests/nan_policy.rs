@@ -148,7 +148,13 @@ fn a_nan_argument_with_any_payload_comes_back_canonical() {
         ("sqrt", sqrt),
         ("powi", |x| powi(x, 3)),
     ];
-    let two32: [F2; 3] = [("powf", powf), ("hypot", hypot), ("atan2", atan2)];
+    let two32: [F2; 5] = [
+        ("powf", powf),
+        ("hypot", hypot),
+        ("atan2", atan2),
+        ("max", alice_det_math::max),
+        ("min", alice_det_math::min),
+    ];
     let three32: [F3; 3] = [
         ("lerp", metric::lerp),
         ("clamp", metric::clamp),
@@ -216,6 +222,10 @@ fn a_nan_argument_with_any_payload_comes_back_canonical() {
             ("atan2_64.y", atan2_64(x, 1.0)),
             ("atan2_64.x", atan2_64(1.0, x)),
             ("powf64.x", powf64(x, 2.0)),
+            ("max64.y", alice_det_math::max64(1.5, x)),
+            ("max64.x", alice_det_math::max64(x, 1.5)),
+            ("min64.y", alice_det_math::min64(1.5, x)),
+            ("min64.x", alice_det_math::min64(x, 1.5)),
         ] {
             n += 1;
             if v.is_nan() && v.to_bits() != NAN64 {
