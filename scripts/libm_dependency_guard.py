@@ -11,6 +11,11 @@ added as a direct dependency. This script fails as soon as that happens
 without the ban machinery. The file is generic and is kept byte-identical
 across the repositories that carry it.
 
+Scope: direct dependencies only. A libm that arrives transitively (another
+crate's `libm` feature, e.g. num-traits) is out of scope by design: this
+crate cannot name it as `libm::...` without declaring it, so the hole stays
+closed until a declaration appears, and then this script fails.
+
 Manifests: every Cargo.toml under the root (root package, workspace members,
 nested unpublished crates such as fuzz/). A manifest declares libm when it
 names it in
