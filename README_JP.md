@@ -144,16 +144,20 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 0.4.0 で `atan64` の係数を修正して出力ビットが変わったため、この値も変わった
 これは意図した挙動で、この値を自分の識別子に混ぜている利用側は、算術の変更を
 黙って引き継ぐのではなく識別子の変化として受け取る
-0.5.0 ではもう 1 つの理由で変わった どの関数の出力も変わっていないが、表の外に
-あった `metric` の 11 の入口が表に加わった
+0.5.0 では 2 つの理由が重なって変わった `sin` / `cos` / `sin_cos`、`round` /
+`round64` / `cbrt`、`metric` の関数、`powf` の出力ビットが変わり、表の外にあった
+`metric` の 11 の入口が表に加わった 0.5.1 では表に加わる関数が増えたことだけで
+変わった `max` / `min` / `max64` / `min64` が表に加わり、0.5.0 が覆っていた関数は
+すべて同じビットを返す
 
 ### 識別子を読み戻す
 
 前の版が書いたデータにはその版の識別子が付いている `check_semantics(&id)` は
 `SEMANTICS_ID` なら `Verified`、`PREVIOUS_SEMANTICS_IDS` の要素なら
 `VerifiedPrevious(id)`、それ以外は `Mismatch` を返す 要素になるのは、その版が
-固定した全関数でこの版が同じビットを返す版だけ (0.5.0 は出力を変えていないので
-0.4.0 が入る) で、その版の固定値の表から test が証明する
+固定した全関数でこの版が同じビットを返す版だけ (0.5.1 は出力を変えていないので
+0.5.0 が入り、0.5.0 は出力を変えたので 0.4.0 は入らない) で、その版の固定値の表から
+test が証明する
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
 保存した値を読む側は `is_reproducible()` (検証済みの 2 つを受理)、識別子を鍵として
 比べる側は `is_current()` を使う 書く側は常に `SEMANTICS_ID` を付ける
@@ -267,7 +271,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending … |
 | G7 handshake-carries-id | 対象外 | G7 governs a Law-bearing value crossing a crate boundary carrying its producer's G6 identifier. alice-det-math is the root compute library: its public API is … |
 | G8 persisted-semantics-id | 対象外 | G8 governs Law-bearing values written to a durable form carrying their own persisted identifier. alice-det-math persists nothing: it is a no_std, no_alloc … |
-| G9 persisted-meaning-change-is-major | 適合 | the identifier moves on a meaning change and only then, recorded as the semver-major equivalent. The crate's one identifier move is CHANGELOG [0.5.0]: … |
+| G9 persisted-meaning-change-is-major | 適合 | definition: SEMANTICS_ID moving counts as a persisted-meaning change, recorded as the semver-major equivalent (a 0.x minor), unless both hold -- the old … |
 | G10 no-run-varying-artifacts | 適合 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID, and the absence is ratcheted by two layers with the clock-via-elapsed hole … |
 | G11 gate-self-tests | 未達 | the three self-test ideas exist, but ad hoc per infrastructure check rather than as a per-Law-gate triad, and most Law gates (G1-G6, G10, G13, G14) have no … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
