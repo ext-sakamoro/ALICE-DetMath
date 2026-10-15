@@ -123,6 +123,10 @@ python3 scripts/test_entropy_guard.py
 step "ci.yml / docs-lint: Entropy guard (no OS entropy or wall clock in src/)"
 python3 scripts/entropy_guard.py
 
+step "ci.yml / docs-lint: libm dependency guard (test, then check)"
+python3 scripts/test_libm_dependency_guard.py
+python3 scripts/libm_dependency_guard.py
+
 step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
 python3 scripts/test_changed_paths.py
 python3 scripts/changed_paths.py sync

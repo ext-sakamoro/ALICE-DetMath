@@ -230,6 +230,12 @@ jobs:
         run: python scripts/test_entropy_guard.py
       - name: Entropy guard (no OS entropy or wall clock in src/)
         run: python scripts/entropy_guard.py
+      # G1, libm half: a direct libm dependency must come with the libm:: ban
+      # in clippy.toml and scripts/libm_ban_check.py (0 manifests read fails)
+      - name: libm dependency guard (test, then check)
+        run: |
+          python scripts/test_libm_dependency_guard.py
+          python scripts/libm_dependency_guard.py
       # the changes / gate jobs of the path-filtered workflows (fuzz / security-audit): the
       # script's own tests, and each .github/paths/<workflow>.txt equal to its pull_request paths
       - name: Changed paths tests + pattern sync
