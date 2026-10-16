@@ -67,6 +67,18 @@ step "ci.yml / clippy: clippy (no_std lib)"
 relint
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo clippy --lib --no-default-features -- -D warnings )
 
+step "ci.yml / clippy: Clippy canary data (generator tests)"
+python3 scripts/test_gen_clippy_canary_calls.py
+
+step "ci.yml / clippy: Clippy canary data (generated from clippy.toml, no drift)"
+python3 scripts/gen_clippy_canary_calls.py --check
+
+step "ci.yml / clippy: Clippy canary (tests)"
+python3 scripts/test_clippy_canary.py
+
+step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
+python3 scripts/clippy_canary.py
+
 step "ci.yml / no_std: Build rlib for a target without std"
 rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo rustc --lib --no-default-features --crate-type rlib --target thumbv7em-none-eabihf )

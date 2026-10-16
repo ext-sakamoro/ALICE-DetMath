@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: `scripts/libm_dependency_guard.py` (試験 `scripts/test_libm_dependency_guard.py`) を追加 clippy は `libm::sin` のような libm の自由関数を clippy.toml に path で書いた時だけ止めるので、`libm` を直接依存に足すと G1 の禁止に穴が開く この crate は現在 libm に直接依存せず穴は届かないが、全 Cargo.toml の依存表 (dependencies / dev / build と旧綴り、target 別、workspace.dependencies、patch、replace、`package = "libm"` の改名) のどこかに libm が現れた時点で、clippy.toml (root と配下の全 clippy.toml) が `libm::` の path を 1 つ以上禁止していることと `scripts/libm_ban_check.py` があることを要求する tomllib の解析と行の走査が食い違えば通さず報告し、manifest を 1 つも読めなければ exit 2 CI (docs-lint job、全 OS) と preflight で走る file は他の ALICE-\* crate へ byte 一致で写す前提で、repo 固有の名前を含まない
 - CI: 公開する文面の検査の pin を ALICE-Law f9b9000 (checker sha256 84226ec7…) に進めた 新しい版で HEAD の全 file に指摘 0 件
 - CI: `scripts/semver_gate.py` が cargo-semver-checks の出力を読む parser であることを `CARGO_OUTPUT_PARSER = True` で宣言し、`scripts/test_semver_gate.py` は module を `import semver_gate` で読むようにした (色の付いた出力を試験する検査器が parser とその試験を見つけられる形 実行時は従来どおり `CARGO_TERM_COLOR=never` と escape の除去) 共有 file の中身を揃える変更で、検査の挙動は変わらない
+- CI: clippy の禁止一覧の canary (`scripts/clippy_canary.py`) を追加した 植える呼び出しの表 `scripts/clippy_canary_calls.tsv` は `scripts/gen_clippy_canary_calls.py` が `clippy.toml` から 1 entry 1 行で生成し、CI が再生成して byte で比べる この repo は 6 件 (`disallowed-methods` 5 件と `disallowed-types` 1 件、すべて植える) `scripts/clippy_canary.py` / `scripts/test_clippy_canary.py` / `scripts/gen_clippy_canary_calls.py` / `scripts/test_gen_clippy_canary_calls.py` は ALICE-DB と同じ中身
 
 ## [0.5.1] - 2026-10-15
 
