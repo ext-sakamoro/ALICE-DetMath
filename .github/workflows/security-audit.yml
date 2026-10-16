@@ -228,66 +228,11 @@ jobs:
           path: coverage-summary.txt
           retention-days: 30
 
-  semver-checks:
-    name: cargo-semver-checks (API compat vs crates.io)
-    needs: changes
-    if: needs.changes.outputs.run == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # Before the first crates.io release there is no baseline; skip with a
-      # notice instead of a red (job-level continue-on-error would also hide
-      # real breakage, canonical trap #22)
-      - name: Check for a published baseline
-        id: baseline
-        run: |
-          if cargo search alice-det-math --limit 1 | grep -q '^alice-det-math = '; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::alice-det-math is not on crates.io yet; semver-checks skipped"
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Install cargo-semver-checks
-        if: steps.baseline.outputs.published == 'true'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-semver-checks@0.50.0
-      - name: Run cargo semver-checks (docs.rs feature set)
-        if: steps.baseline.outputs.published == 'true'
-        run: >
-          cargo semver-checks check-release --package alice-det-math
-          --only-explicit-features --features std,simd
-      # The run above selects its lints by the bump already declared, so once
-      # Cargo.toml is a major (or 0.x minor) ahead of crates.io it decides that
-      # every lint is unnecessary and compares nothing -- while still printing
-      # "no semver update required" and exiting 0. Measured on 0.4.0:
-      # "0 checks: 0 pass, 254 skip". Asking for a patch release makes it run
-      # the major and minor lints, and the gate is the number of comparisons,
-      # not the exit code: exit 100 is the normal outcome of a release that is
-      # genuinely breaking and means "here is the list", not "failed".
-      - name: Run cargo semver-checks as a patch release (the gate is the count)
-        if: steps.baseline.outputs.published == 'true'
-        run: |
-          set -uo pipefail
-          out=$(cargo semver-checks check-release --package alice-det-math \
-                --only-explicit-features --features std,simd \
-                --release-type patch 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
-          printf '%s\n' "$out"
-          n=$(printf '%s\n' "$out" | grep -oE '[0-9]+ checks: ' | grep -oE '[0-9]+' | tail -1)
-          if [ -z "$n" ] || [ "$n" -eq 0 ]; then
-            echo "::error::semver-checks compared nothing (${n:-no count found}); the gate is vacuous"
-            exit 1
-          fi
-          echo "semver-checks compared $n lints"
-
   # red when the changes job said run and a heavy job was skipped, cancelled or failed
   gate:
     name: Gate
     if: always()
-    needs: [changes, audit, deny, unused-deps, stub-guard, package-integrity, coverage, semver-checks]
+    needs: [changes, audit, deny, unused-deps, stub-guard, package-integrity, coverage]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -4,7 +4,7 @@
 # every file that can change a job's result is listed: a missing one skips the job on a
 # change that alters it (a file a job reads that cannot change the result is not listed,
 # e.g. .gitignore, which `cargo package` reads but which cannot change the packed tracked files)
-# audit / deny / semver-checks / coverage resolve the dependency graph
+# audit / deny / coverage resolve the dependency graph
 Cargo.toml
 Cargo.lock
 # every cargo command at the root uses this toolchain
@@ -12,7 +12,7 @@ rust-toolchain.toml
 # deny: the policy file
 deny.toml
 # stub-guard greps src/; machete reads the sources for uses; package-integrity packages
-# and builds them; coverage and semver-checks compile them
+# and builds them; coverage compiles them
 src/**
 # coverage runs the tests
 tests/**

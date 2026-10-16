@@ -37,7 +37,7 @@ need cargo-audit "cargo install cargo-audit --locked"
 need cargo-deny "cargo install cargo-deny --locked"
 need cargo-hack "cargo install cargo-hack --locked"
 need cargo-machete "cargo install cargo-machete --locked"
-need cargo-semver-checks "cargo install cargo-semver-checks --locked"
+need cargo-semver-checks "cargo install cargo-semver-checks --version 0.50.0 --locked"
 has_toolchain 1.85 || { echo "missing toolchain 1.85 (rustup toolchain install 1.85)" >&2; exit 1; }
 
 step "ci.yml / wasm: Build tests (wasm32-wasip1)"
@@ -191,39 +191,11 @@ step "security-audit.yml / stub-guard: Detect platform libm / mul_add calls in s
   echo "✓ No platform libm / mul_add in src/ (outside ops::sqrt std path and test modules)"
 )
 
-step "security-audit.yml / semver-checks: check-release vs crates.io (skipped until the first publish)"
-if cargo search alice-det-math --limit 1 2>/dev/null | grep -q '^alice-det-math = '; then
-  ( export CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; cargo semver-checks check-release --package alice-det-math --only-explicit-features --features std,simd )
-else
-  echo "skip: alice-det-math is not on crates.io yet"
-fi
+step "semver-checks.yml / semver-checks: semver gate (tests)"
+python3 scripts/test_semver_gate.py
 
-# The run above selects its lints by the bump already declared, so once
-# Cargo.toml is a major (or 0.x minor) ahead of crates.io it decides every lint
-# is unnecessary and compares nothing -- while still printing "no semver update
-# required" and exiting 0. Measured on 0.4.0: "0 checks: 0 pass, 254 skip".
-# Asking for a patch release makes it run the major and minor lints, and the
-# gate is the number of comparisons, not the exit code: exit 100 is the normal
-# outcome of a genuinely breaking release and means "here is the list".
-step "security-audit.yml / semver-checks: as a patch release (the gate is the count)"
-if cargo search alice-det-math --limit 1 2>/dev/null | grep -q '^alice-det-math = '; then
-  (
-    export CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"
-    set -uo pipefail
-    out=$(cargo semver-checks check-release --package alice-det-math \
-          --only-explicit-features --features std,simd \
-          --release-type patch 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
-    printf '%s\n' "$out"
-    n=$(printf '%s\n' "$out" | grep -oE '[0-9]+ checks: ' | grep -oE '[0-9]+' | tail -1)
-    if [ -z "$n" ] || [ "$n" -eq 0 ]; then
-      echo "semver-checks compared nothing (${n:-no count found}); the gate is vacuous" >&2
-      exit 1
-    fi
-    echo "semver-checks compared $n lints"
-  )
-else
-  echo "skip: alice-det-math is not on crates.io yet"
-fi
+step "semver-checks.yml / semver-checks: semver gate (latest crates.io release, every consumer feature set)"
+( export CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; python3 scripts/semver_gate.py --config .github/semver-gate.toml --target-dir "${CARGO_TARGET_DIR:-target}/semver" )
 
 step "fuzz.yml / build every fuzz target (nightly; the replay needs the runner)"
 if has_toolchain nightly && cargo +nightly fuzz --version >/dev/null 2>&1; then

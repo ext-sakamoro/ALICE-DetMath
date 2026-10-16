@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI: 公開 API の互換性の検査を `.github/workflows/semver-checks.yml` (`scripts/semver_gate.py`、ALICE-Law / ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一) に置き換えた crates.io の最新の alice-det-math を baseline にし、既定・既定なし・全 feature の 3 組で cargo semver-checks を走らせる 版が公開済みの 0.5.1 と同じ間は次の最小の版 0.5.2 として検査する 旧 job (security-audit.yml、`std,simd` の 1 組を宣言どおりと `--release-type patch` の 2 回、後者は比較件数だけを見ていた) は外した
 - CI: 公開する文面の検査の pin を ALICE-Law 5de698e (checker sha256 4b3d9542…) に進めた 新しい版で HEAD の全 file に指摘 0 件
 - CI: `scripts/libm_dependency_guard.py` (試験 `scripts/test_libm_dependency_guard.py`) を追加 clippy は `libm::sin` のような libm の自由関数を clippy.toml に path で書いた時だけ止めるので、`libm` を直接依存に足すと G1 の禁止に穴が開く この crate は現在 libm に直接依存せず穴は届かないが、全 Cargo.toml の依存表 (dependencies / dev / build と旧綴り、target 別、workspace.dependencies、patch、replace、`package = "libm"` の改名) のどこかに libm が現れた時点で、clippy.toml (root と配下の全 clippy.toml) が `libm::` の path を 1 つ以上禁止していることと `scripts/libm_ban_check.py` があることを要求する tomllib の解析と行の走査が食い違えば通さず報告し、manifest を 1 つも読めなければ exit 2 CI (docs-lint job、全 OS) と preflight で走る file は他の ALICE-\* crate へ byte 一致で写す前提で、repo 固有の名前を含まない
 - CI: 公開する文面の検査の pin を ALICE-Law f9b9000 (checker sha256 84226ec7…) に進めた 新しい版で HEAD の全 file に指摘 0 件
