@@ -225,3 +225,44 @@ fn the_smallest_accepted_weight_per_norm() {
         }
     }
 }
+
+/// The lower end of the unscaled range, `2^-60`, decides bits: for
+/// `s = w1 + winf` just above it and `w1 < 2^-63.5`, the unscaled `2·w1²`
+/// rounds to a subnormal and the result is 1 ulp from the scaled one (both
+/// within 1 ulp of the closed form). The values here are today's; each
+/// would move if the end were `2^-50` (first four, `s` above `2^-60`:
+/// unscaled today) or `2^-63` (last three, `s` below `2^-60`: scaled today). Found by a random search over that band.
+///
+/// The upper end, `2^60`, does not decide bits: above `2^50` scaling by
+/// `2^-100` is exact and `w1²`, where it would go subnormal, is below the
+/// last bit of `s²`; 2·10⁷ random triples between `2^49` and `2^64` gave the
+/// same bits with the end at `2^50`, `2^60` or `2^63`.
+#[test]
+fn the_lower_end_of_the_unscaled_range_is_pinned() {
+    // (w1, winf, lipschitz with the end at 2^-60, with the end moved)
+    let cases: [(u32, u32, u32, u32); 7] = [
+        (0x1e78_f321, 0x217c_1c3a, 0x2180_0794, 0x2180_0793), // 2^-50
+        (0x1c85_e18d, 0x21a6_6479, 0x21a6_85f7, 0x21a6_85f8), // 2^-50
+        (0x1e04_8b60, 0x221c_aca4, 0x221d_319e, 0x221d_319f), // 2^-50
+        (0x1d67_95bb, 0x2187_f94c, 0x2188_6d7a, 0x2188_6d79), // 2^-50
+        (0x1c14_fc17, 0x205e_06f7, 0x205e_9c56, 0x205e_9c57), // 2^-63
+        (0x1f43_c2b2, 0x2002_ce56, 0x2040_9c61, 0x2040_9c62), // 2^-63
+        (0x1abc_1788, 0x2057_bf9a, 0x2057_d71f, 0x2057_d720), // 2^-63
+    ];
+    for (w1, winf, now, moved) in cases {
+        let (a, c) = (f32::from_bits(w1), f32::from_bits(winf));
+        let s = a + c;
+        assert!(s > f32::from_bits((127 - 63) << 23) && s < f32::from_bits((127 - 50) << 23));
+        let w = MetricWeights::new(a, 0.0, c).unwrap();
+        assert_eq!(w.lipschitz().to_bits(), now, "({a:e}, 0, {c:e})");
+        // the unscaled formula is the one in force at and above 2^-60
+        let unscaled = if s >= LO { now } else { moved };
+        assert_eq!(previous(a, 0.0, c).to_bits(), unscaled, "({a:e}, 0, {c:e})");
+        assert_ne!(now, moved);
+        let k = closed(a, 0.0, c) as f32;
+        assert!(
+            ulps(f32::from_bits(now), k) <= 1 && ulps(f32::from_bits(moved), k) <= 1,
+            "({a:e}, 0, {c:e})"
+        );
+    }
+}

@@ -21,7 +21,7 @@ has_toolchain() { rustup toolchain list | grep -q "^$1"; }
 
 # Steps CI runs that this file cannot reproduce locally (they can only fail remotely):
 #   - ci.yml:wasm:Ensure wasm32-wasip1 rust-std is installed (no cargo / grep)
-#   - ci.yml:wasm:Run golden + accuracy + simd_parity + NaN / signed-zero + unit tests via wasmtime (no cargo / grep)
+#   - ci.yml:wasm:Run golden + accuracy + simd_parity + NaN / signed-zero + metric + pow + unit tests via wasmtime (no cargo / grep)
 #   - security-audit.yml:audit:Install cargo-audit (needs network / runner-only)
 #   - security-audit.yml:deny:Install cargo-deny (needs network / runner-only)
 #   - security-audit.yml:coverage:Run coverage (docs.rs feature set) (needs network / runner-only)
@@ -44,9 +44,9 @@ step "ci.yml / wasm: Build tests (wasm32-wasip1)"
 rustup target list --installed | grep -q '^wasm32-wasip1$' || rustup target add wasm32-wasip1
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --no-run )
 
-step "ci.yml / wasm: Run golden + accuracy + simd_parity + NaN / signed-zero + unit tests via wasmtime"
+step "ci.yml / wasm: Run golden + accuracy + simd_parity + NaN / signed-zero + metric + pow + unit tests via wasmtime"
 if command -v wasmtime >/dev/null 2>&1; then
-  for t in golden accuracy simd_parity nan_policy nan_in_nan_out signed_zero alice_det_math; do
+  for t in golden accuracy accuracy_trig_zeros simd_parity nan_policy nan_in_nan_out signed_zero metric_degenerate pow_ieee_one analytic_metric alice_det_math; do
     WASM_BIN=$(find target/wasm32-wasip1/debug/deps -name "${t}-*.wasm" -not -name '*.d' | head -1)
     echo "Executing: $WASM_BIN"
     wasmtime "$WASM_BIN"

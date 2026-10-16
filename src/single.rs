@@ -7,9 +7,14 @@ use crate::double::{
 };
 use crate::ops::sqrt;
 
-/// π/2 split into three single-precision pieces (Cephes `DP1..3` × 2) so
-/// `x - k·π/2` is computed with ~24 extra bits for `|k| < 2^24`.
 /// First piece of π/2 (Cephes `DP1`×2).
+///
+/// π/2 is split into single-precision pieces (Cephes `DP1..3` × 2, then
+/// [`PIO2_4`]) for the reduction `x - k·π/2`. Measured against a 400-bit
+/// reference, `sin` / `cos` are within 1.4 ulp for `|x| ≤ 8192`; for
+/// `8192 < |x| ≤ 2^24` the result is deterministic, but near a zero of `sin` /
+/// `cos` it has no relative accuracy (the pieces do not hold enough bits of
+/// π/2 to resolve `x - k·π/2` there).
 pub const PIO2_1: f32 = 1.570_312_5;
 /// Second piece of π/2.
 pub const PIO2_2: f32 = 4.837_512_969_970_703_125e-4;
