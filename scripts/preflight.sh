@@ -138,6 +138,10 @@ python3 scripts/entropy_guard.py
 step "ci.yml / docs-lint: libm dependency guard (test, then check)"
 python3 scripts/test_libm_dependency_guard.py
 python3 scripts/libm_dependency_guard.py
+python3 scripts/test_build_config_guard.py
+python3 scripts/build_config_guard.py
+python3 scripts/test_build_flags_check.py
+python3 scripts/test_run_tests.py
 
 step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
 python3 scripts/test_changed_paths.py
@@ -228,6 +232,15 @@ step "ci.yml / test: Test (docs.rs feature set)"
 
 step "ci.yml / test: Test (no_std, software sqrt)"
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo test --no-default-features --features simd )
+
+step "ci.yml / test: Test (float environment, debug and release)"
+scripts/run_tests.sh float_environment=2 -- cargo test --test float_environment
+scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_environment
+
+step "ci.yml / build-flags: effective rustc flags (fresh target directory)"
+env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib
+env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib --all-features
+env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib --no-default-features
 
 # ci.yml / simd-paths: the x86_64 lanes (sse2-only / avx2+fma) need an x86_64
 # host; on any host the `native` lane is reproducible and proves no fma contraction.

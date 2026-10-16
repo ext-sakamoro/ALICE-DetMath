@@ -52,6 +52,14 @@ jobs:
       # no_std: the software sqrt path must produce the same golden hashes
       - name: Test (no_std, software sqrt)
         run: cargo test --no-default-features --features simd
+      # G14: round-to-nearest-even and no flush-to-zero, asserted at run time in
+      # both profiles; scripts/run_tests.sh fails when the binary passed no test
+      # (a missing, ignored or cfg'd-out test is red, not an empty green run)
+      - name: Test (float environment, debug and release)
+        shell: bash
+        run: |
+          scripts/run_tests.sh float_environment=2 -- cargo test --test float_environment
+          scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_environment
 
   simd-paths:
     name: SIMD codegen paths (${{ matrix.name }})
@@ -79,6 +87,29 @@ jobs:
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo test --features "$ALL_FEATURES"
+
+  build-flags:
+    # G14, dynamic half: the flags cargo really passes to rustc, read from `-v` in a
+    # fresh target directory (a reused one prints Fresh without the command line),
+    # for the default, all-features and no-default feature sets in the release
+    # profile; fails on a native / fast-math / x87 flag, and when no command line for
+    # this crate was seen. A job of its own, so the simd-paths RUSTFLAGS never reach it
+    name: Effective rustc flags (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Effective rustc flags (default, all features, no default features)
+        shell: bash
+        run: |
+          python3 scripts/build_flags_check.py -- cargo check --release --lib
+          python3 scripts/build_flags_check.py -- cargo check --release --lib --all-features
+          python3 scripts/build_flags_check.py -- cargo check --release --lib --no-default-features
 
   wasm:
     name: Test (wasm32-wasip1 via wasmtime)
@@ -249,6 +280,21 @@ jobs:
         run: |
           python scripts/test_libm_dependency_guard.py
           python scripts/libm_dependency_guard.py
+      # G14, static half: no fast-math-style flag, target-cpu=native or flag value
+      # the guard cannot resolve in any file a flag can come from; the simd-paths
+      # native leg and its preflight mirror are the two allow entries in
+      # scripts/build_config_allowlist.toml. Nothing read fails
+      - name: Build configuration guard (test, then check)
+        run: |
+          python scripts/test_build_config_guard.py
+          python scripts/build_config_guard.py
+      # the dynamic half's parser on each OS (the check itself is the build-flags job)
+      - name: Effective rustc flags check (tests)
+        run: python scripts/test_build_flags_check.py
+      # the zero-test guard shared with ALICE-DB / ALICE-Analytics / ALICE-Edge /
+      # ALICE-Zip, on each OS's own bash
+      - name: run_tests.sh (tests)
+        run: python scripts/test_run_tests.py
       # the changes / gate jobs of the path-filtered workflows (fuzz / security-audit): the
       # script's own tests, and each .github/paths/<workflow>.txt equal to its pull_request paths
       - name: Changed paths tests + pattern sync

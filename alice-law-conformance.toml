@@ -125,19 +125,20 @@ note = "the published crate's library src/ names HashMap / HashSet / BTreeMap no
 reference_repo = ""
 
 [G14]
-status = "fail-known"
-evidence = ["Cargo.toml", ".github/workflows/ci.yml", "tests/golden.rs", "tests/signed_zero.rs", "tests/accuracy.rs"]
+status = "pass"
+evidence = [
+    "scripts/build_config_guard.py, static half (byte-identical to ALICE-DB's: every .cargo/config*, *.toml, build.rs, *.rs, *.yml / *.yaml, *.json and script kind outside target/, plus any rustc wrapper named in them, comments and YAML name values blanked, TOML / JSON decoded values too: target-cpu=native, a target-cpu / target-feature / llvm-args value that is not a plain literal, a RUSTFLAGS value from a command or a file, LLVM and C fast-math-style flags, a target-feature list disabling sse / sse2, and in src/ the fast and algebraic float intrinsics; an exclude of a file a build reads is refused; nothing read or no root Cargo.toml is exit 2)",
+    "scripts/build_flags_check.py, dynamic half (byte-identical to ALICE-DB's: runs cargo check -v in a fresh target directory and reads every rustc command line; fails when no command line, or none for alice_det_math, was seen)",
+    "scripts/build_config_allowlist.toml (five excludes with reasons: the two G14 scripts, their tests, this manifest; two allow entries, each the exact line with count 1: the simd-paths native leg in .github/workflows/ci.yml and its mirror in scripts/preflight.sh, test builds that are not shipped)",
+    "scripts/test_build_config_guard.py and scripts/test_build_flags_check.py",
+    ".github/workflows/ci.yml docs-lint job (ubuntu, macOS, Windows): the static guard and both test files",
+    ".github/workflows/ci.yml build-flags job (ubuntu, macOS): the dynamic check for the default, all-features and no-default feature sets in the release profile, in a job of its own so the simd-paths RUSTFLAGS never reach it",
+    "tests/float_environment.rs round_to_nearest_even and subnormals_are_not_flushed (byte-identical to ALICE-DB's; ci.yml test job on the five OS, debug and release, through scripts/run_tests.sh float_environment=2, which fails when fewer than both tests passed)",
+]
+mutant = "measured 2026-10-16, each reverted: `RUSTFLAGS: \"-C target-cpu=native\"` added to ci.yml's env makes scripts/build_config_guard.py exit 1 with `.github/workflows/ci.yml:28: target-cpu-native: target-cpu=native` (the two allowed lines stay allowed); RUSTFLAGS=$'-C target-cpu=nat\\x69ve' makes scripts/build_flags_check.py exit 1 with `alice_det_math: target-cpu-native: target-cpu=native`; setting FPCR.RMode to round-toward-plus-infinity fails round_to_nearest_even and setting FPCR.FZ (flush-to-zero) fails subnormals_are_not_flushed (aarch64, macOS; the mutant build used --cap-lints=warn because this crate forbids unsafe code); `#[ignore]` on subnormals_are_not_flushed alone makes the run_tests.sh float_environment=2 step exit 1 (1 passed, needs at least 2) in debug and release"
 since = ""
-note = "no shipped build sets a fast-math-style flag or target-cpu=native: there is no .cargo/config* in the tree and no build.rs, and Cargo.toml carries no such profile flag. The one target-cpu=native in CI is a deliberate test leg (the simd-paths 'native' matrix entry, which runs the golden to prove native codegen still reproduces the pins), not a shipped artifact. What the gate also requires and is missing: (a) a CI scan step over the build-configuration files for fast-math / native in shipped builds, and (b) explicit tests asserting round-to-nearest-even and no flush-to-zero (C5). Subnormals are exercised as inputs and pinned (tests/golden.rs grids reach the smallest subnormal, tests/signed_zero.rs checks +/-2^-149, tests/accuracy.rs sweeps them), so a flush-to-zero or non-RNE environment would redden a golden -- but no test asserts the floating-point environment itself, and no scan keeps the good state."
-reference_repo = ""
-
-# Per-feature classification: whether each Cargo feature of alice-det-math is
-# inside or outside the Law guarantee, per docs/CONFORMANCE.md "Features and
-# the guarantee". `inside` requires all three: same arithmetic generation
-# (same SEMANTICS_ID, no float path the gates do not cover), same values (same
-# bits, or a golden for a feature-added computation), and coverage (an e2e
-# check or a named external-reference oracle). Anything else is `outside`,
-# with the note saying which condition fails.
+note = "the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test builds, recorded as allow entries, and nothing shipped is built that way. The static scan covers the files of this repository and the dynamic check covers the builds CI runs on ubuntu and macOS; a flag passed by a build outside this repository (a consumer's own RUSTFLAGS) is outside both. YAML is not parsed by the static guard (the actionlint job parses the workflows). A Rust target-feature that only adds or removes instructions other than sse / sse2 is allowed: Rust does not contract a * b + c into an fma, and mul_add is correctly rounded either way"
+reference_repo = "ALICE-DB"
 
 [features.std]
 guarantee = "inside"

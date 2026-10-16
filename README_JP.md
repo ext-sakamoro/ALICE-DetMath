@@ -276,7 +276,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G11 gate-self-tests | 未達 | unmet: clause (c). scripts/clippy_canary.py, scripts/test_clippy_canary.py, scripts/gen_clippy_canary_calls.py and scripts/test_gen_clippy_canary_calls.py are … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
 | G13 no-unspecified-order | 未達 | the published crate's library src/ names HashMap / HashSet / BTreeMap nowhere (a full scan returned zero), and it is no_std without alloc, so the standard … |
-| G14 float-environment-invariants | 未達 | no shipped build sets a fast-math-style flag or target-cpu=native: there is no .cargo/config* in the tree and no build.rs, and Cargo.toml carries no such … |
+| G14 float-environment-invariants | 適合 | the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test … |
 
 ### feature と保証の範囲
 

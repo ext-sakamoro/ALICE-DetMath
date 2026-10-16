@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI (ALICE-Law G14): 浮動小数点の結果を変える build の flag を静的と動的の 2 段で検査する (ALICE-DB と同一の `scripts/build_config_guard.py` / `scripts/build_flags_check.py` と test) 静的は target/ 以外の設定・script・Rust を comment を除いて読み、`target-cpu=native`、素の literal でない target-cpu / target-feature / llvm-args の値、command や file から取った RUSTFLAGS、fast-math 系の flag、sse / sse2 を外す target-feature を検出する simd-paths job の native leg と preflight の同じ行は試験の build なので `scripts/build_config_allowlist.toml` に行の完全一致で許可した 動的は新しい target dir で `cargo check -v` を走らせ、cargo が rustc に実際に渡した flag を読む 静的は docs-lint job (ubuntu / macOS / Windows)、動的は新しい build-flags job (ubuntu / macOS、default / all-features / no-default) と preflight で実行
+- `tests/float_environment.rs` (ALICE-DB と同一): round-to-nearest-even と subnormal が flush されないことを実行時に確かめる test test job (5 OS) の debug と release で `scripts/run_tests.sh float_environment=2` を通して実行 (2 本とも通らなければ失敗) `alice-law-conformance.toml` の G14 を fail-known から pass にした
+- `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
+
 ### Changed
 
 - 試験: `MetricWeights::lipschitz` の拡縮範囲の下端 2^-60 を `tests/metric_degenerate.rs` の `the_lower_end_of_the_unscaled_range_is_pinned` で固定した `s = w1 + winf` が下端の近くで `w1 < 2^-63.5` の時、拡縮しない式の `2·w1²` が非正規数に丸まり拡縮した式と 1 ulp 違う (どちらも閉形式から 1 ulp 以内) ため、下端の位置が出力の bit を決めている 下端を 2^-50 または 2^-63 に動かす変異は従来の試験を全部通っていたが、この試験で red になる 上端 2^60 は bit を決めない (2^50 / 2^63 に動かしても 2·10⁷ 件の無作為入力で bit 一致、拡縮が厳密で `w1²` が `s²` の最下位 bit より小さいため) ことを試験の doc に記載 値・`SEMANTICS_ID` は変わらない

@@ -1,0 +1,35 @@
+# Deliberate occurrences for scripts/build_config_guard.py (ALICE-Law G14).
+# Each entry needs a reason; an allow covers exactly the lines it names (count),
+# an exclude names a file the guard would otherwise read.
+
+[[exclude]]
+path = "scripts/build_config_guard.py"
+reason = "the guard itself: its rules and documentation spell out the flags it looks for"
+
+[[exclude]]
+path = "scripts/test_build_config_guard.py"
+reason = "the guard's tests: every flag appears as test data in a temporary tree"
+
+[[exclude]]
+path = "alice-law-conformance.toml"
+reason = "the conformance manifest quotes the flags in its G14 evidence and mutant text; cargo does not read it"
+
+[[exclude]]
+path = "scripts/build_flags_check.py"
+reason = "the dynamic G14 check: its rules and documentation spell out the flags it looks for"
+
+[[exclude]]
+path = "scripts/test_build_flags_check.py"
+reason = "the dynamic check's tests: the flags appear in sample rustc command lines"
+
+[[allow]]
+path = ".github/workflows/ci.yml"
+line = "rustflags: \"-C target-cpu=native\""
+count = 1
+reason = "the simd-paths job's native leg: the tests run under target-cpu=native to show the results do not depend on the CPU the build selects; it builds and runs tests only, nothing it builds is shipped"
+
+[[allow]]
+path = "scripts/preflight.sh"
+line = "( export RUSTFLAGS=\"-C target-cpu=native\" ALL_FEATURES=\"std,simd\"; cargo test --features \"$ALL_FEATURES\" --target-dir target/native )"
+count = 1
+reason = "the local mirror of the simd-paths native leg (cargo test in its own target directory); nothing it builds is shipped"
