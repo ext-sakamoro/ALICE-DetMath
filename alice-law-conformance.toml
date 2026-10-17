@@ -24,11 +24,16 @@ note = "G1 bans the platform transcendentals outside alice-det-math; this is tha
 reference_repo = ""
 
 [G2]
-status = "fail-known"
-evidence = ["src/simd.rs:270", "tests/golden.rs", "tests/simd_parity.rs"]
+status = "pass"
+evidence = [
+    "src/ops.rs (the scalar Law helpers max / min / max64 / min64: IEEE maximumNumber / minimumNumber with -0 < +0, a NaN operand yields the other, two NaNs the canonical NaN; their unit tests cover the signed-zero and subnormal lattice)",
+    "src/simd.rs (simd::max / simd::min: the same rule on f32x8 by comparisons, blends and sign_bit, the only f32x8 maximum and minimum; exp's exponent clamp `min(max(kf, -126), 127)` goes through them)",
+    "clippy.toml disallowed-methods f32::max / min / clamp, f64::max / min / clamp and wide::f32x8::max / min / fast_max / fast_min, scripts/clippy_canary_calls.tsv regenerated (18 planted, 0 skipped) and scripts/clippy_canary.py flagging each",
+    "tests/simd_parity.rs max_min_lanes_match_scalar_over_every_pair (the f32x8 width, the only float SIMD width in src/: every ordered pair of the special values lane for lane against the scalar helpers, and the ties (+0, -0) / (-0, +0), NaN with a number in both orders, two NaNs)",
+]
+mutant = "measured 2026-10-17 and reverted: `kf.max(C_NEG126P0).min(C_127P0)` back in simd::exp fails cargo clippy (`use of a disallowed method wide::f32x8::max` / `min`); swapping the zero-tie operands in simd::max (`a.sign_bit().blend(a, b)`) fails max_min_lanes_match_scalar_over_every_pair (`max(0.0, -0.0)`). Before the change the exp site used wide's max / min; its output bits are unchanged (tests/golden.rs simd_outputs and tests/simd_parity.rs exp parity pass with the helpers): kf there is never NaN except on NaN lanes, which exp blends to NaN, and never ties the nonzero bounds"
 since = ""
-note = "the published crate's one Law-bearing f32/f64 max/min is src/simd.rs:270, kf.max(C_NEG126P0).min(C_127P0) -- a wide::f32x8 exponent clamp in the SIMD exp kernel -- not an IEEE maximumNumber/minimumNumber Law helper; the scalar paths use no max/min at all (metric.rs:328 self.minimum() is a MetricWeights accessor, not a float max/min). The crate has no raw_* default-deny manifest and no clippy ban on max/min (C5). The bits of that one site are pinned cross-target by tests/golden.rs (the simd_outputs pin) and tests/simd_parity.rs (lane-for-lane equality to the scalar exp over the special values including NaN, +/-0, subnormals), so a divergence would redden; but G2's own mechanism -- an IEEE-semantics Law helper, a named raw_* exception manifest, and a per-SIMD-width helper test -- does not exist here."
-reference_repo = ""
+note = "no raw_* site exists, so there is no manifest of them: every float maximum and minimum of the library is a Law helper, and the platform forms are banned for every target the crate builds (tests included; the seven test sites that used f32 / f64 max and min now call the helpers). The SIMD widths: f32x8 only (i32x8 carries integers), from a scan of src/ for wide's types"
 
 [G3]
 status = "pass"

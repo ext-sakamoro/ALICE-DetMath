@@ -267,7 +267,7 @@ pub fn exp(x: f32x8) -> f32x8 {
         + C_1P0;
     // Scalar: k > 127 → p·2^127·2^(k−127); k < −126 → p·2^−126·2^(k+126);
     // else p·2^k. Multiplying by 2^0 = 1.0 is exact, so one formula covers all.
-    let k_hi = kf.max(C_NEG126P0).min(C_127P0);
+    let k_hi = min(max(kf, C_NEG126P0), C_127P0);
     let k_lo = kf - k_hi;
     let v = p * pow2(k_hi) * pow2(k_lo);
     let v = under.blend(C_0P0, v);
@@ -411,6 +411,39 @@ pub fn hypot(x: f32x8, y: f32x8) -> f32x8 {
 #[inline]
 fn canonical_nan(v: f32x8) -> f32x8 {
     v.cmp_eq(v).blend(v, C_NAN)
+}
+
+/// [`crate::max`] per lane: IEEE maximumNumber with `-0.0 < +0.0` (ALICE-Law G2).
+///
+/// A NaN lane yields the other operand's lane; two NaN lanes give the canonical NaN.
+/// This is the only maximum the crate computes on `f32x8` (`clippy.toml` bans
+/// `wide::f32x8::max` / `fast_max`); `tests/simd_max_min.rs` compares it lane for lane
+/// with the scalar function over every pair of special values.
+#[inline]
+#[must_use]
+pub fn max(a: f32x8, b: f32x8) -> f32x8 {
+    // the scalar rule: b if a is NaN or b > a; else a if b is NaN or a > b or a is not
+    // negative; else b (-0 against +0 gives +0)
+    let r = (a.is_nan() | b.cmp_gt(a)).blend(
+        b,
+        (b.is_nan() | a.cmp_gt(b)).blend(a, a.sign_bit().blend(b, a)),
+    );
+    canonical_nan(r)
+}
+
+/// [`crate::min`] per lane: IEEE minimumNumber with `-0.0 < +0.0` (ALICE-Law G2).
+///
+/// A NaN lane yields the other operand's lane; two NaN lanes give the canonical NaN.
+#[inline]
+#[must_use]
+pub fn min(a: f32x8, b: f32x8) -> f32x8 {
+    // the scalar rule: b if a is NaN or b < a; else a if b is NaN or a < b or a is
+    // negative; else b (+0 against -0 gives -0)
+    let r = (a.is_nan() | b.cmp_lt(a)).blend(
+        b,
+        (b.is_nan() | a.cmp_lt(b)).blend(a, a.sign_bit().blend(a, b)),
+    );
+    canonical_nan(r)
 }
 
 /// [`crate::metric::lerp`] per lane — `(1 − t)·a + t·b`, exact at both ends.

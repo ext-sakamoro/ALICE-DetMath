@@ -66,7 +66,7 @@ fn directions(n: i32) -> Vec<[f32; 3]> {
 fn reference_g(w: (f32, f32, f32), h: [f32; 3]) -> f32 {
     let l1 = h[0].abs() + h[1].abs() + h[2].abs();
     let l2 = (h[0] * h[0] + h[1] * h[1] + h[2] * h[2]).sqrt();
-    let linf = h[0].abs().max(h[1].abs()).max(h[2].abs());
+    let linf = alice_det_math::max(alice_det_math::max(h[0].abs(), h[1].abs()), h[2].abs());
     w.0 * l1 + w.1 * l2 + w.2 * linf
 }
 
@@ -135,8 +135,8 @@ fn lipschitz_is_an_upper_bound_and_is_attained() {
         let mut best = f32::INFINITY;
         for h in &grid {
             let g = reference_g((n1, n2, ni), *h);
-            worst = worst.max(g);
-            best = best.min(g);
+            worst = alice_det_math::max(worst, g);
+            best = alice_det_math::min(best, g);
         }
         let lip = w.lipschitz();
         let min = w.minimum();
@@ -318,7 +318,7 @@ fn smoothstep_max_slope_is_the_analytic_three_halves_over_width() {
         for i in 0..4096 {
             let x = i as f32 * h;
             let s = (smoothstep(0.0, width, x + h) - smoothstep(0.0, width, x)) / h;
-            max_slope = max_slope.max(s);
+            max_slope = alice_det_math::max(max_slope, s);
         }
         let want = 1.5 / width;
         assert!(
@@ -426,7 +426,7 @@ fn axis_extent_is_the_exact_half_width_of_the_metric_ball() {
         let mut widest = 0.0_f32;
         for h in directions(14) {
             let n = w.norm(h);
-            widest = widest.max((h[0] / n).abs());
+            widest = alice_det_math::max(widest, (h[0] / n).abs());
         }
         let closed = w.axis_extent(1.0);
         assert!(

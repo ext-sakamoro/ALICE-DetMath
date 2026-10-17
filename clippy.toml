@@ -8,6 +8,17 @@ disallowed-methods = [
     { path = "std::time::SystemTime::elapsed", reason = "reads the wall clock the same as SystemTime::now; duration_since on an already-held value is fine, this reads the clock again" },
     { path = "std::time::SystemTime::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
     { path = "std::collections::hash_map::RandomState::new", reason = "seeds from OS randomness, which this crate's output must never depend on" },
+    # ALICE-Law G2: the platform max / min leave the sign of a zero result and the NaN case to the target; use alice_det_math::{max, min, max64, min64} or simd::{max, min}
+    { path = "f32::max", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's max helper" },
+    { path = "f32::min", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's min helper" },
+    { path = "f32::clamp", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's clamp helper" },
+    { path = "f64::max", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's max64 helper" },
+    { path = "f64::min", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's min64 helper" },
+    { path = "f64::clamp", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's clamp64 helper" },
+    { path = "wide::f32x8::max", reason = "ALICE-Law G2: lane max / min with platform semantics; use simd::max" },
+    { path = "wide::f32x8::min", reason = "ALICE-Law G2: lane max / min with platform semantics; use simd::min" },
+    { path = "wide::f32x8::fast_max", reason = "ALICE-Law G2: lane max / min with platform semantics; use simd::max" },
+    { path = "wide::f32x8::fast_min", reason = "ALICE-Law G2: lane max / min with platform semantics; use simd::min" },
 ]
 disallowed-types = [
     # disallowed-methods cannot name RandomState::default (a trait method,

@@ -1031,7 +1031,7 @@ fn semantics_id_covers_every_public_numeric_function() {
     // semantics of their own — each must return the bits its scalar
     // counterpart returns, which `every_simd_function_has_a_parity_test`
     // keeps true.
-    assert_eq!(simd.len(), 21, "SIMD surface: {:?}", ids(&simd));
+    assert_eq!(simd.len(), 23, "SIMD surface: {:?}", ids(&simd));
     for sentinel in [
         "single::sin",
         "double::ln64",
@@ -1088,7 +1088,7 @@ fn every_simd_function_has_a_parity_test() {
         .into_iter()
         .filter(|s| s.module.starts_with("simd"))
         .collect();
-    assert_eq!(simd.len(), 21, "SIMD surface: {:?}", ids(&simd));
+    assert_eq!(simd.len(), 23, "SIMD surface: {:?}", ids(&simd));
     for s in &simd {
         let needle = s.ty.as_ref().map_or_else(
             || format!("simd::{}", s.name),
