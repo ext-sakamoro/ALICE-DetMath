@@ -11,6 +11,7 @@ Cargo.lock
 rust-toolchain.toml
 # the test, the count check, its test and this workflow
 tests/exhaustive_f32.rs
+tests/exhaustive_f32.digests
 scripts/exhaustive_count.py
 scripts/test_exhaustive_count.py
 scripts/run_tests.sh

@@ -20,6 +20,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'tests/exhaustive_f32.rs'
+      - 'tests/exhaustive_f32.digests'
       - 'scripts/exhaustive_count.py'
       - 'scripts/test_exhaustive_count.py'
       - 'scripts/run_tests.sh'
@@ -96,17 +97,21 @@ jobs:
           key: exhaustive-f32
       - name: Count check tests
         run: python3 scripts/test_exhaustive_count.py
+      # shell: bash runs with -o pipefail, so a failing test fails the step through tee
+      # (the default shell is bash -e without pipefail: the status would be tee's)
       - name: Sweep (release, --ignored)
+        shell: bash
         run: >-
+          set -o pipefail;
           scripts/run_tests.sh exhaustive_f32=12 --
           cargo test --locked --release --test exhaustive_f32 -- --ignored --nocapture
           2>&1 | tee exhaustive.log
-      # fails on 0 lines, a missing or extra function, or a count short of 2^32
-      - name: Inputs swept per function
+      # the second layer, independent of the tests' own asserts: each function's printed
+      # count and digest against tests/exhaustive_f32.digests (a wrong digest or count, a
+      # missing, extra or repeated function, or nothing compared is red)
+      - name: Count and digest per function against the pins
         if: ${{ !cancelled() }}
-        run: >-
-          python3 scripts/exhaustive_count.py exhaustive.log
-          sin,cos,tan,exp,ln,log2,log10,atan,asin,acos,tanh,cbrt
+        run: python3 scripts/exhaustive_count.py exhaustive.log tests/exhaustive_f32.digests
 
   # red when the changes job said run and a heavy job was skipped, cancelled or failed
   gate:

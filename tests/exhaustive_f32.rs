@@ -12,12 +12,14 @@
 //! values, not payloads (payloads are checked by `tests/signed_zero.rs` and the
 //! G2 tests).
 //!
-//! The tests are `#[ignore]`d (about 10 s each in release) and run by
-//! `.github/workflows/exhaustive-f32.yml` with `--ignored`. Each prints
-//! `EXHAUSTIVE <name> inputs swept <n> digest <hex>` and fails unless `n` is
-//! 2^32; the workflow also fails unless 12 such lines with that count were printed.
-//! `DET_MATH_PRINT_EXHAUSTIVE=1` prints the digests without comparing them, for
-//! re-pinning after an intended change.
+//! The pins are in `tests/exhaustive_f32.digests`. The tests are `#[ignore]`d (about
+//! 10 s each in release) and run by `.github/workflows/exhaustive-f32.yml` with
+//! `--ignored`. Each prints `EXHAUSTIVE <name> inputs swept <n> digest <hex>` and
+//! then fails unless `n` is 2^32 and the digest is its pin; independently of the
+//! test's own result, the workflow compares the printed lines with the digests file
+//! (`scripts/exhaustive_count.py`: a wrong count or digest, a missing, extra or
+//! repeated function, or an empty file is red). `DET_MATH_PRINT_EXHAUSTIVE=1` skips
+//! the comparison, for re-pinning after an intended change.
 //!
 //! oracle: the digests were produced on `aarch64` (macOS) and must be reproduced on
 //! `x86_64` and `aarch64` Linux; they pin the current kernels, so an intended change
@@ -27,7 +29,18 @@ use alice_det_math as dm;
 
 const ALL_INPUTS: u64 = 1 << 32;
 
-fn sweep(name: &str, f: fn(f32) -> f32, want: u64) {
+const DIGESTS: &str = include_str!("exhaustive_f32.digests");
+
+fn pinned(name: &str) -> u64 {
+    let hex = DIGESTS
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .find_map(|l| l.strip_prefix(name)?.strip_prefix(' '))
+        .unwrap_or_else(|| panic!("{name}: no pin in tests/exhaustive_f32.digests"));
+    u64::from_str_radix(hex.trim(), 16).expect("a 16-hex-digit digest")
+}
+
+fn sweep(name: &str, f: fn(f32) -> f32) {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut n: u64 = 0;
     for b in 0..=u32::MAX {
@@ -36,85 +49,88 @@ fn sweep(name: &str, f: fn(f32) -> f32, want: u64) {
         h = (h ^ u64::from(bits)).wrapping_mul(0x0000_0100_0000_01b3);
         n += 1;
     }
+    // printed before the asserts, so a moved digest is in the log for the workflow's
+    // comparison with the digests file as well as in the panic
     eprintln!("EXHAUSTIVE {name} inputs swept {n} digest {h:016x}");
     assert_eq!(n, ALL_INPUTS, "{name}: swept {n} inputs, not 2^32");
     if std::env::var_os("DET_MATH_PRINT_EXHAUSTIVE").is_some() {
         return;
     }
+    let want = pinned(name);
     assert_eq!(
         h, want,
-        "{name}: output bits moved somewhere in the 2^32 inputs ({h:016x})"
+        "{name}: output bits moved somewhere in the 2^32 inputs ({h:016x}, pin {want:016x})"
     );
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn sin() {
-    sweep("sin", dm::sin, 0x364d_2ef8_6918_967a);
+    sweep("sin", dm::sin);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn cos() {
-    sweep("cos", dm::cos, 0x519a_427f_4aeb_58a2);
+    sweep("cos", dm::cos);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn tan() {
-    sweep("tan", dm::tan, 0x70e6_e772_2a47_5cf1);
+    sweep("tan", dm::tan);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn exp() {
-    sweep("exp", dm::exp, 0xbb5e_ee00_f91f_8c16);
+    sweep("exp", dm::exp);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn ln() {
-    sweep("ln", dm::ln, 0x0997_dfee_86d3_b261);
+    sweep("ln", dm::ln);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn log2() {
-    sweep("log2", dm::log2, 0xa8e2_23da_7429_5e9d);
+    sweep("log2", dm::log2);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn log10() {
-    sweep("log10", dm::log10, 0x3887_905d_0c09_a371);
+    sweep("log10", dm::log10);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn atan() {
-    sweep("atan", dm::atan, 0x889a_1526_5f26_a8c5);
+    sweep("atan", dm::atan);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn asin() {
-    sweep("asin", dm::asin, 0x0fed_4ead_768a_439d);
+    sweep("asin", dm::asin);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn acos() {
-    sweep("acos", dm::acos, 0x8df4_8a8f_43f1_9857);
+    sweep("acos", dm::acos);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn tanh() {
-    sweep("tanh", dm::tanh, 0x5a6f_06ee_44fb_4aed);
+    sweep("tanh", dm::tanh);
 }
 
 #[test]
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn cbrt() {
-    sweep("cbrt", dm::cbrt, 0xd0c7_12cc_4e82_46a5);
+    sweep("cbrt", dm::cbrt);
 }

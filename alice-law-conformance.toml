@@ -61,7 +61,7 @@ reference_repo = "ALICE-LOL"
 status = "fail-known"
 evidence = [
     "tests/exhaustive_f32.rs (the 12 unary f32 functions sin cos tan exp ln log2 log10 atan asin acos tanh cbrt at all 2^32 inputs, a 64-bit fold whose every step is a bijection, so any single changed output moves the digest; each prints its swept count and fails unless it is 2^32)",
-    ".github/workflows/exhaustive-f32.yml (release, native on ubuntu-latest x86_64 and ubuntu-24.04-arm aarch64, path-filtered by the changes / gate jobs and weekly; scripts/run_tests.sh exhaustive_f32=12 and scripts/exhaustive_count.py fail on 0 lines, a missing function or a count short of 2^32)",
+    ".github/workflows/exhaustive-f32.yml (release, native on ubuntu-latest x86_64 and ubuntu-24.04-arm aarch64, path-filtered by the changes / gate jobs and weekly; the Sweep step runs under bash with pipefail and scripts/run_tests.sh exhaustive_f32=12; independently of the tests' asserts, scripts/exhaustive_count.py compares each printed count and digest with tests/exhaustive_f32.digests and fails on a wrong digest or count, a missing, extra or repeated function, or nothing compared; measured: one pinned digit flipped -> Sweep exit 101 and the comparison red, the cbrt test removed -> both red)",
     "tests/dense_golden.rs (27 functions at about 2^21 points each, required by name in the release steps of the ci.yml test job: dense_golden=7)",
     "tests/exact_cancellation.rs (12 f32 and 9 f64 results that are exact by IEEE 754 / C99 F.10 and reached through exact cancellation)",
     "tests/golden.rs, tests/signed_zero.rs",
