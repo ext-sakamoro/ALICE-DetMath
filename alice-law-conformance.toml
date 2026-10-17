@@ -138,16 +138,13 @@ note = "the public-text.yml job runs scripts/public_text.sh, which fetches ALICE
 reference_repo = "ALICE-Law"
 
 [G13]
-status = "pass"
+status = "fail-known"
 evidence = [
-    "clippy.toml disallowed-types std::collections::hash_map::HashMap and std::collections::hash_set::HashSet (with the existing RandomState entries), scripts/clippy_canary_calls.tsv regenerated (8 planted, 0 skipped) and scripts/clippy_canary.py flagging each",
-    "tests/no_unspecified_order.rs (scans src/ for a thread (std::thread, thread::spawn, thread::scope), a parallel iterator (rayon, par_iter, par_chunks, into_par_iter) and the hash collections as text, and requires none; fails when it read no source file or fewer than 100 lines; its canary the_scan_finds_each_planted_form plants each of the 9 forms in a line of code and requires the scan to find it, and a comment not to count)",
+    "clippy.toml disallowed-types std::collections::hash_map::HashMap and std::collections::hash_set::HashSet (with the RandomState entries), canary 8 planted, 0 skipped",
+    "tests/no_unspecified_order.rs (a tokenizer pass over src/: comments, string, raw-string, byte-string and character literals removed; no identifier may be thread, spawn, rayon, par_iter, par_chunks, par_chunks_mut, into_par_iter, par_bridge, HashMap or HashSet; its canary plants each name in code and in each kind of literal and comment, and the three renamed or string-hidden forms below; fails on fewer than 3 files or 1000 identifiers)",
     ".github/workflows/ci.yml test job: `scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order`, mirrored in scripts/preflight.sh",
-    "tests/simd_parity.rs (the simd feature's f32x8 kernels: a fixed-order element map with no cross-lane reduction, pinned lane for lane against the scalar functions)",
 ]
-mutant = "measured 2026-10-17 and reverted: `fn h(m: &std::collections::HashMap<u8, f32>) -> f32 { m.values().sum() }` added to src/lib.rs fails cargo clippy (`use of a disallowed type std::collections::hash_map::HashMap`); `pub fn planted_g13() { let _ = std::thread::spawn(|| 1u8); }` added to src/lib.rs fails no_thread_parallel_iterator_or_hash_collection_in_src"
-since = ""
-note = "the library is no_std without alloc by default and single-threaded, and now a lint and a scan ratchet that: no hash collection, no thread and no parallel iterator can enter src/ without a red check. std::thread::spawn / scope are not in clippy.toml: scripts/gen_clippy_canary_calls.py plants a method as `let _ = path;`, which does not compile for a generic function (E0283), so the scan stands for them. Address order: no output depends on a pointer value (audited, not scanned)"
+note = "known unmet: the thread half of the gate is held by a text layer, not a path-resolving one. Measured 2026-10-17 against main 2c4de9e, each in src/lib.rs: `use std::{thread as t}; t::spawn(..)`, `use std as s; s::thread::Builder::new().spawn(..)` and a line holding a string literal with `//` before `std::thread::spawn(..)` all passed the previous text scan (it matched path strings and cut each line at the first `//`). tests/no_unspecified_order.rs now tokenizes the source and matches identifiers, and all three fail it, but a text layer cannot resolve paths (a macro or a re-export from another crate can still name a thread without the word). The root is a clippy disallowed-methods ban of std::thread::spawn / std::thread::scope and a disallowed-types ban of std::thread::Builder, which the shared canary generator cannot plant today (it writes `let _ = path;`, E0283 for a generic function); it moves to pass when the updated generator lands. The hash-collection half is path-resolving (clippy disallowed-types). The library is no_std without alloc by default and has no parallel code"
 
 [G14]
 status = "pass"
