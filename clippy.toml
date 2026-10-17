@@ -16,4 +16,7 @@ disallowed-types = [
     # naming (a type annotation, a turbofish), without touching HashMap::new's
     # own internal (unnamed) use of RandomState.
     { path = "std::collections::hash_map::RandomState", reason = "seeds from OS randomness, which this crate's output must never depend on; see disallowed-methods for RandomState::new" },
+    # ALICE-Law G13: an iteration order Rust leaves unspecified must not reach an output
+    { path = "std::collections::hash_map::HashMap", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeMap (key order)" },
+    { path = "std::collections::hash_set::HashSet", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeSet (key order)" },
 ]

@@ -241,6 +241,9 @@ step "ci.yml / test: Test (float environment, debug and release)"
 scripts/run_tests.sh float_environment=2 -- cargo test --test float_environment
 scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_environment
 
+step "ci.yml / test: No unspecified order (scan of src/)"
+scripts/run_tests.sh no_unspecified_order=1 -- cargo test --test no_unspecified_order
+
 step "ci.yml / build-flags: effective rustc flags (fresh target directory)"
 env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib
 env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib --all-features
