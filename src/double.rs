@@ -281,41 +281,22 @@ pub fn acos64(x: f64) -> f64 {
 // fdlibm k_sin.c / k_cos.c kernels on |r| <= π/4, and a Cody–Waite
 // reduction with the 33-bit / 33-bit / 53-bit split of π/2 (e_rem_pio2.c),
 // exact for |x| < 2^20·π/2.
-const S1: f64 = -1.666_666_666_666_663_243_48e-01;
-const S2: f64 = 8.333_333_333_322_489_461_24e-03;
-const S3: f64 = -1.984_126_982_985_794_931_34e-04;
-const S4: f64 = 2.755_731_370_707_006_767_89e-06;
-const S5: f64 = -2.505_076_025_340_686_341_95e-08;
-const S6: f64 = 1.589_690_995_211_550_102_21e-10;
-const C1: f64 = 4.166_666_666_666_660_190_37e-02;
-const C2: f64 = -1.388_888_888_887_410_957_49e-03;
-const C3: f64 = 2.480_158_728_947_672_941_78e-05;
-const C4: f64 = -2.755_731_435_139_066_330_35e-07;
-const C5: f64 = 2.087_572_321_298_174_827_90e-09;
-const C6: f64 = -1.135_964_755_778_819_482_65e-11;
+pub(crate) const S1: f64 = -1.666_666_666_666_663_243_48e-01;
+pub(crate) const S2: f64 = 8.333_333_333_322_489_461_24e-03;
+pub(crate) const S3: f64 = -1.984_126_982_985_794_931_34e-04;
+pub(crate) const S4: f64 = 2.755_731_370_707_006_767_89e-06;
+pub(crate) const S5: f64 = -2.505_076_025_340_686_341_95e-08;
+pub(crate) const S6: f64 = 1.589_690_995_211_550_102_21e-10;
+pub(crate) const C1: f64 = 4.166_666_666_666_660_190_37e-02;
+pub(crate) const C2: f64 = -1.388_888_888_887_410_957_49e-03;
+pub(crate) const C3: f64 = 2.480_158_728_947_672_941_78e-05;
+pub(crate) const C4: f64 = -2.755_731_435_139_066_330_35e-07;
+pub(crate) const C5: f64 = 2.087_572_321_298_174_827_90e-09;
+pub(crate) const C6: f64 = -1.135_964_755_778_819_482_65e-11;
 const PIO2_1_64: f64 = 1.570_796_326_734_125_614_17e+00;
 const PIO2_1T_64: f64 = 6.077_100_506_506_192_249_32e-11;
 const PIO2_2_64: f64 = 6.077_100_506_303_965_976_60e-11;
 const PIO2_2T_64: f64 = 2.022_266_248_795_950_631_54e-21;
-
-/// fdlibm `k_sin`: `sin(x)` for `|x| ≤ π/4`.
-#[inline(always)]
-pub(crate) fn k_sin64(x: f64) -> f64 {
-    let z = x * x;
-    let v = z * x;
-    let r = S2 + z * (S3 + z * (S4 + z * (S5 + z * S6)));
-    x + v * (S1 + z * r)
-}
-
-/// fdlibm `k_cos`: `cos(x)` for `|x| ≤ π/4`.
-#[inline(always)]
-pub(crate) fn k_cos64(x: f64) -> f64 {
-    let z = x * x;
-    let r = z * (C1 + z * (C2 + z * (C3 + z * (C4 + z * (C5 + z * C6)))));
-    let hz = 0.5 * z;
-    let w = 1.0 - hz;
-    w + ((1.0 - w) - hz + (z * r))
-}
 
 /// Reduce `x` to `(k mod 4, r)` with `x = k·π/2 + r`, `|r| ≤ π/4`, in double.
 #[inline(always)]

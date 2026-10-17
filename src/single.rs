@@ -2,9 +2,7 @@
 //! `powf` / `powi` / `cbrt` / `hypot`, and the `f32` entry points of the
 //! double-precision fdlibm kernels in [`crate::double`].
 
-use crate::double::{
-    acos64, asin64, exp64, k_cos64, k_sin64, ln64, log10_64, log2_64, reduce_pio2_64,
-};
+use crate::double::{acos64, asin64, exp64, ln64, log10_64, log2_64, reduce_pio2_64};
 use crate::ops::sqrt;
 
 /// First piece of π/2 (Cephes `DP1`×2).
@@ -635,6 +633,30 @@ pub fn acos(x: f32) -> f32 {
 #[inline]
 #[must_use]
 pub fn tan(x: f32) -> f32 {
+    // fdlibm `k_sin` / `k_cos` kernels, nested here so that `tan` is
+    // their only possible caller (ALICE-Law G4: their contraction was measured through
+    // the f32 result of `tan` only; a second caller would expose the f64 result)
+    use crate::double::{C1, C2, C3, C4, C5, C6, S1, S2, S3, S4, S5, S6};
+
+    /// fdlibm `k_sin`: `sin(x)` for `|x| ≤ π/4`.
+    #[inline(always)]
+    fn k_sin64(x: f64) -> f64 {
+        let z = x * x;
+        let v = z * x;
+        let r = S2 + z * (S3 + z * (S4 + z * (S5 + z * S6)));
+        x + v * (S1 + z * r)
+    }
+
+    /// fdlibm `k_cos`: `cos(x)` for `|x| ≤ π/4`.
+    #[inline(always)]
+    fn k_cos64(x: f64) -> f64 {
+        let z = x * x;
+        let r = z * (C1 + z * (C2 + z * (C3 + z * (C4 + z * (C5 + z * C6)))));
+        let hz = 0.5 * z;
+        let w = 1.0 - hz;
+        w + ((1.0 - w) - hz + (z * r))
+    }
+
     if !x.is_finite() {
         return f32::NAN;
     }
