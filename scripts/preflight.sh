@@ -260,6 +260,7 @@ step "ci.yml / test: Test (release, docs.rs feature set)"
 
 step "ci.yml / test: No unspecified order (scan of src/)"
 scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order
+scripts/run_tests.sh kernel_callers=1 -- cargo test --test kernel_callers
 
 step "ci.yml / build-flags: effective rustc flags (fresh target directory)"
 env -u RUSTFLAGS python3 scripts/build_flags_check.py -- cargo check --release --lib
