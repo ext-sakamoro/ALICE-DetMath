@@ -14,8 +14,9 @@
 # The pin moves in a commit that also brings the copies to the bytes of the new revision's
 # table; a change in ALICE-Law never changes this repository's result by itself.
 #
-# What is compared is the committed tree (`git archive HEAD`), not the checkout: a checkout
-# that converts line endings (Windows) holds other bytes than the ones every crate shares.
+# What is compared is the committed tree (`git archive HEAD` with no line-ending
+# conversion), not the checkout: a checkout that converts line endings (Windows) holds
+# other bytes than the ones every crate shares.
 #
 # usage: scripts/shared_files.sh [TREE]
 #   TREE: a directory to check instead of the committed tree (the tests)
@@ -63,7 +64,9 @@ tree=${1:-}
 if [[ -z "$tree" ]]; then
   tree="$tmp/tree"
   mkdir "$tree"
-  git archive HEAD | tar -x -C "$tree"
+  # core.autocrlf=false: git archive applies the checkout's line-ending conversion, which
+  # on Windows would turn LF into CRLF and differ from the bytes every crate shares
+  git -c core.autocrlf=false -c core.eol=lf archive HEAD | tar -x -C "$tree"
   echo "shared_files: checking the committed tree (HEAD $(git rev-parse --short HEAD)); uncommitted changes are not checked"
 fi
 "$py" "$tmp/shared_files_check.py" --table "$tmp/shared-files.toml" --repo "$tree" --name "$name"

@@ -35,7 +35,9 @@ class SharedFiles(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.tree = Path(self.tmp.name) / "tree"
         self.tree.mkdir()
-        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "HEAD"], check=True, capture_output=True)
+        # no line-ending conversion: on Windows git archive would otherwise write CRLF
+        archive = subprocess.run(["git", "-C", str(ROOT), "-c", "core.autocrlf=false", "-c", "core.eol=lf",
+                                  "archive", "HEAD"], check=True, capture_output=True)
         subprocess.run(["tar", "-x", "-C", str(self.tree)], input=archive.stdout, check=True)
         for rel in ("scripts/shared_files.sh", ".github/shared-files-pin"):
             shutil.copy(ROOT / rel, self.tree / rel)
@@ -65,6 +67,8 @@ class SharedFiles(unittest.TestCase):
         code, out = self.run_script(str(self.tree))
         self.assertEqual(code, 1, out)
         self.assertIn("scripts/run_tests.sh", out)
+        # exactly the flipped file: a red for every file would also be exit 1
+        self.assertIn(", 1 finding(s)", out)
 
     def test_a_wrong_checker_sha256_in_the_pin_fails(self):
         pin = self.tree / ".github/shared-files-pin"
