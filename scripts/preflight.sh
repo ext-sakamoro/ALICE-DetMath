@@ -220,6 +220,10 @@ else
   echo "skip: nightly / cargo-fuzz not installed" >&2
 fi
 
+step "ci.yml / test: No negated fma result (syntax tree, tests then check)"
+cargo test --quiet --locked --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml
+cargo run --quiet --locked --release --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml -- --root .
+
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0
 fi
@@ -268,5 +272,9 @@ fi
 
 step "security-audit.yml / audit: cargo audit"
 ( export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; cargo audit --db "${CARGO_TARGET_DIR:-target}/advisory-db" --deny yanked )
+
+step "g3-ir.yml / ir: probe tests + no negated fma result in alice-det-math's release IR (host build; the per-target floors are checked in CI)"
+python3 scripts/test_fneg_fma_ir_check.py
+python3 scripts/fneg_fma_ir_check.py --package alice-det-math --all-features --findings-only
 
 echo; echo "preflight OK"
