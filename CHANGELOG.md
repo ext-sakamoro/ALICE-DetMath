@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI: clippy の canary の表の生成器 `scripts/gen_clippy_canary_calls.py` が generic 関数 (`std::thread::spawn` / `scope` / `Builder::spawn` / `spawn_scoped`) を turbofish 付きで植えるようにした (素の path では型が決まらず compile できないため) 他の行は byte 一致で、この repo の表は変わらない 共有 file の協調更新 (ALICE-Analytics などと同じ中身)
 - 試験: `MetricWeights::lipschitz` の拡縮範囲の下端 2^-60 を `tests/metric_degenerate.rs` の `the_lower_end_of_the_unscaled_range_is_pinned` で固定した `s = w1 + winf` が下端の近くで `w1 < 2^-63.5` の時、拡縮しない式の `2·w1²` が非正規数に丸まり拡縮した式と 1 ulp 違う (どちらも閉形式から 1 ulp 以内) ため、下端の位置が出力の bit を決めている 下端を 2^-50 または 2^-63 に動かす変異は従来の試験を全部通っていたが、この試験で red になる 上端 2^60 は bit を決めない (2^50 / 2^63 に動かしても 2·10⁷ 件の無作為入力で bit 一致、拡縮が厳密で `w1²` が `s²` の最下位 bit より小さいため) ことを試験の doc に記載 値・`SEMANTICS_ID` は変わらない
 - CI: wasm32 (wasmtime) leg で `metric_degenerate` / `pow_ieee_one` / `accuracy_trig_zeros` / `analytic_metric` も走らせる (preflight も同じ一覧)
 - doc: `PIO2_1` 〜 `PIO2_4` の説明を実測に合わせた 旧文の「`|k| < 2^24` で約 24 bit 余分」は全域で相対精度があるように読めたが、400 bit 参照で `sin` / `cos` が 1.4 ulp 以内なのは `|x| ≤ 8192` で、`8192 < |x| ≤ 2^24` では `sin` / `cos` の零点の近くで相対精度が無い (決定論は保たれる)
