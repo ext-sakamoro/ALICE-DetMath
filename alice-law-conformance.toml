@@ -34,6 +34,11 @@ evidence = [
 mutant = "measured 2026-10-17 and reverted: `kf.max(C_NEG126P0).min(C_127P0)` back in simd::exp fails cargo clippy (`use of a disallowed method wide::f32x8::max` / `min`); swapping the zero-tie operands in simd::max (`a.sign_bit().blend(a, b)`) fails max_min_lanes_match_scalar_over_every_pair (`max(0.0, -0.0)`). Before the change the exp site used wide's max / min; its output bits are unchanged (tests/golden.rs simd_outputs and tests/simd_parity.rs exp parity pass with the helpers): kf there is never NaN except on NaN lanes, which exp blends to NaN, and never ties the nonzero bounds"
 since = ""
 note = "no raw_* site exists, so there is no manifest of them: every float maximum and minimum of the library is a Law helper, and the platform forms are banned for every target the crate builds (tests included; the seven test sites that used f32 / f64 max and min now call the helpers). The SIMD widths: f32x8 only (i32x8 carries integers), from a scan of src/ for wide's types"
+tie_tests = [
+    "scalar max / min (f32): src/ops.rs::max_and_min_follow_the_rule_on_the_signed_zero_and_subnormal_lattice",
+    "scalar max64 / min64: src/ops.rs::max64_and_min64_follow_the_rule_on_the_signed_zero_and_subnormal_lattice",
+    "f32x8 lanes (simd::max / simd::min and the exp exponent clamp): tests/simd_parity.rs::max_min_lanes_match_scalar_over_every_pair",
+]
 
 [G3]
 status = "pass"
