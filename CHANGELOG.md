@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 試験 (ALICE-Law G4): `exp64` / `atan64` / `asin64` / `acos64` / `ln64` / `log10_64` の多項式の先頭項で積和が 1 回の丸めに縮約されると変わる入力の出力 bit を固定する試験を追加 (19 点、debug と release の両方) 挙動の変更なし
+- 試験 (ALICE-Law G4): `exp64` / `atan64` / `asin64` / `acos64` / `ln64` / `log10_64` の多項式の先頭項で積和が 1 回の丸めに縮約されると変わる入力の出力 bit を固定する試験を追加 (20 点、debug と release の両方) 挙動の変更なし
 - CI (ALICE-Law G4): `k_sin64` / `k_cos64` (f32 `tan` の倍精度 kernel) の呼び出し元が 1 つで crate の外に出ないことを固定する試験を追加 2 つ目の呼び出し元は、その経路の積和の縮約を見分ける golden が先に要る (f32 `tan` の出力では最終の組み合わせの縮約が全入力で等価なことを確かめた) 挙動の変更なし
 
 - CI (ALICE-Law G9): `scripts/id_move_check.py` (ALICE の識別子を持つ crate で共有、ALICE-Zip と同じ file) を追加 最新の release tag の公開版と作業 tree で `SEMANTICS_ID` の値を読み、以前の識別子の一覧に残す移動は `previous-tests` (pin table を再計算する試験) がそのままでは通り旧値を抜くと落ちることを、それ以外の移動は破壊的な版を求め、どちらでも CHANGELOG に両方の値を求める (ci.yml の clippy job と preflight)
