@@ -273,7 +273,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G8 persisted-semantics-id | 対象外 | G8 governs Law-bearing values written to a durable form carrying their own persisted identifier. alice-det-math persists nothing: it is a no_std, no_alloc … |
 | G9 persisted-meaning-change-is-major | 適合 | definition: SEMANTICS_ID moving counts as a persisted-meaning change, recorded as the semver-major equivalent (a 0.x minor), unless both hold -- the old … |
 | G10 no-run-varying-artifacts | 適合 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID, and the absence is ratcheted by two layers with the clock-via-elapsed hole … |
-| G11 gate-self-tests | 未達 | unmet: clause (c). scripts/clippy_canary.py, scripts/test_clippy_canary.py, scripts/gen_clippy_canary_calls.py and scripts/test_gen_clippy_canary_calls.py are … |
+| G11 gate-self-tests | 未達 | clause (c) met: the files this crate shares with the other crates are checked against ALICE-Law's table at a pinned revision (scripts/shared_files.sh, 20 … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
 | G13 no-unspecified-order | 適合 | two layers: clippy resolves paths, so a renamed import, a re-export or a macro expansion inside this crate that reaches std::thread::spawn / scope / Builder or … |
 | G14 float-environment-invariants | 適合 | the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test … |

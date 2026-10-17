@@ -150,6 +150,8 @@ python3 scripts/test_run_tests.py
 step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
 python3 scripts/test_changed_paths.py
 python3 scripts/test_exhaustive_count.py
+python3 scripts/test_shared_files.py
+scripts/shared_files.sh
 python3 scripts/changed_paths.py sync
 
 step "ci.yml / actionlint: actionlint"
