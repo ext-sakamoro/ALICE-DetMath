@@ -54,7 +54,7 @@ jobs:
     outputs:
       run: ${{ steps.decide.outputs.run }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: decide
@@ -86,7 +86,7 @@ jobs:
         # a rlib's IR needs no linker, only the target's standard library
         target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # the toolchain is rust-toolchain.toml's (the IR text depends on the LLVM version);
       # both targets are installed for the probe tests, which build for each architecture
       - name: Targets for the pinned toolchain
@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: gate
         env:
           NEEDS: ${{ toJSON(needs) }}
