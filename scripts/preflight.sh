@@ -55,6 +55,10 @@ else
   echo "skip: wasmtime not installed (CI runs it)"
 fi
 
+step "ci.yml / clippy: Identifier moves (tests, then against the published release)"
+python3 scripts/test_id_move_check.py
+python3 scripts/id_move_check.py
+
 step "ci.yml / clippy: clippy (default, all targets)"
 relint
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo clippy --all-targets -- -D warnings )

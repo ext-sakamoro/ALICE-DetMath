@@ -1,0 +1,12 @@
+# scripts/id_move_check.py (ALICE-Law G9): the identifiers whose value may move only with a
+# breaking version (or, kept in the previous list, with the test that shows the old bits
+# reproduced), and the release tags the base is read from (its values come from the published crate)
+package = "alice-det-math"
+manifest = "Cargo.toml"
+tags = ["v{version}"]
+
+[[id]]
+path = "alice_det_math::SEMANTICS_ID"
+previous = "alice_det_math::PREVIOUS_SEMANTICS_IDS"
+# each previous identifier is backed by a frozen pin table this test recomputes
+previous-tests = ["tests/golden.rs::every_previous_identifier_is_backed_by_a_reproduced_pin_table"]
