@@ -265,7 +265,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 |---|---|---|
 | G1 no-libm-direct | 適合 | G1 bans the platform transcendentals outside alice-det-math; this is that crate, so the gate here is the inverse claim it names it to carry: its own … |
 | G2 ieee-max-min | 未達 | the published crate's one Law-bearing f32/f64 max/min is src/simd.rs:270, kf.max(C_NEG126P0).min(C_127P0) -- a wide::f32x8 exponent clamp in the SIMD exp … |
-| G3 no-outer-fneg-of-fma | 未達 | no library source calls mul_add or fma at all (the G1 scan returned zero), so there is no outer-negation-of-fma to catch today, and the simd-paths avx2-fma leg … |
+| G3 no-outer-fneg-of-fma | 適合 | no fused multiply-add call in the library sources: the syntax-tree check reads 22 files and counts 0 fma-family calls against the declared 0, so the first new … |
 | G4 debug-release-arch-goldens | 未達 | the bit-pattern goldens exist and are strong -- tests/golden.rs pins every function over large integer-built grids (with an emptiness guard: the fold rejects … |
 | G5 release-profile-test-leg | 未達 | no job anywhere runs the Law-bearing test suite under --release, on aarch64 or any arch: the test matrix runs cargo test in debug on all five native runners … |
 | G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending … |
