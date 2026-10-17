@@ -64,5 +64,6 @@ if [[ -z "$tree" ]]; then
   tree="$tmp/tree"
   mkdir "$tree"
   git archive HEAD | tar -x -C "$tree"
+  echo "shared_files: checking the committed tree (HEAD $(git rev-parse --short HEAD)); uncommitted changes are not checked"
 fi
 "$py" "$tmp/shared_files_check.py" --table "$tmp/shared-files.toml" --repo "$tree" --name "$name"
