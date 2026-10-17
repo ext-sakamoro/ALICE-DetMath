@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (ALICE-Law G3): `tools/no-outer-fneg-of-fma` と `scripts/fneg_fma_ir_check.py` (と試験) を ALICE-LOL と同じ新しい版にした `expected-src-fma-calls` は src/ の library code の fma 呼び出し数 (`#[test]` と test の時だけ成り立つ cfg の下の item と文、test-only の `mod y;` で読み込む file とその子は数えず、test-only の数を別に表示する) この repository の数は変わらない IR 検査は library の source に fma が無いのに IR に fma がある時を失敗にし、library の fma が 0 の時は共有の probe を target ごとに compile して判定を確かめる (0 件実行は失敗) tool は独自の workspace なので repository 全体の format 検査に入っていなかった CI と preflight に tool の format の検査を足した 共有 file の照合の pin (`.github/shared-files-pin`) を、配布中の行を計画された行として持つ ALICE-Law 46a07cc3 に上げた (前の pin の表ではこの新しい中身がずれに見える)
 - CI: `scripts/test_shared_files.py` の 1 byte を変える試験は、`scripts/run_tests.sh` / `scripts/build_config_guard.py` のうち先に在る共有 file を使う (`scripts/run_tests.sh` を持たない crate でも同じ bytes で走る)
 
 - ALICE-Law G13 を pass に戻した `clippy.toml` で `std::thread::spawn` / `std::thread::scope` (disallowed-methods) と `std::thread::Builder` (disallowed-types) を禁止した (canary 21 行、G2 の行を含む、generic 関数を turbofish 付きで植える生成器で) clippy は path を解決するので、改名した import・`use std as s` 経由・文字列の後ろの呼び出しのどれも lint error になる src/ の tokenizer 検査は 2 段目として残す
