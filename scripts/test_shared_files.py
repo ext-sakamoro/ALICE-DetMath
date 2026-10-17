@@ -51,7 +51,7 @@ class SharedFiles(unittest.TestCase):
     def test_the_committed_tree_passes_and_compares_something(self):
         code, out = self.run_script(script_root=ROOT)
         self.assertEqual(code, 0, out)
-        self.assertRegex(out, r"copies [1-9][0-9]*, 0 difference")
+        self.assertRegex(out, r"copies [1-9][0-9]*, pending [0-9]+, 0 finding")
 
     def test_an_export_of_head_passes(self):
         code, out = self.run_script(str(self.tree))
