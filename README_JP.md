@@ -275,7 +275,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G10 no-run-varying-artifacts | 適合 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID, and the absence is ratcheted by two layers with the clock-via-elapsed hole … |
 | G11 gate-self-tests | 未達 | unmet: clause (c). scripts/clippy_canary.py, scripts/test_clippy_canary.py, scripts/gen_clippy_canary_calls.py and scripts/test_gen_clippy_canary_calls.py are … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
-| G13 no-unspecified-order | 適合 | the library is no_std without alloc by default and single-threaded, and now a lint and a scan ratchet that: no hash collection, no thread and no parallel … |
+| G13 no-unspecified-order | 未達 | known unmet: the thread half of the gate is held by a text layer, not a path-resolving one. Measured 2026-10-17 against main 2c4de9e, each in src/lib.rs: `use … |
 | G14 float-environment-invariants | 適合 | the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test … |
 
 ### feature と保証の範囲
