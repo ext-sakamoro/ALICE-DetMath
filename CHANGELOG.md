@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI (ALICE-Law G4): `k_sin64` / `k_cos64` (f32 `tan` の倍精度 kernel) の呼び出し元が 1 つで crate の外に出ないことを固定する試験を追加 2 つ目の呼び出し元は、その経路の積和の縮約を見分ける golden が先に要る (f32 `tan` の出力では最終の組み合わせの縮約が全入力で等価なことを確かめた) 挙動の変更なし
+
 - CI (ALICE-Law G9): `scripts/id_move_check.py` (ALICE の識別子を持つ crate で共有、ALICE-Zip と同じ file) を追加 最新の release tag の公開版と作業 tree で `SEMANTICS_ID` の値を読み、以前の識別子の一覧に残す移動は `previous-tests` (pin table を再計算する試験) がそのままでは通り旧値を抜くと落ちることを、それ以外の移動は破壊的な版を求め、どちらでも CHANGELOG に両方の値を求める (ci.yml の clippy job と preflight)
 - CI (ALICE-Law G11 (c)): 他の crate と同じ bytes で持つ file を ALICE-Law の表 (`conformance/shared-files.toml`) と照らす `scripts/shared_files.sh` を足した 表と検査器 `scripts/shared_files_check.py` は `.github/shared-files-pin` の revision で ALICE-Law から取り、両方の SHA-256 を照らす commit された tree (`git archive HEAD`、Windows の改行変換を受けない) の写し 82 件が表と一致すること (pending の行は variant の 1 つであること)、表の path が在るのに列挙も exempt もされていないこと、比較 0 件を失敗にする docs-lint job (3 OS) と preflight で実行し、`scripts/test_shared_files.py` で 1 byte の反転・誤った SHA-256・壊れた pin が失敗することを確かめる `alice-law-conformance.toml` の G11 の (c) を検査に載せた (pending の 10 行が uniform になるまで fail-known、残りは gate ごとの 3 点の揃い)
 - CI: README の ALICE-Law 節の検査 (law-readme-block.yml) を preflight でも同じに走らせる `scripts/law_readme_block_check.py` と試験 `scripts/test_law_readme_block_check.py` を足した (ALICE-DB と同じ中身の共有 file、workflow の check の引数と節の pin の生成器を使い、比較 0 件・件数の行なし・pin が無い・fetch の失敗は失敗、未 commit の入力は検査していないと表示) 試験は CI と preflight で走る
