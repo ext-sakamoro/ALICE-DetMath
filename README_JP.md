@@ -264,7 +264,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | gate | 状態 | 注記 |
 |---|---|---|
 | G1 no-libm-direct | 適合 | G1 bans the platform transcendentals outside alice-det-math; this is that crate, so the gate here is the inverse claim it names it to carry: its own … |
-| G2 ieee-max-min | 未達 | the published crate's one Law-bearing f32/f64 max/min is src/simd.rs:270, kf.max(C_NEG126P0).min(C_127P0) -- a wide::f32x8 exponent clamp in the SIMD exp … |
+| G2 ieee-max-min | 適合 | no raw_* site exists, so there is no manifest of them: every float maximum and minimum of the library is a Law helper, and the platform forms are banned for … |
 | G3 no-outer-fneg-of-fma | 適合 | no fused multiply-add call in the library sources: the syntax-tree check reads 22 files and counts 0 fma-family calls against the declared 0, so the first new … |
 | G4 debug-release-arch-goldens | 未達 | the bit-pattern goldens exist and are strong -- tests/golden.rs pins every function over large integer-built grids (with an emptiness guard: the fold rejects … |
 | G5 release-profile-test-leg | 未達 | no job anywhere runs the Law-bearing test suite under --release, on aarch64 or any arch: the test matrix runs cargo test in debug on all five native runners … |

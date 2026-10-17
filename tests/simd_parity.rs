@@ -291,3 +291,63 @@ fn metric_kernels_match_scalar_lane_for_lane() {
         }
     }
 }
+
+/// ALICE-Law G2 at the `f32x8` width: `simd::max` / `simd::min` against the scalar
+/// functions over every ordered pair of special values, lane for lane, and the ties the
+/// Law decides (`max(+0, -0) = max(-0, +0) = +0`, `min` the other way, a NaN against a
+/// number gives the number in both orders, two NaNs the canonical NaN).
+#[test]
+fn max_min_lanes_match_scalar_over_every_pair() {
+    let s = special_values();
+    let mut compared = 0;
+    for &a in &s {
+        for chunk in s.chunks(8) {
+            let mut bs = [0.0f32; 8];
+            bs[..chunk.len()].copy_from_slice(chunk);
+            let av = f32x8::splat(a);
+            let bv = f32x8::new(bs);
+            let mx = lanes(simd::max(av, bv));
+            let mn = lanes(simd::min(av, bv));
+            for i in 0..chunk.len() {
+                let b = bs[i];
+                assert_eq!(
+                    mx[i].to_bits(),
+                    alice_det_math::max(a, b).to_bits(),
+                    "max({a:?}, {b:?})"
+                );
+                assert_eq!(
+                    mn[i].to_bits(),
+                    alice_det_math::min(a, b).to_bits(),
+                    "min({a:?}, {b:?})"
+                );
+                compared += 1;
+            }
+        }
+    }
+    assert_eq!(compared, s.len() * s.len());
+    let z = |a: f32, b: f32| {
+        let (x, y) = (f32x8::splat(a), f32x8::splat(b));
+        (
+            lanes(simd::max(x, y))[0].to_bits(),
+            lanes(simd::min(x, y))[0].to_bits(),
+        )
+    };
+    for (a, b) in [(0.0f32, -0.0f32), (-0.0, 0.0)] {
+        assert_eq!(
+            z(a, b),
+            (0.0f32.to_bits(), (-0.0f32).to_bits()),
+            "({a:?}, {b:?})"
+        );
+    }
+    for (a, b) in [(f32::NAN, 2.5f32), (2.5, f32::NAN)] {
+        assert_eq!(
+            z(a, b),
+            (2.5f32.to_bits(), 2.5f32.to_bits()),
+            "({a:?}, {b:?})"
+        );
+    }
+    assert_eq!(
+        z(f32::from_bits(0x7fa0_0001), -f32::NAN),
+        (f32::NAN.to_bits(), f32::NAN.to_bits())
+    );
+}

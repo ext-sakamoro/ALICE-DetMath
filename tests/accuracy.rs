@@ -504,7 +504,7 @@ fn log2_64_log10_64_within_2_ulp_of_correctly_rounded_reference() {
     let mut worst_id = 0;
     for &(x, ..) in &rows {
         let d = (log2_64(x) * core::f64::consts::LOG10_2 - log10_64(x)).abs();
-        let scale = log10_64(x).abs().max(1.0);
+        let scale = alice_det_math::max64(log10_64(x).abs(), 1.0);
         worst_id = worst_id.max((d / scale * 1.0e18) as u64);
     }
     println!("log2/log10 identity drift {worst_id}e-18");
