@@ -4,6 +4,7 @@
 The script fetches ALICE-Law at the pinned revision. Without an argument it checks the
 committed tree, which passes; given an export of HEAD with a flipped byte in a shared copy it
 fails, and a pin with a wrong SHA-256 or a malformed pin fails before anything is compared."""
+import os
 import shutil
 import subprocess
 import tempfile
@@ -11,6 +12,22 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def bash() -> str:
+    """Git's bash on Windows (`bash` on PATH there can be the WSL launcher, which has no
+    distribution on the runners), the PATH one elsewhere."""
+    if os.name == "nt":
+        exec_path = subprocess.run(["git", "--exec-path"], check=True, capture_output=True, text=True).stdout.strip()
+        for up in (3, 2):
+            candidate = Path(exec_path).parents[up - 1] / "bin" / "bash.exe"
+            if candidate.is_file():
+                return str(candidate)
+        raise RuntimeError(f"no bash.exe of Git near {exec_path}")
+    found = shutil.which("bash")
+    if found is None:
+        raise RuntimeError("no bash on PATH")
+    return found
 
 
 class SharedFiles(unittest.TestCase):
@@ -28,7 +45,7 @@ class SharedFiles(unittest.TestCase):
 
     def run_script(self, *args: str, script_root: Path | None = None):
         root = script_root or self.tree
-        r = subprocess.run(["bash", str(root / "scripts/shared_files.sh"), *args], capture_output=True, text=True)
+        r = subprocess.run([bash(), str(root / "scripts/shared_files.sh"), *args], capture_output=True, text=True)
         return r.returncode, r.stdout + r.stderr
 
     def test_the_committed_tree_passes_and_compares_something(self):
