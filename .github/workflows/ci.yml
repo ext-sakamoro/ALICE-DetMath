@@ -58,7 +58,7 @@ jobs:
       # named signed-zero and exact-cancellation tests required to run
       - name: Test (release, default features)
         shell: bash
-        run: scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7 -- cargo test --release
+        run: scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7,contraction_goldens=1 -- cargo test --release
       - name: Test (release, docs.rs feature set)
         shell: bash
         run: scripts/run_tests.sh signed_zero=4,exact_cancellation=2,simd_parity -- cargo test --release --features "$ALL_FEATURES"
