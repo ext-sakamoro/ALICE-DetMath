@@ -64,7 +64,7 @@ jobs:
       # collections are also banned by clippy.toml)
       - name: No unspecified order (scan of src/)
         shell: bash
-        run: scripts/run_tests.sh no_unspecified_order=1 -- cargo test --test no_unspecified_order
+        run: scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order
       # ALICE-Law G3, syntax-tree pre-check (tools/no-outer-fneg-of-fma, byte-identical to
       # ALICE-LOL's, built with --locked): its own tests, then the check over src/ tests/
       # examples/ benches/ with the exact fma-call counts of

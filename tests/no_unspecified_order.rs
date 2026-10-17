@@ -20,6 +20,44 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// The forms the scan looks for: a thread, a parallel iterator, a hash collection.
+const FORMS: [&str; 9] = [
+    "std::thread",
+    "thread::spawn",
+    "thread::scope",
+    "rayon",
+    "par_iter",
+    "par_chunks",
+    "into_par_iter",
+    "HashMap",
+    "HashSet",
+];
+
+/// The forms one line of code names (the part before a `//` comment).
+fn forms_in(line: &str) -> Vec<&'static str> {
+    let code = line.split("//").next().unwrap_or("");
+    FORMS.iter().copied().filter(|f| code.contains(f)).collect()
+}
+
+/// Canary: every form planted in a line of code is found, and a comment is not code.
+#[test]
+fn the_scan_finds_each_planted_form() {
+    let mut found = 0;
+    for form in FORMS {
+        let planted = format!("    let _ = {form}::planted();");
+        assert!(
+            forms_in(&planted).contains(&form),
+            "{form} not found in {planted:?}"
+        );
+        found += 1;
+        assert!(
+            forms_in(&format!("    // {form}")).is_empty(),
+            "{form} in a comment"
+        );
+    }
+    assert_eq!(found, FORMS.len());
+}
+
 #[test]
 fn no_thread_parallel_iterator_or_hash_collection_in_src() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -30,32 +68,18 @@ fn no_thread_parallel_iterator_or_hash_collection_in_src() {
         "read {} source files (compared nothing)",
         files.len()
     );
-    let forms = [
-        "std::thread",
-        "thread::spawn",
-        "thread::scope",
-        "rayon",
-        "par_iter",
-        "par_chunks",
-        "into_par_iter",
-        "HashMap",
-        "HashSet",
-    ];
     let mut found = Vec::new();
     let mut lines = 0;
     for f in &files {
         let text = std::fs::read_to_string(f).expect("source");
         for (n, line) in text.lines().enumerate() {
-            let code = line.split("//").next().unwrap_or("");
             lines += 1;
-            for form in forms {
-                if code.contains(form) {
-                    found.push(format!(
-                        "{}:{}: `{form}`",
-                        f.strip_prefix(root).expect("in the crate").display(),
-                        n + 1
-                    ));
-                }
+            for form in forms_in(line) {
+                found.push(format!(
+                    "{}:{}: `{form}`",
+                    f.strip_prefix(root).expect("in the crate").display(),
+                    n + 1
+                ));
             }
         }
     }

@@ -131,8 +131,8 @@ reference_repo = "ALICE-Law"
 status = "pass"
 evidence = [
     "clippy.toml disallowed-types std::collections::hash_map::HashMap and std::collections::hash_set::HashSet (with the existing RandomState entries), scripts/clippy_canary_calls.tsv regenerated (8 planted, 0 skipped) and scripts/clippy_canary.py flagging each",
-    "tests/no_unspecified_order.rs (scans src/ for a thread (std::thread, thread::spawn, thread::scope), a parallel iterator (rayon, par_iter, par_chunks, into_par_iter) and the hash collections as text, and requires none; fails when it read no source file or fewer than 100 lines)",
-    ".github/workflows/ci.yml test job: `scripts/run_tests.sh no_unspecified_order=1 -- cargo test --test no_unspecified_order`, mirrored in scripts/preflight.sh",
+    "tests/no_unspecified_order.rs (scans src/ for a thread (std::thread, thread::spawn, thread::scope), a parallel iterator (rayon, par_iter, par_chunks, into_par_iter) and the hash collections as text, and requires none; fails when it read no source file or fewer than 100 lines; its canary the_scan_finds_each_planted_form plants each of the 9 forms in a line of code and requires the scan to find it, and a comment not to count)",
+    ".github/workflows/ci.yml test job: `scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order`, mirrored in scripts/preflight.sh",
     "tests/simd_parity.rs (the simd feature's f32x8 kernels: a fixed-order element map with no cross-lane reduction, pinned lane for lane against the scalar functions)",
 ]
 mutant = "measured 2026-10-17 and reverted: `fn h(m: &std::collections::HashMap<u8, f32>) -> f32 { m.values().sum() }` added to src/lib.rs fails cargo clippy (`use of a disallowed type std::collections::hash_map::HashMap`); `pub fn planted_g13() { let _ = std::thread::spawn(|| 1u8); }` added to src/lib.rs fails no_thread_parallel_iterator_or_hash_collection_in_src"
