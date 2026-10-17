@@ -1,0 +1,3 @@
+# shell scripts keep LF on every OS: they are run by bash, and the shared ones are compared
+# byte for byte with ALICE-Law's table (a CRLF checkout on Windows would differ)
+*.sh text eol=lf
