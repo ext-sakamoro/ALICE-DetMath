@@ -55,7 +55,7 @@ jobs:
     outputs:
       run: ${{ steps.decide.outputs.run }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: decide
@@ -89,7 +89,7 @@ jobs:
         # native on each architecture: the outputs are the code the target compiles to
         os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Toolchain
         run: rustc -vV
       - uses: Swatinem/rust-cache@v2
@@ -121,7 +121,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: gate
         env:
           NEEDS: ${{ toJSON(needs) }}
