@@ -8,6 +8,9 @@ disallowed-methods = [
     { path = "std::time::SystemTime::elapsed", reason = "reads the wall clock the same as SystemTime::now; duration_since on an already-held value is fine, this reads the clock again" },
     { path = "std::time::SystemTime::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
     { path = "std::collections::hash_map::RandomState::new", reason = "seeds from OS randomness, which this crate's output must never depend on" },
+    # ALICE-Law G13: no result may be combined across threads (the crate is single-threaded)
+    { path = "std::thread::spawn", reason = "ALICE-Law G13: a result combined across threads can depend on the thread count and scheduling" },
+    { path = "std::thread::scope", reason = "ALICE-Law G13: a result combined across threads can depend on the thread count and scheduling" },
 ]
 disallowed-types = [
     # disallowed-methods cannot name RandomState::default (a trait method,
@@ -19,4 +22,5 @@ disallowed-types = [
     # ALICE-Law G13: an iteration order Rust leaves unspecified must not reach an output
     { path = "std::collections::hash_map::HashMap", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeMap (key order)" },
     { path = "std::collections::hash_set::HashSet", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeSet (key order)" },
+    { path = "std::thread::Builder", reason = "ALICE-Law G13: spawns a thread; the crate is single-threaded" },
 ]

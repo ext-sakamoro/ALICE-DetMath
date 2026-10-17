@@ -12,6 +12,9 @@ disallowed-methods	std::time::Instant::elapsed	let _ = std::time::Instant::elaps
 disallowed-methods	std::time::SystemTime::elapsed	let _ = std::time::SystemTime::elapsed;
 disallowed-methods	std::time::SystemTime::now	let _ = std::time::SystemTime::now;
 disallowed-methods	std::collections::hash_map::RandomState::new	let _ = std::collections::hash_map::RandomState::new;
+disallowed-methods	std::thread::spawn	let _ = std::thread::spawn::<fn(), ()>;
+disallowed-methods	std::thread::scope	let _ = std::thread::scope::<'static, for<'s> fn(&'s std::thread::Scope<'s, 'static>), ()>;
 disallowed-types	std::collections::hash_map::RandomState	#[allow(unused_imports)] use std::collections::hash_map::RandomState as CanaryType;
 disallowed-types	std::collections::hash_map::HashMap	#[allow(unused_imports)] use std::collections::hash_map::HashMap as CanaryType;
 disallowed-types	std::collections::hash_set::HashSet	#[allow(unused_imports)] use std::collections::hash_set::HashSet as CanaryType;
+disallowed-types	std::thread::Builder	#[allow(unused_imports)] use std::thread::Builder as CanaryType;
