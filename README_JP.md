@@ -266,7 +266,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G1 no-libm-direct | 適合 | G1 bans the platform transcendentals outside alice-det-math; this is that crate, so the gate here is the inverse claim it names it to carry: its own … |
 | G2 ieee-max-min | 適合 | no raw_* site exists, so there is no manifest of them: every float maximum and minimum of the library is a Law helper, and the platform forms are banned for … |
 | G3 no-outer-fneg-of-fma | 適合 | no fused multiply-add call in the library sources: the syntax-tree check reads 22 files and counts 0 fma-family calls against the declared 0, so the first new … |
-| G4 debug-release-arch-goldens | 適合 | pass: a contraction (a multiply-add fused into one rounding) at every polynomial step of the kernels is seen by a test, or shown not to change any output of … |
+| G4 debug-release-arch-goldens | 未達 | pass for what is covered, fail-known on a located remainder. Covered: the 12 unary f32 functions exhaustively, in release, on x86_64 and aarch64; the dense … |
 | G5 release-profile-test-leg | 適合 | the Law-bearing suite runs under --release on both architectures, aarch64 included (the leg that executes a hardware fma), with the signed-zero, … |
 | G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending … |
 | G7 handshake-carries-id | 対象外 | G7 governs a Law-bearing value crossing a crate boundary carrying its producer's G6 identifier. alice-det-math is the root compute library: its public API is … |
