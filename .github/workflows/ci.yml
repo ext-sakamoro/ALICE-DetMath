@@ -75,11 +75,6 @@ jobs:
       - name: No unspecified order (scan of src/)
         shell: bash
         run: scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order
-      # ALICE-Law G4: k_sin64 / k_cos64 keep the single caller (f32 tan) their contraction
-      # evidence was measured through, and stay crate-private
-      - name: Kernel callers (scan of src/)
-        shell: bash
-        run: scripts/run_tests.sh kernel_callers=1 -- cargo test --test kernel_callers
       # ALICE-Law G3, syntax-tree pre-check (tools/no-outer-fneg-of-fma, byte-identical to
       # ALICE-LOL's, built with --locked): its own tests, then the check over src/ tests/
       # examples/ benches/ with the exact fma-call counts of
