@@ -13,7 +13,10 @@
 use std::path::{Path, PathBuf};
 
 /// The identifiers the scan refuses: a thread, a parallel iterator, a hash collection.
-const NAMES: [&str; 10] = [
+/// `include` is refused because `include!` brings in source from outside `src/`, which
+/// this scan would not read.
+const NAMES: [&str; 11] = [
+    "include",
     "thread",
     "spawn",
     "rayon",
@@ -185,6 +188,8 @@ fn the_scan_finds_each_planted_name_and_ignores_literals_and_comments() {
             "fn f<'a>(x: &'a u8) -> &'a u8 { std::thread::yield_now(); x }",
             1,
         ),
+        ("include!(\"../tests/x_inc.rs\");", 1),
+        ("std::r#thread::spawn(|| 1);", 2),
     ] {
         assert_eq!(refused(code).len(), want, "{code}");
     }
