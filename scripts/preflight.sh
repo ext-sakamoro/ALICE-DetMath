@@ -76,6 +76,10 @@ python3 scripts/gen_clippy_canary_calls.py --check
 step "ci.yml / clippy: Clippy canary (tests)"
 python3 scripts/test_clippy_canary.py
 
+step "law-readme-block.yml: README ALICE-Law block (tests, then the check the job runs, at the block's ALICE-Law pin)"
+python3 scripts/test_law_readme_block_check.py
+python3 scripts/law_readme_block_check.py
+
 step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
 python3 scripts/clippy_canary.py
 
