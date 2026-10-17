@@ -145,6 +145,7 @@ python3 scripts/test_run_tests.py
 
 step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
 python3 scripts/test_changed_paths.py
+python3 scripts/test_exhaustive_count.py
 python3 scripts/changed_paths.py sync
 
 step "ci.yml / actionlint: actionlint"
@@ -240,6 +241,12 @@ step "ci.yml / test: Test (no_std, software sqrt)"
 step "ci.yml / test: Test (float environment, debug and release)"
 scripts/run_tests.sh float_environment=2 -- cargo test --test float_environment
 scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_environment
+
+step "ci.yml / test: Test (release, default features)"
+scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7 -- cargo test --release
+
+step "ci.yml / test: Test (release, docs.rs feature set)"
+( export ALL_FEATURES="std,simd"; scripts/run_tests.sh signed_zero=4,exact_cancellation=2,simd_parity -- cargo test --release --features "$ALL_FEATURES" )
 
 step "ci.yml / test: No unspecified order (scan of src/)"
 scripts/run_tests.sh no_unspecified_order=2 -- cargo test --test no_unspecified_order

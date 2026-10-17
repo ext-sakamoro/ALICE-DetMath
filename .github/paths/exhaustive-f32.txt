@@ -1,0 +1,19 @@
+# the paths that run .github/workflows/exhaustive-f32.yml (scripts/changed_paths.py decide)
+# on.pull_request.paths of the workflow must list the same patterns in the same order
+# (scripts/changed_paths.py sync)
+# every file that can change a job's result is listed: a missing one skips the job on a
+# change that alters it
+# the library sources and the manifest decide every output
+src/**
+Cargo.toml
+Cargo.lock
+# the toolchain decides code generation
+rust-toolchain.toml
+# the test, the count check, its test and this workflow
+tests/exhaustive_f32.rs
+scripts/exhaustive_count.py
+scripts/test_exhaustive_count.py
+scripts/run_tests.sh
+scripts/changed_paths.py
+.github/workflows/exhaustive-f32.yml
+.github/paths/exhaustive-f32.txt

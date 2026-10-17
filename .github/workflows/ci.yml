@@ -30,7 +30,8 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # the debug and the release legs of the suite (about 5 minutes each on the slowest runner)
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +53,15 @@ jobs:
       # no_std: the software sqrt path must produce the same golden hashes
       - name: Test (no_std, software sqrt)
         run: cargo test --no-default-features --features simd
+      # ALICE-Law G4 / G5: the whole suite under the release profile on every runner of the
+      # matrix (aarch64: macos-latest, ubuntu-24.04-arm; x86_64: the other three), with the
+      # named signed-zero and exact-cancellation tests required to run
+      - name: Test (release, default features)
+        shell: bash
+        run: scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7 -- cargo test --release
+      - name: Test (release, docs.rs feature set)
+        shell: bash
+        run: scripts/run_tests.sh signed_zero=4,exact_cancellation=2,simd_parity -- cargo test --release --features "$ALL_FEATURES"
       # G14: round-to-nearest-even and no flush-to-zero, asserted at run time in
       # both profiles; scripts/run_tests.sh fails when the binary passed no test
       # (a missing, ignored or cfg'd-out test is red, not an empty green run)
@@ -309,12 +319,13 @@ jobs:
       # ALICE-Zip, on each OS's own bash
       - name: run_tests.sh (tests)
         run: python scripts/test_run_tests.py
-      # the changes / gate jobs of the path-filtered workflows (fuzz / security-audit): the
+      # the changes / gate jobs of the path-filtered workflows (fuzz / security-audit / g3-ir / exhaustive-f32): the
       # script's own tests, and each .github/paths/<workflow>.txt equal to its pull_request paths
       - name: Changed paths tests + pattern sync
         run: |
           python scripts/test_changed_paths.py
           python scripts/changed_paths.py sync
+          python scripts/test_exhaustive_count.py
 
   fmt:
     name: Format

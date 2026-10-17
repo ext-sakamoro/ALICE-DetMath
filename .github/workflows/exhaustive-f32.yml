@@ -1,0 +1,123 @@
+name: Exhaustive f32
+
+# ALICE-Law G4: the 12 unary f32 functions at all 2^32 inputs, pinned bit for bit
+# (tests/exhaustive_f32.rs). The dense goldens in ci.yml sample about 2^21 points per
+# function and miss a change of one rounding that moves only a few outputs; this sweep
+# sees every output. It runs natively on each architecture (code generation differs),
+# when a path that can change an output changed, and weekly
+
+on:
+  push:
+    # no paths here: a branch created at a SHA another ref already has gets an empty
+    # diff from GitHub's filter and the run is skipped; the changes job below compares
+    # with merge-base(origin/main) instead (patterns: .github/paths/exhaustive-f32.txt)
+    branches: [main, 'ci/**']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'tests/exhaustive_f32.rs'
+      - 'scripts/exhaustive_count.py'
+      - 'scripts/test_exhaustive_count.py'
+      - 'scripts/run_tests.sh'
+      - 'scripts/changed_paths.py'
+      - '.github/workflows/exhaustive-f32.yml'
+      - '.github/paths/exhaustive-f32.txt'
+  schedule:
+    # Sunday 18:17 UTC, a quiet hour for the shared runners
+    - cron: '17 18 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# on main each commit has a group of its own, and a newer push cancels an older run only
+# off main: main and the scheduled run finish, so their result is a verdict
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # which files changed: a new or force-pushed branch is compared with merge-base(origin/main),
+  # another push with before..after, a pull request with base...head; schedule and manual
+  # runs always run; any error runs (fail-closed) — scripts/changed_paths.py
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/exhaustive-f32.txt
+
+  sweep:
+    name: 2^32 inputs x 12 functions (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ${{ matrix.os }}
+    # about 1.5 min of sweep on 8 cores, 4 min on a 4-vCPU runner, plus the release build
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      # one runner at a time: the sweep keeps every core busy for minutes
+      max-parallel: 1
+      matrix:
+        # native on each architecture: the outputs are the code the target compiles to
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain
+        run: rustc -vV
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: exhaustive-f32
+      - name: Count check tests
+        run: python3 scripts/test_exhaustive_count.py
+      - name: Sweep (release, --ignored)
+        run: >-
+          scripts/run_tests.sh exhaustive_f32=12 --
+          cargo test --locked --release --test exhaustive_f32 -- --ignored --nocapture
+          2>&1 | tee exhaustive.log
+      # fails on 0 lines, a missing or extra function, or a count short of 2^32
+      - name: Inputs swept per function
+        if: ${{ !cancelled() }}
+        run: >-
+          python3 scripts/exhaustive_count.py exhaustive.log
+          sin,cos,tan,exp,ln,log2,log10,atan,asin,acos,tanh,cbrt
+
+  # red when the changes job said run and a heavy job was skipped, cancelled or failed
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, sweep]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"
