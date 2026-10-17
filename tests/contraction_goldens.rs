@@ -43,6 +43,13 @@ const CASES: &[Case] = &[
         0xbfda_6432_fd6b_0150,
         0xbfd9_081f_72ea_d0b1,
     ),
+    // atan64 `AT[3] + w * (…)` (inner step of s2): a 2^24-input search found this one
+    (
+        "atan64",
+        "AT3",
+        0x3fd9_93c1_727c_82e6,
+        0x3fd8_552d_795a_561c,
+    ),
     // asin_pq (asin64 / acos64): `PS0 + t * (…)` (p) and `QS1 + t * (…)` (q)
     (
         "asin64",
