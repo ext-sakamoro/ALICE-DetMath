@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI: `scripts/test_shared_files.py` の 1 byte を変える試験は、`scripts/run_tests.sh` / `scripts/build_config_guard.py` のうち先に在る共有 file を使う (`scripts/run_tests.sh` を持たない crate でも同じ bytes で走る)
 
 - ALICE-Law G13 を pass に戻した `clippy.toml` で `std::thread::spawn` / `std::thread::scope` (disallowed-methods) と `std::thread::Builder` (disallowed-types) を禁止した (canary 21 行、G2 の行を含む、generic 関数を turbofish 付きで植える生成器で) clippy は path を解決するので、改名した import・`use std as s` 経由・文字列の後ろの呼び出しのどれも lint error になる src/ の tokenizer 検査は 2 段目として残す
 - ALICE-Law G13 を pass から fail-known に戻した `src/` の文字列検査は改名した import (`use std::{thread as t}`、`use std as s; s::thread::...`) と、`//` を含む文字列の後ろの呼び出しを見逃していた (行を最初の `//` で切っていた) 検査を tokenizer にして識別子で照合するようにし (comment・文字列・raw string・byte string・文字の literal を除く)、3 つとも失敗するのを確かめた path を解決する clippy の禁止 (`std::thread::spawn` / `scope` / `Builder`) は共有の canary 生成器の更新を待つ

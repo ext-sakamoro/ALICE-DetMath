@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# shared copies the flipped-byte test may use, in order (not every crate carries each)
+SHARED_PROBES = ("scripts/run_tests.sh", "scripts/build_config_guard.py")
 
 
 def bash() -> str:
@@ -60,13 +62,15 @@ class SharedFiles(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_a_flipped_byte_in_a_shared_copy_fails(self):
-        f = self.tree / "scripts/run_tests.sh"
+        # a file of a uniform row every crate that runs this check carries (the first present)
+        rel = next(r for r in SHARED_PROBES if (self.tree / r).is_file())
+        f = self.tree / rel
         data = bytearray(f.read_bytes())
         data[-1] ^= 1
         f.write_bytes(bytes(data))
         code, out = self.run_script(str(self.tree))
         self.assertEqual(code, 1, out)
-        self.assertIn("scripts/run_tests.sh", out)
+        self.assertIn(rel, out)
         # exactly the flipped file: a red for every file would also be exit 1
         self.assertIn(", 1 finding(s)", out)
 
