@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- ALICE-Law G13 を pass に戻した `clippy.toml` で `std::thread::spawn` / `std::thread::scope` (disallowed-methods) と `std::thread::Builder` (disallowed-types) を禁止した (canary 21 行、G2 の行を含む、generic 関数を turbofish 付きで植える生成器で) clippy は path を解決するので、改名した import・`use std as s` 経由・文字列の後ろの呼び出しのどれも lint error になる src/ の tokenizer 検査は 2 段目として残す
 - ALICE-Law G13 を pass から fail-known に戻した `src/` の文字列検査は改名した import (`use std::{thread as t}`、`use std as s; s::thread::...`) と、`//` を含む文字列の後ろの呼び出しを見逃していた (行を最初の `//` で切っていた) 検査を tokenizer にして識別子で照合するようにし (comment・文字列・raw string・byte string・文字の literal を除く)、3 つとも失敗するのを確かめた path を解決する clippy の禁止 (`std::thread::spawn` / `scope` / `Builder`) は共有の canary 生成器の更新を待つ
 - CI: clippy の canary の表の生成器 `scripts/gen_clippy_canary_calls.py` が generic 関数 (`std::thread::spawn` / `scope` / `Builder::spawn` / `spawn_scoped`) を turbofish 付きで植えるようにした (素の path では型が決まらず compile できないため) 他の行は byte 一致で、この repo の表は変わらない 共有 file の協調更新 (ALICE-Analytics などと同じ中身)
 - 試験: `MetricWeights::lipschitz` の拡縮範囲の下端 2^-60 を `tests/metric_degenerate.rs` の `the_lower_end_of_the_unscaled_range_is_pinned` で固定した `s = w1 + winf` が下端の近くで `w1 < 2^-63.5` の時、拡縮しない式の `2·w1²` が非正規数に丸まり拡縮した式と 1 ulp 違う (どちらも閉形式から 1 ulp 以内) ため、下端の位置が出力の bit を決めている 下端を 2^-50 または 2^-63 に動かす変異は従来の試験を全部通っていたが、この試験で red になる 上端 2^60 は bit を決めない (2^50 / 2^63 に動かしても 2·10⁷ 件の無作為入力で bit 一致、拡縮が厳密で `w1²` が `s²` の最下位 bit より小さいため) ことを試験の doc に記載 値・`SEMANTICS_ID` は変わらない
