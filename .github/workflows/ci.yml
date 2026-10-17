@@ -326,6 +326,14 @@ jobs:
           python scripts/test_changed_paths.py
           python scripts/changed_paths.py sync
           python scripts/test_exhaustive_count.py
+      # ALICE-Law G11 (c): the files shared with the other crates are the bytes ALICE-Law's
+      # table records (table and checker fetched at .github/shared-files-pin, both SHA-256
+      # pinned); a difference, an unlisted shared path or nothing compared fails
+      - name: Shared files equal ALICE-Law's table
+        shell: bash
+        run: |
+          python3 scripts/test_shared_files.py
+          scripts/shared_files.sh
 
   fmt:
     name: Format

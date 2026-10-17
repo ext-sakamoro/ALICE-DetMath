@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Tests of scripts/shared_files.sh (python3 scripts/test_shared_files.py)
+
+The script fetches ALICE-Law at the pinned revision. Without an argument it checks the
+committed tree, which passes; given an export of HEAD with a flipped byte in a shared copy it
+fails, and a pin with a wrong SHA-256 or a malformed pin fails before anything is compared."""
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class SharedFiles(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.tree = Path(self.tmp.name) / "tree"
+        self.tree.mkdir()
+        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "HEAD"], check=True, capture_output=True)
+        subprocess.run(["tar", "-x", "-C", str(self.tree)], input=archive.stdout, check=True)
+        for rel in ("scripts/shared_files.sh", ".github/shared-files-pin"):
+            shutil.copy(ROOT / rel, self.tree / rel)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_script(self, *args: str, script_root: Path | None = None):
+        root = script_root or self.tree
+        r = subprocess.run(["bash", str(root / "scripts/shared_files.sh"), *args], capture_output=True, text=True)
+        return r.returncode, r.stdout + r.stderr
+
+    def test_the_committed_tree_passes_and_compares_something(self):
+        code, out = self.run_script(script_root=ROOT)
+        self.assertEqual(code, 0, out)
+        self.assertRegex(out, r"copies [1-9][0-9]*, 0 difference")
+
+    def test_an_export_of_head_passes(self):
+        code, out = self.run_script(str(self.tree))
+        self.assertEqual(code, 0, out)
+
+    def test_a_flipped_byte_in_a_shared_copy_fails(self):
+        f = self.tree / "scripts/run_tests.sh"
+        data = bytearray(f.read_bytes())
+        data[-1] ^= 1
+        f.write_bytes(bytes(data))
+        code, out = self.run_script(str(self.tree))
+        self.assertEqual(code, 1, out)
+        self.assertIn("scripts/run_tests.sh", out)
+
+    def test_a_wrong_checker_sha256_in_the_pin_fails(self):
+        pin = self.tree / ".github/shared-files-pin"
+        lines = pin.read_text(encoding="utf-8").splitlines()
+        lines = [f"checker-sha256 {'0' * 64}" if l.startswith("checker-sha256 ") else l for l in lines]
+        pin.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.assertEqual(self.run_script(str(self.tree))[0], 2)
+
+    def test_a_malformed_pin_fails(self):
+        (self.tree / ".github/shared-files-pin").write_text("rev main\n", encoding="utf-8")
+        self.assertEqual(self.run_script(str(self.tree))[0], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
