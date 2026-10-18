@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI: text の file の行末の検査 `scripts/check_eol.py` (試験 `scripts/test_check_eol.py`) と `.github/workflows/eol.yml` を足した `git ls-files --eol` で text の file が index か working tree で CRLF / 混在なら失敗 (`-text` と binary は除く、比べた数を出し 0 件は失敗)、workflow は ubuntu / macos / windows で走り、preflight にも同じ検査を足した (ALICE の crate で同じ中身の file)
 - 試験 (ALICE-Law G4): `exp64` / `atan64` / `asin64` / `acos64` / `ln64` / `log10_64` の多項式の先頭項で積和が 1 回の丸めに縮約されると変わる入力の出力 bit を固定する試験を追加 (20 点、debug と release の両方) 挙動の変更なし
 - ALICE-Law G4: `k_sin64` / `k_cos64` (f32 `tan` の倍精度 kernel) を `src/double.rs` から f32 `tan` の関数本体の中へ移し、`tan` 以外から呼べないことを compiler が保証するようにした 2 つ目の呼び出し元は、その経路の積和の縮約を見分ける golden が先に要る (f32 `tan` の出力では最終の組み合わせの縮約が全入力で等価なことを確かめた) 出力の bit は変わらない
 
