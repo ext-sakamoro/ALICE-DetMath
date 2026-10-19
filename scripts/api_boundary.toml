@@ -1,0 +1,7 @@
+# scripts/api_boundary.py (ALICE-Law G7 / G8): the boundary of the public API,
+# enumerated from rustdoc JSON, and the decision for each item. The crate's other
+# public functions take and return f32 / f64 only and are not enumerated.
+features = "std,simd"
+
+[boundary]
+"fn::semantics::check_semantics" = "local: classifies a 32-byte identifier the caller passes against this crate's own SEMANTICS_ID and PREVIOUS_SEMANTICS_IDS; it reads no Law-bearing value and decodes no bytes"

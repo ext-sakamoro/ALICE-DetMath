@@ -91,6 +91,10 @@ python3 scripts/law_readme_block_check.py
 step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
 python3 scripts/clippy_canary.py
 
+step "ci.yml / clippy: API boundary manifest (tests, then the check)"
+python3 scripts/test_api_boundary.py
+python3 scripts/api_boundary.py
+
 step "ci.yml / no_std: Build rlib for a target without std"
 rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo rustc --lib --no-default-features --crate-type rlib --target thumbv7em-none-eabihf )

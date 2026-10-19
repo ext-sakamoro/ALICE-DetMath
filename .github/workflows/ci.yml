@@ -216,6 +216,14 @@ jobs:
           key: id-move-${{ steps.id-base.outputs.crate }}
       - name: Identifier moves (against the published release)
         run: python3 scripts/id_move_check.py
+      # G7 / G8: the public API is enumerated from rustdoc JSON; every item that takes or
+      # returns bytes, text or a reader, every non-Rust ABI fn, serde / FromStr / Read impl
+      # and outside re-export needs a decision in scripts/api_boundary.toml (shared with the
+      # other ALICE crates); an undecided item, a stale entry or 0 items enumerated fails
+      - name: API boundary manifest (tests)
+        run: python3 scripts/test_api_boundary.py
+      - name: API boundary manifest
+        run: python3 scripts/api_boundary.py
 
   no_std:
     name: no_std (rlib, thumbv7em-none-eabihf)
