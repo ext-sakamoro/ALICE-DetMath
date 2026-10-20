@@ -246,6 +246,7 @@ cargo run --quiet --locked --release --manifest-path tools/no-outer-fneg-of-fma/
 
 step "ci.yml / test: Contraction pins separate their steps (G4)"
 cargo fmt --manifest-path tools/contraction-search/Cargo.toml -- --check
+cargo test --quiet --locked --manifest-path tools/contraction-search/Cargo.toml
 cargo run --quiet --locked --release --manifest-path tools/contraction-search/Cargo.toml -- --check-pins tests/contraction_goldens.rs
 
 if [[ $quick -eq 1 ]]; then

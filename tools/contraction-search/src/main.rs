@@ -568,14 +568,45 @@ fn search(
     t
 }
 
-/// `--check-pins FILE`: every pin of `tests/contraction_goldens.rs` whose step this tool
-/// knows must give the pinned bits from the library and other bits with that step fused, so
-/// the named step is the one the pin separates. A pin of a function or step the tool does not
-/// model is skipped and counted; checking none fails.
-fn check_pins(path: &str) -> i32 {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+/// The leading-term steps of `tests/contraction_goldens.rs` with the function each is pinned
+/// through, found by an earlier search and not modelled here: a pin naming one of these pairs is
+/// skipped and counted, any other pair this tool does not model (a typo in the step or the
+/// function, or a modelled step under another function) fails the check
+const LEADING: [(&str, &str); 10] = [
+    ("exp64", "P1"),
+    ("atan64", "AT0"),
+    ("atan64", "AT1"),
+    ("atan64", "AT3"),
+    ("asin64", "PS0"),
+    ("asin64", "QS1"),
+    ("acos64", "PS0"),
+    ("acos64", "QS1"),
+    ("ln64", "LG2"),
+    ("log10_64", "LG1"),
+];
+
+/// The result of checking the pins of one file
+#[derive(Debug, Default, PartialEq, Eq)]
+struct PinReport {
+    checked: u32,
+    skipped: u32,
+    unknown: u32,
+    bad: u32,
+}
+
+impl PinReport {
+    /// Passes when at least one pin was checked and none failed or named an unknown step
+    fn passes(&self) -> bool {
+        self.checked > 0 && self.bad == 0 && self.unknown == 0
+    }
+}
+
+/// Checks every `("function", "step", 0x…, 0x…)` pin in `text`: a pin of a step this tool models
+/// must give the pinned bits from the library and other bits with that step fused; a pin of a
+/// leading step is skipped; any other step name is unknown
+fn check_pins_text(text: &str) -> PinReport {
     let flat: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-    let (mut checked, mut skipped, mut bad) = (0u32, 0u32, 0u32);
+    let mut r = PinReport::default();
     for chunk in flat.split("(\"").skip(1) {
         // name","step",0x…,0x…)
         let Some((name, rest)) = chunk.split_once("\",\"") else {
@@ -594,23 +625,41 @@ fn check_pins(path: &str) -> i32 {
         };
         let Some(&(step, _, f)) = STEPS.iter().find(|(_, n, f)| *n == step_name && *f == name)
         else {
-            skipped += 1;
+            if LEADING.contains(&(name, step_name)) {
+                r.skipped += 1;
+            } else {
+                r.unknown += 1;
+                println!("pin {name} {step_name} x={xb:#018x}: a step this tool neither models nor lists as leading");
+            }
             continue;
         };
         let x = f64::from_bits(xb);
         let lib = library(f, x).to_bits();
         let fused = eval(f, x, &mut Ctx::new(step, Step::None)).to_bits();
-        checked += 1;
+        r.checked += 1;
         if lib != want || fused == want {
-            bad += 1;
+            r.bad += 1;
             println!("pin {name} {step_name} x={xb:#018x}: library {lib:#018x}, fused {fused:#018x}, pinned {want:#018x}");
         }
     }
-    println!("check-pins: {checked} pins checked, {skipped} of steps not modelled here, {bad} not separating");
-    if checked == 0 || bad > 0 {
-        1
-    } else {
+    r
+}
+
+/// `--check-pins FILE`: every pin of `tests/contraction_goldens.rs` whose step this tool models
+/// must give the pinned bits from the library and other bits with that step fused, so the named
+/// step is the one the pin separates. A pin of a leading step (`LEADING`) is skipped and counted;
+/// an unknown step name, a pin that does not separate its step, and checking none fail.
+fn check_pins(path: &str) -> i32 {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let r = check_pins_text(&text);
+    println!(
+        "check-pins: {} pins checked, {} of leading steps not modelled here, {} of unknown steps, {} not separating",
+        r.checked, r.skipped, r.unknown, r.bad
+    );
+    if r.passes() {
         0
+    } else {
+        1
     }
 }
 
@@ -682,5 +731,88 @@ fn main() {
     if steps_run == 0 {
         eprintln!("no step selected");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // an AT4 pin of tests/contraction_goldens.rs (tools/contraction-search --log2-n 30 AT4)
+    const X: u64 = 0x3fda_92d7_72f0_e9e3;
+    const AT4: &str = r#"("atan64", "AT4", 0x3fda92d772f0e9e3, 0x3fd92ff252ff3c88),"#;
+
+    fn pin(fun: &str, step: &str, x: u64, out: u64) -> String {
+        format!("(\"{fun}\", \"{step}\", {x:#018x}, {out:#018x}),")
+    }
+
+    fn fused_at4(x: f64) -> u64 {
+        eval("atan64", x, &mut Ctx::new(Step::At4, Step::None)).to_bits()
+    }
+
+    #[test]
+    fn a_pin_of_a_modelled_step_is_checked() {
+        let r = check_pins_text(AT4);
+        assert_eq!(
+            r,
+            PinReport {
+                checked: 1,
+                ..PinReport::default()
+            }
+        );
+        assert!(r.passes());
+    }
+
+    #[test]
+    fn a_pin_with_bits_neither_build_gives_fails() {
+        let x = f64::from_bits(X);
+        let other = 0x3fd9_2ff2_52ff_3c89;
+        assert_ne!(other, dm::atan64(x).to_bits());
+        assert_ne!(other, fused_at4(x));
+        let r = check_pins_text(&pin("atan64", "AT4", X, other));
+        assert_eq!((r.checked, r.bad), (1, 1));
+        assert!(!r.passes());
+    }
+
+    #[test]
+    fn a_pin_whose_input_does_not_separate_its_step_fails() {
+        // the library's own bits at an input where the fused step gives the same output
+        let x = 0.4_f64;
+        let lib = dm::atan64(x).to_bits();
+        assert_eq!(lib, fused_at4(x), "the input must not separate AT4");
+        let r = check_pins_text(&pin("atan64", "AT4", x.to_bits(), lib));
+        assert_eq!((r.checked, r.bad), (1, 1));
+        assert!(!r.passes());
+    }
+
+    #[test]
+    fn an_unknown_step_name_fails_even_beside_a_good_pin() {
+        for typo in [
+            AT4.replace("\"AT4\"", "\"AT9\""),
+            AT4.replace("\"atan64\"", "\"atan\""),
+            r#"("atan", "AT0", 0xc0046ab2f098b14c, 0xbff32857868822b0),"#.to_string(),
+        ] {
+            let r = check_pins_text(&typo);
+            assert_eq!((r.checked, r.unknown), (0, 1), "{typo}");
+            assert!(!r.passes());
+            let r = check_pins_text(&format!("{AT4}\n{typo}"));
+            assert_eq!((r.checked, r.unknown, r.bad), (1, 1, 0), "{typo}");
+            assert!(!r.passes(), "a good pin beside {typo}");
+        }
+    }
+
+    #[test]
+    fn a_leading_step_is_skipped_and_checking_none_fails() {
+        let r =
+            check_pins_text(r#"("exp64", "P1", 0x403e_1e55_1477_9197, 0x42a5_e23f_5657_3e26),"#);
+        assert_eq!(
+            r,
+            PinReport {
+                skipped: 1,
+                ..PinReport::default()
+            }
+        );
+        assert!(!r.passes());
+        assert!(!check_pins_text("").passes());
     }
 }
