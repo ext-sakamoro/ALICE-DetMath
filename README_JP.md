@@ -268,7 +268,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G3 no-outer-fneg-of-fma | 適合 | no fused multiply-add call in the library sources: the syntax-tree check reads 22 files and counts 0 fma-family calls against the declared 0, so the first new … |
 | G4 debug-release-arch-goldens | 未達 | pass for what is covered, fail-known on a located remainder. Covered: the 12 unary f32 functions exhaustively, in release, on x86_64 and aarch64; the dense … |
 | G5 release-profile-test-leg | 適合 | the Law-bearing suite runs under --release on both architectures, aarch64 included (the leg that executes a hardware fma), with the signed-zero, … |
-| G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (src/lib.rs:148) is the SHA-256 of the per-function bit pins in tests/golden.rs, folded in ascending … |
+| G6 semantics-id | 適合 | alice-det-math defines its own identifier: SEMANTICS_ID (`src/lib.rs#pub const SEMANTICS_ID: [u8; 32] = [`) is the SHA-256 of the per-function bit pins in … |
 | G7 handshake-carries-id | 対象外 | no entry point receives another crate's Law-bearing value: scripts/api_boundary.py enumerates 1 boundary item (fn::semantics::check_semantics, an identifier … |
 | G8 persisted-semantics-id | 対象外 | no durable form is written or read: scripts/api_boundary.py finds no function writing or reading bytes or text and no serde / Read impl (its 1 enumerated item, … |
 | G9 persisted-meaning-change-is-major | 適合 | definition: SEMANTICS_ID moving counts as a persisted-meaning change, recorded as the semver-major equivalent (a 0.x minor), unless both hold -- the old … |
