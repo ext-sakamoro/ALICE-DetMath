@@ -85,6 +85,15 @@ jobs:
           cargo fmt --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml -- --check
           cargo test --quiet --locked --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml
           cargo run --quiet --locked --release --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml -- --root .
+      # ALICE-Law G4: every pin of tests/contraction_goldens.rs at a step that
+      # tools/contraction-search models gives the pinned bits from the library and other
+      # bits with that one step fused (so each pin separates the step it names); fails when
+      # it checks no pin
+      - name: Contraction pins separate their steps
+        shell: bash
+        run: |
+          cargo fmt --manifest-path tools/contraction-search/Cargo.toml -- --check
+          cargo run --quiet --locked --release --manifest-path tools/contraction-search/Cargo.toml -- --check-pins tests/contraction_goldens.rs
 
   simd-paths:
     name: SIMD codegen paths (${{ matrix.name }})
