@@ -17,7 +17,11 @@ const OLD_B: [u8; 32] = [0x33; 32];
 const OTHER: [u8; 32] = [0x44; 32];
 
 fn hex(b: &[u8; 32]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
+    use std::fmt::Write;
+    b.iter().fold(String::new(), |mut s, x| {
+        write!(s, "{x:02x}").unwrap();
+        s
+    })
 }
 
 #[test]
