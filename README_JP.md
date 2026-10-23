@@ -159,6 +159,10 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 0.5.0 が入り、0.5.0 は出力を変えたので 0.4.0 は入らない) で、その版の固定値の表から
 test が証明する
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
+ALICE の他の crate は自分の識別子で同じ比較を
+`check_semantics_against(&stored, &current, previous)` か、`Err(SemanticsMismatch)` が
+2 つの識別子を示す `verify_semantics_against` で行う `check_semantics` はこの crate の
+識別子でのその比較
 保存した値を読む側は `is_reproducible()` (検証済みの 2 つを受理)、識別子を鍵として
 比べる側は `is_current()` を使う 書く側は常に `SEMANTICS_ID` を付ける
 

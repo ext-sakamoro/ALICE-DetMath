@@ -110,17 +110,95 @@ impl SemanticsCheck {
 /// assert_eq!(check_semantics(&[0; 32]), SemanticsCheck::Mismatch);
 /// ```
 pub const fn check_semantics(id: &[u8; 32]) -> SemanticsCheck {
-    if bytes_eq(id, &SEMANTICS_ID) {
+    check_semantics_against(id, &SEMANTICS_ID, PREVIOUS_SEMANTICS_IDS)
+}
+
+/// Classify a stored identifier against a crate's own `current` identifier and
+/// its `previous` ones (the earlier identifiers whose pinned bits it still
+/// reproduces).
+///
+/// The comparison every ALICE crate makes for its own identifier: the current
+/// one is [`Verified`](SemanticsCheck::Verified) (even when `previous` also
+/// lists it), a listed earlier one is
+/// [`VerifiedPrevious`](SemanticsCheck::VerifiedPrevious) carrying the stored
+/// value, anything else is [`Mismatch`](SemanticsCheck::Mismatch). The order of
+/// `previous` does not change the result. [`check_semantics`] is this function
+/// with this crate's [`SEMANTICS_ID`] and [`PREVIOUS_SEMANTICS_IDS`].
+///
+/// ```
+/// use alice_det_math::semantics::check_semantics_against;
+/// use alice_det_math::SemanticsCheck;
+/// const OURS: [u8; 32] = [7; 32];
+/// const OLD: [u8; 32] = [6; 32];
+/// assert_eq!(check_semantics_against(&OURS, &OURS, &[OLD]), SemanticsCheck::Verified);
+/// assert_eq!(check_semantics_against(&OLD, &OURS, &[OLD]), SemanticsCheck::VerifiedPrevious(OLD));
+/// assert_eq!(check_semantics_against(&[0; 32], &OURS, &[OLD]), SemanticsCheck::Mismatch);
+/// ```
+pub const fn check_semantics_against(
+    stored: &[u8; 32],
+    current: &[u8; 32],
+    previous: &[[u8; 32]],
+) -> SemanticsCheck {
+    if bytes_eq(stored, current) {
         return SemanticsCheck::Verified;
     }
     let mut i = 0;
-    while i < PREVIOUS_SEMANTICS_IDS.len() {
-        if bytes_eq(id, &PREVIOUS_SEMANTICS_IDS[i]) {
-            return SemanticsCheck::VerifiedPrevious(PREVIOUS_SEMANTICS_IDS[i]);
+    while i < previous.len() {
+        if bytes_eq(stored, &previous[i]) {
+            return SemanticsCheck::VerifiedPrevious(*stored);
         }
         i += 1;
     }
     SemanticsCheck::Mismatch
+}
+
+/// A stored identifier that is neither the crate's current identifier nor one
+/// of its earlier ones, as returned by [`verify_semantics_against`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SemanticsMismatch {
+    /// The identifier the stored bytes or the peer carried.
+    pub stored: [u8; 32],
+    /// The current identifier it was compared with.
+    pub expected: [u8; 32],
+}
+
+impl core::fmt::Display for SemanticsMismatch {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("semantics identifier mismatch: stored ")?;
+        for b in self.stored {
+            write!(f, "{b:02x}")?;
+        }
+        f.write_str(", expected ")?;
+        for b in self.expected {
+            write!(f, "{b:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for SemanticsMismatch {}
+
+/// [`check_semantics_against`] as a `Result`: the accepting outcomes
+/// ([`Verified`](SemanticsCheck::Verified) and
+/// [`VerifiedPrevious`](SemanticsCheck::VerifiedPrevious)) are `Ok`.
+///
+/// # Errors
+///
+/// [`SemanticsMismatch`] naming `stored` and `current` when `stored` is
+/// neither `current` nor in `previous`.
+pub const fn verify_semantics_against(
+    stored: &[u8; 32],
+    current: &[u8; 32],
+    previous: &[[u8; 32]],
+) -> Result<SemanticsCheck, SemanticsMismatch> {
+    match check_semantics_against(stored, current, previous) {
+        SemanticsCheck::Mismatch => Err(SemanticsMismatch {
+            stored: *stored,
+            expected: *current,
+        }),
+        accepted => Ok(accepted),
+    }
 }
 
 const fn bytes_eq(a: &[u8; 32], b: &[u8; 32]) -> bool {

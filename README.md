@@ -178,6 +178,10 @@ release's bits on every function the release pinned — 0.5.0 is listed, since
 0.5.1 changed no output, while 0.4.0 is not, since 0.5.0 did — and a test
 proves it from that release's pin table.
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
+Other ALICE crates make the same comparison for their own identifiers with
+`check_semantics_against(&stored, &current, previous)`, or
+`verify_semantics_against`, whose `Err(SemanticsMismatch)` names both
+identifiers; `check_semantics` is that comparison with this crate's own.
 Readers of stored values use `is_reproducible()` (accepts both verified
 cases); code that compares identifiers as keys uses `is_current()`. Writers
 always stamp `SEMANTICS_ID`.
