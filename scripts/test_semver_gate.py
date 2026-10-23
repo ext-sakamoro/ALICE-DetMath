@@ -291,7 +291,7 @@ class BumpBaseline(unittest.TestCase):
         before = self.at("1.0.0")
         self.at("1.1.0")
         p, n, note = self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)))
-        self.assertEqual((p, n), ([], 3))
+        self.assertEqual((p, n), ([], len(sg.feature_specs({}, None, []))))
         self.assertTrue(self.args and all(a == ["--baseline-rev", before, "--release-type", "minor"] for a in self.args),
                         self.args)
         self.assertIn(f"bump base {before[:12]} (1.0.0)", note)
@@ -301,7 +301,7 @@ class BumpBaseline(unittest.TestCase):
         self.at("1.0.0")
         self.at("1.1.0")
         p, n, _ = self.check("1.1.0", lambda *a: (1, semver_output("minor", 9, 1, lints=["enum_variant_added"])))
-        self.assertEqual(len(p), 3)
+        self.assertEqual(len(p), len(sg.feature_specs({}, None, [])))
         self.assertIn("enum_variant_added", p[0])
 
     def test_a_major_step_from_the_base_is_not_compared(self):
@@ -315,7 +315,7 @@ class BumpBaseline(unittest.TestCase):
         self.at("1.0.0")
         self.at("1.1.0")
         p, _, _ = self.check("1.1.0", lambda *a: (0, semver_output("minor", 0, 0)))
-        self.assertEqual(len(p), 3)
+        self.assertEqual(len(p), len(sg.feature_specs({}, None, [])))
 
     def test_an_introduced_crate_has_nothing_to_compare(self):
         self.at("0.1.0")
@@ -332,15 +332,42 @@ class BumpBaseline(unittest.TestCase):
         self.assertIn("bump base", p[0])
 
     def test_auto_takes_the_registry_when_it_is_not_older_than_the_bump_base(self):
-        before = self.at("1.0.0")
+        # history 1.0.0 -> 1.1.0 -> 1.2.0: the bump base is the 1.1.0 commit; every case below is a minor step
+        # whichever base is taken, so a run happens and shows which base was passed
+        self.at("1.0.0")
+        base = self.at("1.1.0")
+        self.at("1.2.0")
+        ok = lambda *a: (0, semver_output("minor", 9, 0, from_v="1.1.0", to_v="1.2.0"))
+        self.check("1.2.0", ok, latest_v="1.1.0", baseline="auto")
+        self.assertTrue(self.args and all(a[:2] == ["--baseline-version", "1.1.0"] for a in self.args), self.args)
+        self.check("1.2.0", lambda *a: (0, semver_output("minor", 9, 0, from_v="1.0.0", to_v="1.2.0")),
+                   latest_v="1.0.0", baseline="auto")
+        self.assertTrue(self.args and all(a[:2] == ["--baseline-rev", base] for a in self.args), self.args)
+        self.check("1.2.0", ok, latest_v=None, baseline="auto")
+        self.assertTrue(self.args and all(a[:2] == ["--baseline-rev", base] for a in self.args), self.args)
+
+    def test_the_cli_reads_the_baseline_and_asks_no_registry_for_bump(self):
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "lib.rs").write_text("", encoding="utf-8")
+        self.at("1.0.0")
         self.at("1.1.0")
-        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)), latest_v="1.0.0", baseline="auto")
-        self.assertTrue(all(a[:2] == ["--baseline-version", "1.0.0"] for a in self.args), self.args)
-        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0, from_v="0.9.0")), latest_v="0.9.0",
-                   baseline="auto")
-        self.assertTrue(all(a[:2] == ["--baseline-rev", before] for a in self.args), self.args)
-        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)), latest_v=None, baseline="auto")
-        self.assertTrue(all(a[:2] == ["--baseline-rev", before] for a in self.args), self.args)
+        (self.repo / "c.toml").write_text('baseline = "bump"\n', encoding="utf-8")
+
+        def no_registry(path):
+            raise AssertionError("the registry was asked")
+        out = io.StringIO()
+        import os
+        cwd = os.getcwd()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            try:
+                os.chdir(self.repo)
+                code = sg.main(["--manifest", str(self.repo / "Cargo.toml"), "--config", str(self.repo / "c.toml")],
+                               fetch=no_registry, run=lambda *a: (0, semver_output("minor", 9, 0)))
+            finally:
+                os.chdir(cwd)
+        self.assertNotEqual(code, 0, out.getvalue())  # main_ref is origin/main, absent here: refused, not passed
+        self.assertIn("baseline: bump", out.getvalue())
+        self.assertIn("the bump base cannot be read", out.getvalue())
 
     def test_the_config_names_the_baseline(self):
         self.assertEqual(sg.load_config('baseline = "bump"\n').get("baseline"), "bump")
