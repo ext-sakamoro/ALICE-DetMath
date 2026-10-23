@@ -168,6 +168,7 @@ fn verify_returns_the_accepting_outcomes_and_names_both_identifiers_otherwise() 
     );
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn the_mismatch_is_a_std_error() {
     fn takes(_: &dyn std::error::Error) {}
