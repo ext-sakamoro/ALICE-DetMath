@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- 試験: `tests/golden.rs` の pin の入力 (grid32 / grid64 / dense64 / 2 引数・3 引数の組の index / `SPECIALS32` / `SPECIALS64`) を bit の SHA-256 と件数で固定した (`reference_inputs_are_frozen`) pin は `SEMANTICS_ID` に畳まれるので、入力の編集は算術の変更と同じに pin と識別子を動かしていた 固定した値は入力の定義から独立に作り直した値 (Python、f32 の演算は f64 で計算して f32 に丸める) dense の格子と組の index の式を関数にして、pin を作る code とこの試験が同じものを使う 出力 bit と `SEMANTICS_ID` は変わらない
-
 ### Added
 
 - `semantics::check_semantics_against(stored, current, previous) -> SemanticsCheck` (const fn) / `semantics::verify_semantics_against` (`Result<SemanticsCheck, SemanticsMismatch>`) / `semantics::SemanticsMismatch` (`stored` と `expected`、Display、`std` で `Error`): 保存された 32 byte の識別子を、呼び出し側が渡す自分の現在の識別子と以前の識別子で分類する ALICE の crate が自分の識別子で同じ比較をそれぞれ書いていた (Zip / ML / Edge / Sync / SDF / Kinematics) ものを 1 つにする `check_semantics` はこの関数をこの crate の識別子で呼ぶ形にした (結果は同じ) 試験 `tests/semantics_against.rs` (3 つの結果、以前の一覧の全位置と逆順、現在の識別子が一覧にもある時は Verified、全 byte の 1 bit 違い、自分の識別子では `check_semantics` と一致、const の文脈、Err の値と message の形、`std::error::Error`) `scripts/api_boundary.toml` に 2 関数を local として足した (境界の列挙 3 件) 版を 0.5.2 にした (追加のみ、crates.io への公開はしない)
@@ -32,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+
+- 試験: `tests/golden.rs` の pin の入力 (grid32 / grid64 / dense64 / 2 引数・3 引数の組の index / `SPECIALS32` / `SPECIALS64`) を bit の SHA-256 と件数で固定した (`reference_inputs_are_frozen`) pin は `SEMANTICS_ID` に畳まれるので、入力の編集は算術の変更と同じに pin と識別子を動かしていた 固定した値は入力の定義から独立に作り直した値 (Python、f32 の演算は f64 で計算して f32 に丸める) dense の格子と組の index の式を関数にして、pin を作る code とこの試験が同じものを使う 出力 bit と `SEMANTICS_ID` は変わらない
 - CI: `scripts/run_tests.sh` と試験 `scripts/test_run_tests.py` を ALICE-LLM と同じ bytes にし、`.github/shared-files-pin` を ALICE-Law の新しい版に移す 名前 `lib` を library の単体試験として数えるようになったが、この repository は `lib` を名指さないので各段の試験の名前と件数は変わらない 試験 `scripts/test_public_text.py` を ALICE-SDF と同じ版にした (公開する text の検査を pin の checker で走らせ、置いた note link を tree と commit message で検出すること、pin の 3 行目 `config-sha256` が設定を承認することを確かめる、network を使う) `scripts/public_text.sh` と public-text の pin は変えないので検査の結果は変わらない
 - CI: `.gitattributes` に `* text=auto eol=lf` を置き、text の file を保存も checkout も全 OS で LF にした (共有 file は ALICE-Law の表と byte で比べるので、Windows の CRLF の checkout ではずれになる) binary と既存の行はそのまま、`git add --renormalize` で commit 済みの中身は変わらない
 - CI (ALICE-Law G3): `tools/no-outer-fneg-of-fma` と `scripts/fneg_fma_ir_check.py` (と試験) を ALICE-LOL と同じ新しい版にした `expected-src-fma-calls` は src/ の library code の fma 呼び出し数 (`#[test]` と test の時だけ成り立つ cfg の下の item と文、test-only の `mod y;` で読み込む file とその子は数えず、test-only の数を別に表示する) この repository の数は変わらない IR 検査は library の source に fma が無いのに IR に fma がある時を失敗にし、library の fma が 0 の時は共有の probe を target ごとに compile して判定を確かめる (0 件実行は失敗) tool は独自の workspace なので repository 全体の format 検査に入っていなかった CI と preflight に tool の format の検査を足した 共有 file の照合の pin (`.github/shared-files-pin`) を、配布中の行を計画された行として持つ ALICE-Law 46a07cc3 に上げた (前の pin の表ではこの新しい中身がずれに見える) `.gitattributes` で `*.sh` を全 OS で LF にした (新しい pin の表は scripts/shared_files.sh も byte で比べ、Windows の checkout の CRLF ではずれになっていた)
