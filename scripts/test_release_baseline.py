@@ -71,7 +71,8 @@ class Baseline(unittest.TestCase):
             p = self.repo / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text)
-        (self.repo / "touch").write_text(msg)
+        (self.repo / "touch").mkdir(exist_ok=True)
+        (self.repo / "touch" / msg.replace(" ", "-")).write_text(msg)  # one file per commit: merges do not conflict
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", msg)
         return git(self.repo, "rev-parse", "HEAD")
