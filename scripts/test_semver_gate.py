@@ -416,6 +416,14 @@ class BumpBaseline(unittest.TestCase):
         with self.assertRaises(sg.ConfigError):
             sg.load_config('baseline = "tag"\n')
 
+    def test_the_config_names_the_crate_before_a_rename(self):
+        c = sg.load_config('baseline = "bump"\nbase-package = "alice-old"\n')
+        self.assertEqual(c["base-package"], "alice-old")
+        self.assertEqual(sg.load_config('baseline = "auto"\nbase-package = "o"\n')["base-package"], "o")
+        for bad in ('baseline = "bump"\nbase-package = ""\n', 'base-package = "alice-old"\n'):
+            with self.assertRaises(sg.ConfigError, msg=bad):
+                sg.load_config(bad)
+
 
 class Cli(unittest.TestCase):
     MANIFEST = '[package]\nname = "x"\nversion = "0.5.1"\n\n[features]\ndefault = ["a"]\na = []\npy = []\n'
