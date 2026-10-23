@@ -170,6 +170,44 @@ class Baseline(unittest.TestCase):
         self.assertIn("alice-nope", str(e.exception))
         self.assertIn("main", str(e.exception))
 
+    def test_the_path_prefilter_gives_the_full_walk_answer(self):
+        # many commits that do not touch the manifest, merges in both directions, a bump in between:
+        # reading only the commits that touch Cargo.toml (and the workspace roots above it) must give
+        # what reading every first-parent commit gives
+        self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "f0")
+        for i in range(20):
+            self.commit({f"src/{i}.rs": str(i)}, f"n{i}")
+        git(self.repo, "checkout", "-q", "-b", "side")
+        for i in range(10):
+            self.commit({f"side/{i}.rs": str(i)}, f"s{i}")
+        self.commit({"Cargo.toml": toml("alice-x", "0.9.0")}, "s-bump")
+        self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "s-unbump")
+        git(self.repo, "checkout", "-q", "main")
+        for i in range(10):
+            self.commit({f"src/m{i}.rs": str(i)}, f"m{i}")
+        git(self.repo, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+        pre = git(self.repo, "rev-parse", "HEAD")
+        self.commit({"Cargo.toml": toml("alice-x", "0.2.0")}, "bump")
+        for i in range(10):
+            self.commit({f"src/t{i}.rs": str(i)}, f"t{i}")
+        git(self.repo, "checkout", "-q", "-b", "side2")
+        self.commit({"Cargo.toml": toml("alice-x", "0.3.0")}, "s2-bump")
+        git(self.repo, "checkout", "-q", "main")
+        self.commit({"src/u.rs": "u"}, "u")
+        git(self.repo, "merge", "-q", "--no-ff", "-m", "merge side2", "side2")
+        merge2 = git(self.repo, "rev-parse", "HEAD^1")
+        for i in range(5):
+            self.commit({f"src/v{i}.rs": str(i)}, f"v{i}")
+        fast, full = self.base(), self.base(prefilter=False)
+        self.assertEqual(fast, full)
+        self.assertEqual((fast.sha, fast.version), (merge2, "0.2.0"))
+        # and before the second merge, the plain bump
+        git(self.repo, "checkout", "-q", "--detach", "HEAD~6")
+        git(self.repo, "branch", "-q", "-f", "main", "HEAD")
+        fast, full = self.base(), self.base(prefilter=False)
+        self.assertEqual(fast, full)
+        self.assertEqual((fast.sha, fast.version), (pre, "0.1.0"))
+
     def test_the_answer_is_deterministic(self):
         self.linear()
         self.assertEqual(self.base(), self.base())

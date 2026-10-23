@@ -97,8 +97,22 @@ def _rev(root: Path, ref: str, what: str) -> str:
     return r.stdout.strip()
 
 
+def _version_paths(manifest: str) -> list[str]:
+    """the files a commit must touch to change the crate's version: its manifest and every Cargo.toml above it
+    (a workspace root holding `[workspace.package].version`)"""
+    paths = [manifest]
+    d = PurePosixPath(manifest).parent
+    while str(d) not in (".", ""):
+        d = d.parent
+        paths.append("Cargo.toml" if str(d) in (".", "") else str(d / "Cargo.toml"))
+    return list(dict.fromkeys(paths))
+
+
 def bump_baseline(root: Path | str, manifest: str, package: str, *, base_package: str | None = None,
-                  main_ref: str = "origin/main", head: str = "HEAD") -> Baseline:
+                  main_ref: str = "origin/main", head: str = "HEAD", prefilter: bool = True) -> Baseline:
+    """`prefilter` reads only the first-parent commits whose diff against their first parent touches the version
+    files (`_version_paths`): only those can change the version; False reads every first-parent commit (the
+    definition, kept for the test that the two agree)"""
     root = Path(root)
     head_sha = _rev(root, head, "HEAD")
     if version_at(root, head_sha, manifest, (package,)) is None:
@@ -109,7 +123,14 @@ def bump_baseline(root: Path | str, manifest: str, package: str, *, base_package
     if mb.returncode != 0 or not mb.stdout.strip():
         raise BaselineError(f"{head} and {main_ref} have no common commit in {root}")
     names = (package,) + ((base_package,) if base_package else ())
-    commits = _git(root, "rev-list", "--first-parent", mb.stdout.strip()).stdout.split()
+    start = mb.stdout.strip()
+    if version_at(root, start, manifest, names) is None:
+        # the crate is not on main at the merge base (it came on HEAD's branch)
+        return Baseline(start, None, True)
+    if prefilter:
+        commits = _git(root, "rev-list", "--first-parent", start, "--", *_version_paths(manifest)).stdout.split()
+    else:
+        commits = _git(root, "rev-list", "--first-parent", start).stdout.split()
     for c in commits:
         v = version_at(root, c, manifest, names)
         if v is None:
