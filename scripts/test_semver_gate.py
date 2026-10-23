@@ -256,6 +256,98 @@ class EqualVersion(unittest.TestCase):
             problems("0.5.1", "0.5.1", lambda *a: self.fail("ran"), "skip")
 
 
+class BumpBaseline(unittest.TestCase):
+    """`baseline = "bump"`: under a publication freeze the base is the commit before main's newest version bump
+    (scripts/release_baseline.py), compared with `cargo semver-checks --baseline-rev <that commit>`, the step judged
+    from that commit's version; `auto` takes the registry release when it is not older than that version"""
+
+    def setUp(self) -> None:
+        self.repo = Path(tempfile.mkdtemp(prefix="semver-bump-test-"))
+        self.addCleanup(shutil.rmtree, self.repo, True)
+        self.env = {k: v for k, v in __import__("os").environ.items() if not k.startswith("GIT_")}
+        self.git("init", "-q", "-b", "main")
+
+    def git(self, *args: str) -> str:
+        import subprocess
+        return subprocess.run(["git", "-c", "user.name=T", "-c", "user.email=t@example.invalid", *args],
+                              cwd=self.repo, check=True, capture_output=True, text=True, env=self.env).stdout.strip()
+
+    def at(self, version: str) -> str:
+        (self.repo / "Cargo.toml").write_text(f'[package]\nname = "x"\nversion = "{version}"\n', encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", version)
+        return self.git("rev-parse", "HEAD")
+
+    def check(self, version: str, run, latest_v: str | None = None, baseline: str = "bump"):
+        self.args = []
+
+        def capture(repo, manifest_path, base, features, target_dir):
+            self.args.append(list(base))
+            return run(repo, manifest_path, base, features, target_dir)
+        return sg.semver_problems(self.repo, "Cargo.toml", "x", version, {}, None, latest_fixture("x", latest_v),
+                                  run=capture, universe=[], baseline=baseline, main_ref="main")
+
+    def test_the_parent_of_the_bump_is_compared_by_rev(self):
+        before = self.at("1.0.0")
+        self.at("1.1.0")
+        p, n, note = self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)))
+        self.assertEqual((p, n), ([], 3))
+        self.assertTrue(self.args and all(a == ["--baseline-rev", before, "--release-type", "minor"] for a in self.args),
+                        self.args)
+        self.assertIn(f"bump base {before[:12]} (1.0.0)", note)
+        self.assertIn("1.0.0 -> 1.1.0 (minor)", note)
+
+    def test_a_break_under_a_minor_step_is_refused(self):
+        self.at("1.0.0")
+        self.at("1.1.0")
+        p, n, _ = self.check("1.1.0", lambda *a: (1, semver_output("minor", 9, 1, lints=["enum_variant_added"])))
+        self.assertEqual(len(p), 3)
+        self.assertIn("enum_variant_added", p[0])
+
+    def test_a_major_step_from_the_base_is_not_compared(self):
+        self.at("1.0.0")
+        self.at("2.0.0")
+        p, n, note = self.check("2.0.0", lambda *a: self.fail("ran"))
+        self.assertEqual((p, n), ([], 0))
+        self.assertIn("1.0.0 -> 2.0.0 is a major step", note)
+
+    def test_a_run_that_checked_nothing_is_refused(self):
+        self.at("1.0.0")
+        self.at("1.1.0")
+        p, _, _ = self.check("1.1.0", lambda *a: (0, semver_output("minor", 0, 0)))
+        self.assertEqual(len(p), 3)
+
+    def test_an_introduced_crate_has_nothing_to_compare(self):
+        self.at("0.1.0")
+        p, n, note = self.check("0.1.0", lambda *a: self.fail("ran"))
+        self.assertEqual((p, n), ([], 0))
+        self.assertIn("introduced", note)
+
+    def test_no_history_is_refused_not_passed(self):
+        shutil.rmtree(self.repo / ".git")
+        (self.repo / "Cargo.toml").write_text('[package]\nname = "x"\nversion = "1.0.0"\n', encoding="utf-8")
+        p, n, _ = self.check("1.0.0", lambda *a: self.fail("ran"))
+        self.assertEqual(n, 0)
+        self.assertEqual(len(p), 1)
+        self.assertIn("bump base", p[0])
+
+    def test_auto_takes_the_registry_when_it_is_not_older_than_the_bump_base(self):
+        before = self.at("1.0.0")
+        self.at("1.1.0")
+        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)), latest_v="1.0.0", baseline="auto")
+        self.assertTrue(all(a[:2] == ["--baseline-version", "1.0.0"] for a in self.args), self.args)
+        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0, from_v="0.9.0")), latest_v="0.9.0",
+                   baseline="auto")
+        self.assertTrue(all(a[:2] == ["--baseline-rev", before] for a in self.args), self.args)
+        self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)), latest_v=None, baseline="auto")
+        self.assertTrue(all(a[:2] == ["--baseline-rev", before] for a in self.args), self.args)
+
+    def test_the_config_names_the_baseline(self):
+        self.assertEqual(sg.load_config('baseline = "bump"\n').get("baseline"), "bump")
+        with self.assertRaises(sg.ConfigError):
+            sg.load_config('baseline = "tag"\n')
+
+
 class Cli(unittest.TestCase):
     MANIFEST = '[package]\nname = "x"\nversion = "0.5.1"\n\n[features]\ndefault = ["a"]\na = []\npy = []\n'
 
