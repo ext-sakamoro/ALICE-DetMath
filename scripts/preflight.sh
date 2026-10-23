@@ -229,6 +229,9 @@ step "security-audit.yml / stub-guard: Detect platform libm / mul_add calls in s
 step "semver-checks.yml / semver-checks: semver gate (tests)"
 python3 scripts/test_semver_gate.py
 
+step "semver-checks.yml / semver-checks: release baseline (tests)"
+python3 scripts/test_release_baseline.py
+
 step "semver-checks.yml / semver-checks: semver gate (latest crates.io release, every consumer feature set)"
 ( export CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; python3 scripts/semver_gate.py --config .github/semver-gate.toml --target-dir "${CARGO_TARGET_DIR:-target}/semver" )
 
