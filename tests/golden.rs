@@ -62,6 +62,24 @@ fn grid64() -> Vec<f64> {
     v
 }
 
+/// Dense over the first reduction cases of `sin64` / `cos64` / `tan64` (|x| ≤ 9π/4 and a little beyond), where
+/// [`grid64`] has only a few hundred points.
+fn dense64() -> Vec<f64> {
+    (0..=400_000u32)
+        .map(|i| -10.0 + 20.0 * (f64::from(i) / 400_000.0))
+        .collect()
+}
+
+/// The second operand of a two-argument pin: index `i` paired with this one.
+fn pair_index(i: usize, n: usize) -> usize {
+    (i * 7 + 3) % n
+}
+
+/// The third operand of a three-argument pin.
+fn triple_index(i: usize, n: usize) -> usize {
+    (i * 13 + 11) % n
+}
+
 fn hash32(xs: &[f32], f: impl Fn(f32) -> f32) -> String {
     let mut h = Sha256::new();
     for &x in xs {
@@ -73,7 +91,7 @@ fn hash32(xs: &[f32], f: impl Fn(f32) -> f32) -> String {
 fn hash32x2(xs: &[f32], f: impl Fn(f32, f32) -> f32) -> String {
     let mut h = Sha256::new();
     for (i, &x) in xs.iter().enumerate() {
-        let y = xs[(i * 7 + 3) % xs.len()];
+        let y = xs[pair_index(i, xs.len())];
         h.update(f(x, y).to_bits().to_le_bytes());
     }
     format!("{:x}", h.finalize())
@@ -82,8 +100,8 @@ fn hash32x2(xs: &[f32], f: impl Fn(f32, f32) -> f32) -> String {
 fn hash32x3(xs: &[f32], f: impl Fn(f32, f32, f32) -> f32) -> String {
     let mut h = Sha256::new();
     for (i, &x) in xs.iter().enumerate() {
-        let y = xs[(i * 7 + 3) % xs.len()];
-        let z = xs[(i * 13 + 11) % xs.len()];
+        let y = xs[pair_index(i, xs.len())];
+        let z = xs[triple_index(i, xs.len())];
         h.update(f(x, y, z).to_bits().to_le_bytes());
     }
     format!("{:x}", h.finalize())
@@ -667,9 +685,7 @@ fn scalar_outputs_match_recorded_hashes() {
     );
     // dense over the first reduction cases (|x| ≤ 9π/4 and a little beyond),
     // where the coarse grid has only a few hundred points
-    let dense: Vec<f64> = (0..=400_000u32)
-        .map(|i| -10.0 + 20.0 * (f64::from(i) / 400_000.0))
-        .collect();
+    let dense = dense64();
     check("sin64_dense", &hash64(&dense, sin64), want("sin64_dense"));
     check("cos64_dense", &hash64(&dense, cos64), want("cos64_dense"));
     // the tangent's kernel branches on |reduced| ≥ 0.6744 and on the parity

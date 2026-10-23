@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 試験: `tests/golden.rs` の pin の入力 (grid32 / grid64 / dense64 / 2 引数・3 引数の組の index / `SPECIALS32` / `SPECIALS64`) を bit の SHA-256 と件数で固定した (`reference_inputs_are_frozen`) pin は `SEMANTICS_ID` に畳まれるので、入力の編集は算術の変更と同じに pin と識別子を動かしていた 固定した値は入力の定義から独立に作り直した値 (Python、f32 の演算は f64 で計算して f32 に丸める) dense の格子と組の index の式を関数にして、pin を作る code とこの試験が同じものを使う 出力 bit と `SEMANTICS_ID` は変わらない
+
 ### Added
 
 - `semantics::check_semantics_against(stored, current, previous) -> SemanticsCheck` (const fn) / `semantics::verify_semantics_against` (`Result<SemanticsCheck, SemanticsMismatch>`) / `semantics::SemanticsMismatch` (`stored` と `expected`、Display、`std` で `Error`): 保存された 32 byte の識別子を、呼び出し側が渡す自分の現在の識別子と以前の識別子で分類する ALICE の crate が自分の識別子で同じ比較をそれぞれ書いていた (Zip / ML / Edge / Sync / SDF / Kinematics) ものを 1 つにする `check_semantics` はこの関数をこの crate の識別子で呼ぶ形にした (結果は同じ) 試験 `tests/semantics_against.rs` (3 つの結果、以前の一覧の全位置と逆順、現在の識別子が一覧にもある時は Verified、全 byte の 1 bit 違い、自分の識別子では `check_semantics` と一致、const の文脈、Err の値と message の形、`std::error::Error`) `scripts/api_boundary.toml` に 2 関数を local として足した (境界の列挙 3 件) 版を 0.5.2 にした (追加のみ、crates.io への公開はしない)
