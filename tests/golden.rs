@@ -106,6 +106,137 @@ fn fold_weights(w: alice_det_math::metric::MetricWeights) -> f32 {
     l1 + 2.0 * l2 + 4.0 * linf
 }
 
+/// The inputs every pin of [`GOLDEN`] is computed over: (name, SHA-256 of the
+/// inputs' bits, little-endian, in order, count). The pins fold into
+/// [`alice_det_math::SEMANTICS_ID`], so an edit of a grid would move pins and
+/// the identifier exactly like a change of the arithmetic; frozen here, such
+/// an edit is a red of its own.
+///
+/// oracle: the digests are computed by an independent rebuild of each input
+/// from its definition (Python: the integer and bit-pattern parts as written,
+/// each `f32` operation computed in `f64` and rounded to `f32`, exact since
+/// 53 ≥ 2·24 + 2), not by this code.
+const REFERENCE_INPUTS: &[(&str, &str, usize)] = &[
+    (
+        "grid32",
+        "e39deb3483a86dca12c757e7c70d67768269706b06c0fcf43fb4aab94b7c3868",
+        300_003,
+    ),
+    (
+        "grid64",
+        "fc31296ddedf1ff54f8526c23ccbd2fc9f9fdfd49e3fcb6f61733e9bbac2fa9d",
+        200_002,
+    ),
+    (
+        "dense64",
+        "d396908abad59d17d75964d76cd556945b9c252ab08a2cf5fad260ea10224e3e",
+        400_001,
+    ),
+    (
+        "grid32_pair_index",
+        "0abaae78d73021190767ec04385ccbe75a9cccce96fc38d9ffbba994fb0182ea",
+        300_003,
+    ),
+    (
+        "grid32_triple_index",
+        "de76c270f03bb43887140ab2e702937a5b464f5c3ed10c4ea818c86e45f4d387",
+        300_003,
+    ),
+    (
+        "SPECIALS32",
+        "8d65dae0bc6024fd6297bc3667afe091f44c693ebdeea3ce2773a8a6a8dbf499",
+        13,
+    ),
+    (
+        "SPECIALS64",
+        "facc5b4be7425dbc82f2b841a6a06f79bcfc0541a1acda34883e0e5a8407da8b",
+        13,
+    ),
+];
+
+fn input_digest(chunks: impl Iterator<Item = Vec<u8>>) -> (String, usize) {
+    let mut h = Sha256::new();
+    let mut n = 0;
+    for c in chunks {
+        h.update(&c);
+        n += 1;
+    }
+    (format!("{:x}", h.finalize()), n)
+}
+
+#[test]
+fn reference_inputs_are_frozen() {
+    let g32 = grid32();
+    let n32 = g32.len();
+    let got = [
+        (
+            "grid32",
+            input_digest(g32.iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+        ),
+        (
+            "grid64",
+            input_digest(grid64().iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+        ),
+        (
+            "dense64",
+            input_digest(dense64().iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+        ),
+        (
+            "grid32_pair_index",
+            input_digest((0..n32).map(|i| {
+                u32::try_from(pair_index(i, n32))
+                    .unwrap()
+                    .to_le_bytes()
+                    .to_vec()
+            })),
+        ),
+        (
+            "grid32_triple_index",
+            input_digest((0..n32).map(|i| {
+                u32::try_from(triple_index(i, n32))
+                    .unwrap()
+                    .to_le_bytes()
+                    .to_vec()
+            })),
+        ),
+        (
+            "SPECIALS32",
+            input_digest(
+                common::specials::SPECIALS32
+                    .iter()
+                    .map(|x| x.to_bits().to_le_bytes().to_vec()),
+            ),
+        ),
+        (
+            "SPECIALS64",
+            input_digest(
+                common::specials::SPECIALS64
+                    .iter()
+                    .map(|x| x.to_bits().to_le_bytes().to_vec()),
+            ),
+        ),
+    ];
+    assert_eq!(
+        got.len(),
+        REFERENCE_INPUTS.len(),
+        "every input of the pins is frozen"
+    );
+    let mut changed = Vec::new();
+    for ((name, (h, n)), (want_name, want_h, want_n)) in got.iter().zip(REFERENCE_INPUTS) {
+        assert_eq!(name, want_name, "REFERENCE_INPUTS order");
+        assert!(*n > 0, "{name}: empty");
+        if (h.as_str(), *n) != (*want_h, *want_n) {
+            changed.push(format!("    (\"{name}\", \"{h}\", {n}),"));
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "an input of the pins changed (it moves the pins and SEMANTICS_ID): if intended, re-pin the table and the \
+         identifier and record the new input here:\n{}",
+        changed.join("\n")
+    );
+}
+
 fn check(name: &str, got: &str, want: &str) {
     if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
         // re-pin mode: print every hash instead of stopping at the first mismatch
