@@ -278,14 +278,56 @@ class BumpBaseline(unittest.TestCase):
         self.git("commit", "-q", "-m", version)
         return self.git("rev-parse", "HEAD")
 
-    def check(self, version: str, run, latest_v: str | None = None, baseline: str = "bump"):
+    def check(self, version: str, run, latest_v: str | None = None, baseline: str = "bump", entry: dict | None = None):
         self.args = []
 
         def capture(repo, manifest_path, base, features, target_dir):
             self.args.append(list(base))
             return run(repo, manifest_path, base, features, target_dir)
-        return sg.semver_problems(self.repo, "Cargo.toml", "x", version, {}, None, latest_fixture("x", latest_v),
+        return sg.semver_problems(self.repo, "Cargo.toml", "x", version, {}, entry, latest_fixture("x", latest_v),
                                   run=capture, universe=[], baseline=baseline, main_ref="main")
+
+    def named(self, name: str, version: str) -> str:
+        (self.repo / "Cargo.toml").write_text(f'[package]\nname = "{name}"\nversion = "{version}"\n', encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", f"{name} {version}")
+        return self.git("rev-parse", "HEAD")
+
+    def test_a_head_version_not_newer_than_the_bump_base_is_refused(self):
+        # SG6: the base is the parent of the newest bump; a HEAD version at or below that base's version is a
+        # mistake (a version that went back), refused before anything runs
+        self.at("1.0.0")
+        self.at("1.1.0")
+        for version in ("1.0.0", "0.9.0"):
+            p, n, _ = self.check(version, lambda *a: self.fail("ran"))
+            self.assertEqual(n, 0)
+            self.assertEqual(len(p), 1, p)
+            self.assertIn("is not older than", p[0])
+
+    def test_auto_compares_with_the_bump_base_when_the_registry_is_older(self):
+        # SG7: crates.io has 0.4.0 (frozen), main bumped 0.5.0 -> 0.5.1: the newer base, the 0.5.0 commit, is the
+        # one compared, by rev, as a minor step (0.x: the second number is the compatibility line)
+        base = self.at("0.5.0")
+        self.at("0.5.1")
+        p, n, note = self.check("0.5.1", lambda *a: (0, semver_output("minor", 9, 0)), latest_v="0.4.0", baseline="auto")
+        self.assertEqual(p, [])
+        self.assertTrue(n > 0)
+        self.assertTrue(self.args and all(a == ["--baseline-rev", base, "--release-type", "minor"] for a in self.args),
+                        self.args)
+        self.assertIn("0.5.0 -> 0.5.1 (minor)", note)
+
+    def test_a_renamed_crate_is_followed_through_base_package(self):
+        # F3: the config's `base-package` (the crate's name before a rename) reaches the bump base
+        before = self.named("old", "1.0.0")
+        self.named("x", "1.1.0")
+        p, n, note = self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)), entry={"base-package": "old"})
+        self.assertEqual(p, [])
+        self.assertTrue(self.args and all(a[:2] == ["--baseline-rev", before] for a in self.args), self.args)
+        # without it the rename is an error, not "introduced"
+        p, n, _ = self.check("1.1.0", lambda *a: self.fail("ran"))
+        self.assertEqual(n, 0)
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("base_package", p[0])
 
     def test_the_parent_of_the_bump_is_compared_by_rev(self):
         before = self.at("1.0.0")

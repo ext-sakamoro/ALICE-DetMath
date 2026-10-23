@@ -18,8 +18,12 @@ The baseline is the PARENT of the newest commit on main's first-parent line that
 - a pre-release-only step (7.0.0-beta.1 -> 7.0.0-beta.2) is a bump;
 - bump then un-bump: the newest change wins;
 - `version.workspace = true` is read from the workspace root at the same commit;
-- a renamed package is followed through `base_package`; without it the rename reads as introduced
-  (the package is absent at the parent), and so does a root commit (no parent);
+- a renamed package is followed through `base_package`; without it the rename is an error, and so is a
+  moved manifest: "introduced" (nothing to compare) is only a package that no earlier first-parent commit
+  had, or one that came with the root commit;
+- a manifest that is there but does not parse is an error, never "absent";
+- every case is answered alike by the walk over the commits that touch the version files and by the walk
+  over every first-parent commit;
 - a package that is not in the manifest at HEAD is an error naming the package and the ref;
 - the same repository gives the same answer twice, and the CLI prints `<sha> <version>` or
   `introduced`.
@@ -78,7 +82,13 @@ class Baseline(unittest.TestCase):
         return git(self.repo, "rev-parse", "HEAD")
 
     def base(self, package: str = "alice-x", manifest: str = "Cargo.toml", **kw):
-        return self.rb.bump_baseline(self.repo, manifest, package, main_ref="main", **kw)
+        # both walks, every time: the commits that touch the version files, and every first-parent commit
+        if "prefilter" in kw:
+            return self.rb.bump_baseline(self.repo, manifest, package, main_ref="main", **kw)
+        fast = self.rb.bump_baseline(self.repo, manifest, package, main_ref="main", prefilter=True, **kw)
+        full = self.rb.bump_baseline(self.repo, manifest, package, main_ref="main", prefilter=False, **kw)
+        self.assertEqual(fast, full, "the path-filtered walk and the full first-parent walk disagree")
+        return fast
 
     def linear(self) -> list[str]:
         c1 = self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "c1")
@@ -154,8 +164,9 @@ class Baseline(unittest.TestCase):
         self.commit({"src.rs": "c"}, "after")
         b = self.base(package="alice-y", base_package="alice-x")
         self.assertEqual((b.sha, b.version, b.introduced), (c2, "0.1.0", False))
-        b2 = self.base(package="alice-y")
-        self.assertEqual((b2.sha, b2.version, b2.introduced), (c4, None, True))
+        # without base_package the crate is absent at the rename's parent but was there earlier: an error
+        with self.assertRaises(self.rb.BaselineError):
+            self.base(package="alice-y")
 
     def test_a_package_introduced_at_the_root_commit_has_no_parent(self):
         self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "r1")
@@ -207,6 +218,38 @@ class Baseline(unittest.TestCase):
         fast, full = self.base(), self.base(prefilter=False)
         self.assertEqual(fast, full)
         self.assertEqual((fast.sha, fast.version), (pre, "0.1.0"))
+
+    def test_a_manifest_that_does_not_parse_at_the_parent_is_an_error(self):
+        self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "c1")
+        self.commit({"Cargo.toml": "[package\nname = broken\n"}, "c2 broken")
+        self.commit({"Cargo.toml": toml("alice-x", "0.2.0")}, "c3 fixed")
+        for prefilter in (True, False):
+            with self.assertRaises(self.rb.BaselineError) as e:
+                self.base(prefilter=prefilter)
+            self.assertIn("not TOML", str(e.exception))
+
+    def test_a_moved_manifest_is_an_error_not_introduced(self):
+        self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "c1")
+        (self.repo / "Cargo.toml").unlink()
+        self.commit({"crates/x/Cargo.toml": toml("alice-x", "0.2.0")}, "c2 moved")
+        for prefilter in (True, False):
+            with self.assertRaises(self.rb.BaselineError) as e:
+                self.base(manifest="crates/x/Cargo.toml", prefilter=prefilter)
+            self.assertIn("alice-x", str(e.exception))
+            self.assertIn("earlier", str(e.exception))
+
+    def test_a_rename_without_base_package_is_an_error_not_introduced(self):
+        self.commit({"Cargo.toml": toml("alice-old", "0.1.0")}, "c1")
+        self.commit({"Cargo.toml": toml("alice-x", "0.2.0")}, "c2 renamed")
+        for prefilter in (True, False):
+            with self.assertRaises(self.rb.BaselineError) as e:
+                self.base(prefilter=prefilter)
+            self.assertIn("base_package", str(e.exception))
+
+    def test_a_package_added_after_the_root_commit_is_introduced(self):
+        self.commit({"README": "r"}, "c1")
+        self.commit({"Cargo.toml": toml("alice-x", "0.1.0")}, "c2 added")
+        self.assertTrue(self.base().introduced)
 
     def test_the_answer_is_deterministic(self):
         self.linear()
