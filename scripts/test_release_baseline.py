@@ -265,8 +265,10 @@ class Baseline(unittest.TestCase):
         r = subprocess.run(args + ["alice-nope"], capture_output=True, text=True, env=ENV)
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(r.stdout, "")
-        self.commit({"Cargo.toml": toml("alice-z", "0.1.0")}, "z")
-        r = subprocess.run(args + ["alice-z"], capture_output=True, text=True, env=ENV)
+        # a new crate at a new manifest (replacing the manifest of alice-x would be a rename, an error)
+        self.commit({"crates/z/Cargo.toml": toml("alice-z", "0.1.0")}, "z")
+        zargs = [a if a != "Cargo.toml" else "crates/z/Cargo.toml" for a in args]
+        r = subprocess.run(zargs + ["alice-z"], capture_output=True, text=True, env=ENV)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "introduced"), r.stderr)
 
 if __name__ == "__main__":

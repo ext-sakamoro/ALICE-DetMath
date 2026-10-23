@@ -379,15 +379,17 @@ EQUAL_VERSION_MODES = ("refuse", "next-smallest-step")
 BASELINE_MODES = ("registry", "bump", "auto")
 
 
-def bump_base(repo: Path, manifest_path: str, crate: str, main_ref: str) -> release_baseline.Baseline:
-    """release_baseline.bump_baseline for the manifest `manifest_path` under `repo` (the git top is found here)"""
+def bump_base(repo: Path, manifest_path: str, crate: str, main_ref: str,
+              base_package: str | None = None) -> release_baseline.Baseline:
+    """release_baseline.bump_baseline for the manifest `manifest_path` under `repo` (the git top is found here);
+    `base_package` is the crate's name before a rename (the config's `base-package`)"""
     top = subprocess.run(["git", "-C", str(repo), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                          env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")})
     if top.returncode != 0:
         raise release_baseline.BaselineError(f"{repo} is not in a git repository")
     root = Path(top.stdout.strip())
     rel = (Path(repo).resolve() / manifest_path).relative_to(root.resolve()).as_posix()
-    return release_baseline.bump_baseline(root, rel, crate, main_ref=main_ref)
+    return release_baseline.bump_baseline(root, rel, crate, base_package=base_package, main_ref=main_ref)
 
 
 def next_patch(version: str) -> str:
@@ -421,7 +423,7 @@ def semver_problems(repo: Path, manifest_path: str, crate: str, version: str, ma
     bump = None
     if baseline in ("bump", "auto"):
         try:
-            bump = bump_base(repo, manifest_path, crate, main_ref)
+            bump = bump_base(repo, manifest_path, crate, main_ref, (entry or {}).get("base-package"))
         except release_baseline.BaselineError as e:
             return [f"{crate}: the bump base cannot be read: {e}"], 0, ""
     previous = previous_release(fetch, crate) if baseline in ("registry", "auto") else None
@@ -482,7 +484,7 @@ def _compare(repo, manifest_path, crate, version, manifest, entry, run, target_d
 # ---------------------------------------------------------------- the CLI
 
 CONFIG_KEYS = {"consumer-features", "consumer-check-features", "consumer-features-why", "exclude-features",
-               "equal-version", "baseline"}
+               "equal-version", "baseline", "base-package"}
 
 
 def load_config(text: str) -> dict:
@@ -520,6 +522,12 @@ def load_config(text: str) -> dict:
         raise ConfigError(f"`equal-version` must be one of {EQUAL_VERSION_MODES}")
     if c.get("baseline", "registry") not in BASELINE_MODES:
         raise ConfigError(f"`baseline` must be one of {BASELINE_MODES}")
+    if "base-package" in c:
+        bp = c["base-package"]
+        if not isinstance(bp, str) or not bp.strip():
+            raise ConfigError("`base-package` must be the crate's name before a rename (a non-empty string)")
+        if c.get("baseline", "registry") == "registry":
+            raise ConfigError("`base-package` is read only by `baseline = \"bump\"` or `\"auto\"`")
     return c
 
 
