@@ -3,11 +3,12 @@
 the same thing.
 
 Checks (each one counted; 0 checks run is a failure):
-- `Cargo.toml` `license` is exactly EXPECTED
+- `Cargo.toml` `license` is exactly EXPECTED and the crate has `publish = false`
 - every file in REQUIRED exists in the repo and in `cargo package --list`
-- no file in FORBIDDEN exists in the repo or in the package
-- README.md / README_JP.md each carry `License: EXPECTED` and no other
-  `License:` line naming MIT
+- no file in FORBIDDEN (the previous licence files) exists in the repo or in
+  the package
+- README.md / README_JP.md each carry exactly one `License:` line, and it is
+  `License: EXPECTED`, and link the licence text REQUIRED[0]
 
 usage: scripts/license_check.py [--no-package]   (--no-package skips cargo)
 """
@@ -19,9 +20,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED = "Apache-2.0"
-REQUIRED = ["LICENSE-APACHE", "NOTICE", "TRADEMARK_NOTICE"]
-FORBIDDEN = ["LICENSE-MIT", "LICENSE"]
+EXPECTED = "LicenseRef-Proprietary"
+REQUIRED = ["LICENSE-Proprietary", "TRADEMARK_NOTICE"]
+FORBIDDEN = ["LICENSE-APACHE", "LICENSE-MIT", "NOTICE", "LICENSE"]
 READMES = ["README.md", "README_JP.md"]
 
 
@@ -35,6 +36,9 @@ def check(root: Path, package_list: list[str] | None) -> tuple[int, list[str]]:
         problems.append("Cargo.toml has no license field")
     elif m.group(1) != EXPECTED:
         problems.append(f"Cargo.toml license is {m.group(1)!r}, expected {EXPECTED!r}")
+    checked += 1
+    if not re.search(r'^publish\s*=\s*false\s*$', manifest, re.M):
+        problems.append("Cargo.toml lacks publish = false")
     for name in REQUIRED:
         checked += 1
         if not (root / name).is_file():
@@ -55,6 +59,9 @@ def check(root: Path, package_list: list[str] | None) -> tuple[int, list[str]]:
         lines = [l.strip() for l in text.splitlines() if l.strip().startswith("License:")]
         if lines != [f"License: {EXPECTED}"]:
             problems.append(f"{readme}: License line(s) {lines!r}, expected exactly one 'License: {EXPECTED}'")
+        checked += 1
+        if f"]({REQUIRED[0]})" not in text:
+            problems.append(f"{readme}: does not link {REQUIRED[0]}")
     return checked, problems
 
 

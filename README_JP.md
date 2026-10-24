@@ -25,7 +25,7 @@ IEEE 754 の基本演算だけで組み立てる そのため各関数は x86_64
 演算順ではなく、固定の演算順 (`mul_add` なし) を守る 2 台のマシンが同じビットを
 出す必要がある場面で使う 値だけが問題ならプラットフォームの `libm` の方が適している
 
-License: Apache-2.0
+License: LicenseRef-Proprietary
 
 ## 目次
 
@@ -292,8 +292,11 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 
 ## ライセンス
 
-Apache-2.0 (`LICENSE-APACHE` と `NOTICE`) 0.4.0 までの版は `MIT OR Apache-2.0` で
-公開した 係数とアルゴリズムは Cephes (Stephen L. Moshier)、fdlibm
-(Sun Microsystems)、musl による 出典はソースを参照 ソースでもバイナリでも再配布には
-`LICENSE-APACHE` と `NOTICE` を同梱する (画面に表示する必要はない) ALICE の名称は
-ライセンスでなく `TRADEMARK_NOTICE` が扱う
+この版から `LicenseRef-Proprietary`: ソースは閲覧用に公開しており、利用・複製・改変・配布には
+著作権者との書面での合意が必要 条文は [LICENSE-Proprietary](LICENSE-Proprietary)
+それより前に公開した版は、公開時のライセンスのまま
+
+係数とアルゴリズムは Cephes (Stephen L. Moshier)、fdlibm (Copyright (C) 1993 by
+Sun Microsystems, Inc.)、musl libc による 各 kernel の出典はソースを参照
+
+ライセンスの問い合わせ: <contact@extoria.co.jp>
