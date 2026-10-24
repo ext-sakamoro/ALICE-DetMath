@@ -8,9 +8,9 @@
 //!
 //! The fold is `h = (h ^ bits) * P` with `P` odd: every step is a bijection of the
 //! state for a fixed input word, so a change of any single output always changes
-//! the digest. NaN outputs are folded as the canonical quiet NaN, so the pin is on
-//! values, not payloads (payloads are checked by `tests/signed_zero.rs` and the
-//! G2 tests).
+//! the digest. An output is read with `law_bits::bits32`, which refuses a NaN other
+//! than the canonical quiet NaN: a function that lets the platform's NaN through fails
+//! here on every target, instead of having the NaN folded as the canonical one.
 //!
 //! The pins are in `tests/exhaustive_f32.digests`. The tests are `#[ignore]`d (about
 //! 10 s each in release) and run by `.github/workflows/exhaustive-f32.yml` with
@@ -26,6 +26,8 @@
 //! of an output re-pins them in the same commit.
 
 use alice_det_math as dm;
+#[path = "support/law_bits.rs"]
+mod law_bits;
 
 const ALL_INPUTS: u64 = 1 << 32;
 
@@ -45,7 +47,7 @@ fn sweep(name: &str, f: fn(f32) -> f32) {
     let mut n: u64 = 0;
     for b in 0..=u32::MAX {
         let y = f(f32::from_bits(b));
-        let bits = if y.is_nan() { 0x7fc0_0000 } else { y.to_bits() };
+        let bits = law_bits::bits32(y);
         h = (h ^ u64::from(bits)).wrapping_mul(0x0000_0100_0000_01b3);
         n += 1;
     }

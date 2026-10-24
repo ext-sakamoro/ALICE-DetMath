@@ -18,6 +18,8 @@
 #![allow(clippy::cast_precision_loss)]
 
 mod common;
+#[path = "support/law_bits.rs"]
+mod law_bits;
 
 use sha2::{Digest, Sha256};
 
@@ -81,9 +83,15 @@ fn triple_index(i: usize, n: usize) -> usize {
 }
 
 fn hash32(xs: &[f32], f: impl Fn(f32) -> f32) -> String {
+    hash32_bits(xs, |x| law_bits::bits32(f(x)))
+}
+
+/// [`hash32`] over bits the caller folded from outputs it read with [`law_bits::bits32`] (a fold
+/// of two canonical NaNs is not a NaN the fold returned, so it is hashed as bits).
+fn hash32_bits(xs: &[f32], f: impl Fn(f32) -> u32) -> String {
     let mut h = Sha256::new();
     for &x in xs {
-        h.update(f(x).to_bits().to_le_bytes());
+        h.update(f(x).to_le_bytes());
     }
     format!("{:x}", h.finalize())
 }
@@ -92,7 +100,7 @@ fn hash32x2(xs: &[f32], f: impl Fn(f32, f32) -> f32) -> String {
     let mut h = Sha256::new();
     for (i, &x) in xs.iter().enumerate() {
         let y = xs[pair_index(i, xs.len())];
-        h.update(f(x, y).to_bits().to_le_bytes());
+        h.update(law_bits::out32(f(x, y)));
     }
     format!("{:x}", h.finalize())
 }
@@ -102,15 +110,20 @@ fn hash32x3(xs: &[f32], f: impl Fn(f32, f32, f32) -> f32) -> String {
     for (i, &x) in xs.iter().enumerate() {
         let y = xs[pair_index(i, xs.len())];
         let z = xs[triple_index(i, xs.len())];
-        h.update(f(x, y, z).to_bits().to_le_bytes());
+        h.update(law_bits::out32(f(x, y, z)));
     }
     format!("{:x}", h.finalize())
 }
 
 fn hash64(xs: &[f64], f: impl Fn(f64) -> f64) -> String {
+    hash64_bits(xs, |x| law_bits::bits64(f(x)))
+}
+
+/// [`hash64`] over bits folded from outputs read with [`law_bits::bits64`].
+fn hash64_bits(xs: &[f64], f: impl Fn(f64) -> u64) -> String {
     let mut h = Sha256::new();
     for &x in xs {
-        h.update(f(x).to_bits().to_le_bytes());
+        h.update(f(x).to_le_bytes());
     }
     format!("{:x}", h.finalize())
 }
@@ -189,15 +202,26 @@ fn reference_inputs_are_frozen() {
     let got = [
         (
             "grid32",
-            input_digest(g32.iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+            input_digest(
+                g32.iter()
+                    .map(|&x| law_bits::pattern32(x).to_le_bytes().to_vec()),
+            ),
         ),
         (
             "grid64",
-            input_digest(grid64().iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+            input_digest(
+                grid64()
+                    .iter()
+                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
+            ),
         ),
         (
             "dense64",
-            input_digest(dense64().iter().map(|x| x.to_bits().to_le_bytes().to_vec())),
+            input_digest(
+                dense64()
+                    .iter()
+                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
+            ),
         ),
         (
             "grid32_pair_index",
@@ -222,7 +246,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 common::specials::SPECIALS32
                     .iter()
-                    .map(|x| x.to_bits().to_le_bytes().to_vec()),
+                    .map(|&x| law_bits::pattern32(x).to_le_bytes().to_vec()),
             ),
         ),
         (
@@ -230,7 +254,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 common::specials::SPECIALS64
                     .iter()
-                    .map(|x| x.to_bits().to_le_bytes().to_vec()),
+                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
             ),
         ),
     ];
@@ -507,9 +531,9 @@ fn scalar_outputs_match_recorded_hashes() {
     check("cos", &hash32(&g, cos), want("cos"));
     check(
         "sin_cos",
-        &hash32(&g, |x| {
+        &hash32_bits(&g, |x| {
             let (s, c) = sin_cos(x);
-            f32::from_bits(s.to_bits() ^ c.to_bits().rotate_left(16))
+            law_bits::bits32(s) ^ law_bits::bits32(c).rotate_left(16)
         }),
         want("sin_cos"),
     );
@@ -520,7 +544,7 @@ fn scalar_outputs_match_recorded_hashes() {
     check("powf", &hash32x2(&g, powf), want("powf"));
     check(
         "powi",
-        &hash32(&g, |x| powi(x, (x.to_bits() % 31) as i32 - 15)),
+        &hash32(&g, |x| powi(x, (law_bits::pattern32(x) % 31) as i32 - 15)),
         want("powi"),
     );
     check("cbrt", &hash32(&g, cbrt), want("cbrt"));
@@ -677,9 +701,9 @@ fn scalar_outputs_match_recorded_hashes() {
     check("cos64", &hash64(&g, cos64), want("cos64"));
     check(
         "sin_cos64",
-        &hash64(&g, |x| {
+        &hash64_bits(&g, |x| {
             let (s, c) = sin_cos64(x);
-            f64::from_bits(s.to_bits() ^ c.to_bits().rotate_left(32))
+            law_bits::bits64(s) ^ law_bits::bits64(c).rotate_left(32)
         }),
         want("sin_cos64"),
     );
@@ -708,10 +732,10 @@ impl common::specials::Sink for HashSink {
         self.h.update(name.as_bytes());
     }
     fn v32(&mut self, v: f32) {
-        self.h.update(v.to_bits().to_le_bytes());
+        self.h.update(law_bits::out32(v));
     }
     fn v64(&mut self, v: f64) {
-        self.h.update(v.to_bits().to_le_bytes());
+        self.h.update(law_bits::out64(v));
     }
 }
 

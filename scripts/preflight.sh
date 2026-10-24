@@ -151,6 +151,10 @@ python3 scripts/test_entropy_guard.py
 step "ci.yml / docs-lint: Entropy guard (no OS entropy or wall clock in src/)"
 python3 scripts/entropy_guard.py
 
+step "ci.yml / docs-lint: Law digest float bits (test, then check)"
+python3 scripts/test_law_bits_check.py
+python3 scripts/law_bits_check.py
+
 step "ci.yml / docs-lint: libm dependency guard (test, then check)"
 python3 scripts/test_libm_dependency_guard.py
 python3 scripts/libm_dependency_guard.py
