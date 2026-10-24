@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI: 共有の試験 `scripts/test_changed_paths.py` を ALICE-Law の表の target の bytes にした (fixture の repository は自動の gc と maintenance を止める、切り離された gc が一時 dir の削除と競合して `Directory not empty` で落ちることがあった) `.github/shared-files-pin` をその表の版 (185d38d) に移した
 - 試験: `tests/golden.rs` の pin の入力 (grid32 / grid64 / dense64 / 2 引数・3 引数の組の index / `SPECIALS32` / `SPECIALS64`) を bit の SHA-256 と件数で固定した (`reference_inputs_are_frozen`) pin は `SEMANTICS_ID` に畳まれるので、入力の編集は算術の変更と同じに pin と識別子を動かしていた 固定した値は入力の定義から独立に作り直した値 (Python、f32 の演算は f64 で計算して f32 に丸める) dense の格子と組の index の式を関数にして、pin を作る code とこの試験が同じものを使う 出力 bit と `SEMANTICS_ID` は変わらない
 - CI: `scripts/run_tests.sh` と試験 `scripts/test_run_tests.py` を ALICE-LLM と同じ bytes にし、`.github/shared-files-pin` を ALICE-Law の新しい版に移す 名前 `lib` を library の単体試験として数えるようになったが、この repository は `lib` を名指さないので各段の試験の名前と件数は変わらない 試験 `scripts/test_public_text.py` を ALICE-SDF と同じ版にした (公開する text の検査を pin の checker で走らせ、置いた note link を tree と commit message で検出すること、pin の 3 行目 `config-sha256` が設定を承認することを確かめる、network を使う) `scripts/public_text.sh` と public-text の pin は変えないので検査の結果は変わらない
 - CI: `.gitattributes` に `* text=auto eol=lf` を置き、text の file を保存も checkout も全 OS で LF にした (共有 file は ALICE-Law の表と byte で比べるので、Windows の CRLF の checkout ではずれになる) binary と既存の行はそのまま、`git add --renormalize` で commit 済みの中身は変わらない
