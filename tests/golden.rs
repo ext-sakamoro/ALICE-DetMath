@@ -18,8 +18,8 @@
 #![allow(clippy::cast_precision_loss)]
 
 mod common;
-#[path = "support/law_bits.rs"]
-mod law_bits;
+#[path = "support/digest_bits.rs"]
+mod digest_bits;
 
 use sha2::{Digest, Sha256};
 
@@ -83,10 +83,10 @@ fn triple_index(i: usize, n: usize) -> usize {
 }
 
 fn hash32(xs: &[f32], f: impl Fn(f32) -> f32) -> String {
-    hash32_bits(xs, |x| law_bits::bits32(f(x)))
+    hash32_bits(xs, |x| digest_bits::bits32(f(x)))
 }
 
-/// [`hash32`] over bits the caller folded from outputs it read with [`law_bits::bits32`] (a fold
+/// [`hash32`] over bits the caller folded from outputs it read with [`digest_bits::bits32`] (a fold
 /// of two canonical NaNs is not a NaN the fold returned, so it is hashed as bits).
 fn hash32_bits(xs: &[f32], f: impl Fn(f32) -> u32) -> String {
     let mut h = Sha256::new();
@@ -100,7 +100,7 @@ fn hash32x2(xs: &[f32], f: impl Fn(f32, f32) -> f32) -> String {
     let mut h = Sha256::new();
     for (i, &x) in xs.iter().enumerate() {
         let y = xs[pair_index(i, xs.len())];
-        h.update(law_bits::out32(f(x, y)));
+        h.update(digest_bits::out32(f(x, y)));
     }
     format!("{:x}", h.finalize())
 }
@@ -110,16 +110,16 @@ fn hash32x3(xs: &[f32], f: impl Fn(f32, f32, f32) -> f32) -> String {
     for (i, &x) in xs.iter().enumerate() {
         let y = xs[pair_index(i, xs.len())];
         let z = xs[triple_index(i, xs.len())];
-        h.update(law_bits::out32(f(x, y, z)));
+        h.update(digest_bits::out32(f(x, y, z)));
     }
     format!("{:x}", h.finalize())
 }
 
 fn hash64(xs: &[f64], f: impl Fn(f64) -> f64) -> String {
-    hash64_bits(xs, |x| law_bits::bits64(f(x)))
+    hash64_bits(xs, |x| digest_bits::bits64(f(x)))
 }
 
-/// [`hash64`] over bits folded from outputs read with [`law_bits::bits64`].
+/// [`hash64`] over bits folded from outputs read with [`digest_bits::bits64`].
 fn hash64_bits(xs: &[f64], f: impl Fn(f64) -> u64) -> String {
     let mut h = Sha256::new();
     for &x in xs {
@@ -204,7 +204,7 @@ fn reference_inputs_are_frozen() {
             "grid32",
             input_digest(
                 g32.iter()
-                    .map(|&x| law_bits::pattern32(x).to_le_bytes().to_vec()),
+                    .map(|&x| digest_bits::pattern32(x).to_le_bytes().to_vec()),
             ),
         ),
         (
@@ -212,7 +212,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 grid64()
                     .iter()
-                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
+                    .map(|&x| digest_bits::pattern64(x).to_le_bytes().to_vec()),
             ),
         ),
         (
@@ -220,7 +220,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 dense64()
                     .iter()
-                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
+                    .map(|&x| digest_bits::pattern64(x).to_le_bytes().to_vec()),
             ),
         ),
         (
@@ -246,7 +246,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 common::specials::SPECIALS32
                     .iter()
-                    .map(|&x| law_bits::pattern32(x).to_le_bytes().to_vec()),
+                    .map(|&x| digest_bits::pattern32(x).to_le_bytes().to_vec()),
             ),
         ),
         (
@@ -254,7 +254,7 @@ fn reference_inputs_are_frozen() {
             input_digest(
                 common::specials::SPECIALS64
                     .iter()
-                    .map(|&x| law_bits::pattern64(x).to_le_bytes().to_vec()),
+                    .map(|&x| digest_bits::pattern64(x).to_le_bytes().to_vec()),
             ),
         ),
     ];
@@ -533,7 +533,7 @@ fn scalar_outputs_match_recorded_hashes() {
         "sin_cos",
         &hash32_bits(&g, |x| {
             let (s, c) = sin_cos(x);
-            law_bits::bits32(s) ^ law_bits::bits32(c).rotate_left(16)
+            digest_bits::bits32(s) ^ digest_bits::bits32(c).rotate_left(16)
         }),
         want("sin_cos"),
     );
@@ -544,7 +544,9 @@ fn scalar_outputs_match_recorded_hashes() {
     check("powf", &hash32x2(&g, powf), want("powf"));
     check(
         "powi",
-        &hash32(&g, |x| powi(x, (law_bits::pattern32(x) % 31) as i32 - 15)),
+        &hash32(&g, |x| {
+            powi(x, (digest_bits::pattern32(x) % 31) as i32 - 15)
+        }),
         want("powi"),
     );
     check("cbrt", &hash32(&g, cbrt), want("cbrt"));
@@ -703,7 +705,7 @@ fn scalar_outputs_match_recorded_hashes() {
         "sin_cos64",
         &hash64_bits(&g, |x| {
             let (s, c) = sin_cos64(x);
-            law_bits::bits64(s) ^ law_bits::bits64(c).rotate_left(32)
+            digest_bits::bits64(s) ^ digest_bits::bits64(c).rotate_left(32)
         }),
         want("sin_cos64"),
     );
@@ -732,10 +734,10 @@ impl common::specials::Sink for HashSink {
         self.h.update(name.as_bytes());
     }
     fn v32(&mut self, v: f32) {
-        self.h.update(law_bits::out32(v));
+        self.h.update(digest_bits::out32(v));
     }
     fn v64(&mut self, v: f64) {
-        self.h.update(law_bits::out64(v));
+        self.h.update(digest_bits::out64(v));
     }
 }
 
@@ -879,6 +881,7 @@ const SOURCES: &[(&str, &str)] = &[
     ("", include_str!("../src/lib.rs")),
     ("double", include_str!("../src/double.rs")),
     ("double::trig", include_str!("../src/double/trig.rs")),
+    ("law_bits", include_str!("../src/law_bits.rs")),
     ("metric", include_str!("../src/metric.rs")),
     ("ops", include_str!("../src/ops.rs")),
     ("simd", include_str!("../src/simd.rs")),
@@ -1007,7 +1010,7 @@ fn enclosing_type(src: &str, upto: usize) -> Option<&str> {
 fn public_numeric_surface() -> Vec<Surface> {
     let mut out = Vec::new();
     for (module, src) in SOURCES {
-        if IDENTIFIER_MODULES.contains(module) {
+        if IDENTIFIER_MODULES.contains(module) || BIT_MODULES.contains(module) {
             continue;
         }
         for (ty, name) in parsed_fns(module, src) {
@@ -1074,6 +1077,53 @@ fn parsed_fns(module: &str, src: &str) -> Vec<(Option<String>, String)> {
 /// floating-point value, so they have no bits to pin and are not part of the
 /// numeric surface. [`identifier_modules_compute_no_float`] keeps that true.
 const IDENTIFIER_MODULES: &[&str] = &["semantics"];
+
+/// Modules that read a float's bits and compute nothing from them: `law_bits` returns the
+/// bits as they are or refuses a NaN, so it adds no arithmetic for [`SEMANTICS_ID`] to
+/// identify (its behaviour is pinned by `tests/law_bits.rs`, every `f32` NaN pattern).
+///
+/// [`SEMANTICS_ID`]: alice_det_math::SEMANTICS_ID
+const BIT_MODULES: &[&str] = &["law_bits"];
+
+/// A bit module defines exactly the functions expected, and does no float arithmetic: its
+/// only float operation is `to_bits` (a numeric function added there would escape the pins).
+#[test]
+fn bit_modules_compute_nothing_from_a_float() {
+    let mut seen = Vec::new();
+    for (module, src) in SOURCES {
+        if !BIT_MODULES.contains(module) {
+            continue;
+        }
+        for (ty, name) in parsed_fns(module, src) {
+            seen.push(format!(
+                "{module}::{}{name}",
+                ty.map(|t| t + "::").unwrap_or_default()
+            ));
+        }
+        let code: String = src
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(
+            code.matches(concat!(".to_", "bits()")).count(),
+            2,
+            "`{module}` reads bits twice"
+        );
+        for op in ["from_bits", "is_nan", " as f", ".abs(", "f32::", "f64::"] {
+            assert!(
+                !code.contains(op),
+                "`{module}` uses `{op}`: a float operation escapes the pins"
+            );
+        }
+    }
+    seen.sort();
+    assert_eq!(
+        seen,
+        ["law_bits::f32_bits", "law_bits::f64_bits"],
+        "bit module surface changed"
+    );
+}
 
 /// The excluded modules define exactly the functions expected, and none of
 /// them returns or takes a float: a numeric function added there would

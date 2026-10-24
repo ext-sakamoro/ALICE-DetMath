@@ -8,7 +8,7 @@
 //! sweeps about 2^21 points over the domain the function's kernel actually evaluates
 //! (linear where the reduction runs, geometric in value from the smallest subnormal to the
 //! largest finite value, both signs) and pins a SHA-256 of the output bits, read with
-//! `law_bits::out32` / `out64` (a NaN other than the canonical one fails the test).
+//! `digest_bits::out32` / `out64` (a NaN other than the canonical one fails the test).
 //!
 //! A sweep cannot prove that no bit moved anywhere; it shows that the outer-negated fma
 //! mutant at one polynomial step of each kernel is caught (recorded in the G4 entry of
@@ -17,8 +17,8 @@
 //! an intended change, golden first).
 
 use alice_det_math as dm;
-#[path = "support/law_bits.rs"]
-mod law_bits;
+#[path = "support/digest_bits.rs"]
+mod digest_bits;
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 
@@ -63,11 +63,11 @@ impl Pin {
         Self(h, 0)
     }
     fn f32(&mut self, x: f32) {
-        self.0.update(law_bits::out32(x));
+        self.0.update(digest_bits::out32(x));
         self.1 += 1;
     }
     fn f64(&mut self, x: f64) {
-        self.0.update(law_bits::out64(x));
+        self.0.update(digest_bits::out64(x));
         self.1 += 1;
     }
     fn finish(self, name: &str, want: &str) {

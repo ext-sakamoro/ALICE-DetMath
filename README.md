@@ -121,6 +121,11 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 - **Canonical NaN**: a NaN input never propagates through arithmetic (whose
   payload / sign rules are platform-specific); every function returns the
   canonical NaN or passes the input bits through unchanged
+- **`law_bits`**: `f32_bits` / `f64_bits` return the bits a Law identifier or
+<!-- claim-test: the_api_refuses_every_f32_nan_but_the_canonical_one -->
+  digest is built from, and refuse every NaN but the canonical one
+  (`NonCanonicalNan`) instead of mapping it, so a value that leaked a
+  platform NaN is reported on every target rather than moving a digest on one
 - **Pinned**: `tests/golden.rs` holds a SHA-256 of every function over a fixed
   input grid; CI reproduces it on macOS ARM / Intel, Linux x86 / ARM, Windows,
   wasm32 (wasmtime), with the SSE2-only SIMD fallback, with AVX2 + FMA forced

@@ -115,6 +115,10 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   正しく丸めるソフトウェア平方根 ベアメタルのターゲットでも動き、同じビットを返す
 - **正準 NaN**: 入力の NaN を算術に通さない (ペイロードと符号の扱いがプラットフォーム
   依存のため) どの関数も正準 NaN を返すか、入力のビットをそのまま返す
+- **`law_bits`**: `f32_bits` / `f64_bits` は Law の識別子や digest を作る元のビットを返し、
+<!-- claim-test: the_api_refuses_every_f32_nan_but_the_canonical_one -->
+  正準 NaN 以外の NaN は正準 NaN に読み替えずに拒む (`NonCanonicalNan`) プラットフォームの NaN が
+  漏れた値は、1 つの target で digest を動かすのでなく、どの target でも報告される
 - **固定**: `tests/golden.rs` は固定の入力格子に対する全関数の出力の SHA-256 を持つ
   CI は macOS ARM / Intel、Linux x86 / ARM、Windows、wasm32 (wasmtime)、
   SSE2 のみの SIMD フォールバック、AVX2 + FMA の強制有効、`no_std` (ソフトウェア

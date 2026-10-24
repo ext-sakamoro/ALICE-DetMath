@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""A test that pins a Law digest reads float bits only through tests/support/law_bits.rs.
+"""A test that pins a Law digest reads float bits only through tests/support/digest_bits.rs.
 
 A digest over output bits moves on one target when a function returns the platform's NaN
-(sign bit set on x86-64) instead of the canonical one. law_bits.rs refuses such a NaN
-(bits32 / bits64 / out32 / out64) and gives the bits of a bit-pattern input as they are
+(sign bit set on x86-64) instead of the canonical one. digest_bits.rs refuses such a NaN through
+alice_det_math::law_bits (bits32 / bits64 / out32 / out64) and gives the bits of a bit-pattern input as they are
 (pattern32 / pattern64). This check finds the test files that compute a digest (a SHA-256,
 BLAKE3 or FNV-1a hasher in the file) and reports every `to_bits` in them: a raw `.to_bits()`
 hashes a leaked NaN as it is, and one mapped to the canonical NaN before hashing hides it.
 
     law_bits_check.py [ROOT]
 
-Exit 0 when no finding, 1 on a finding, 2 when tests/support/law_bits.rs is missing or no
+Exit 0 when no finding, 1 on a finding, 2 when tests/support/digest_bits.rs is missing or no
 digest test was found (0 scanned is a failure, never a pass). `to_le_bytes()` called on a
 float directly is not seen (the receiver's type is not known here).
 """
@@ -20,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 
-HELPER = Path("tests/support/law_bits.rs")
+HELPER = Path("tests/support/digest_bits.rs")
 # a hasher in the file: the file computes a digest
 DIGEST = re.compile(r"\bSha256\b|\bSha512\b|\bblake3::|\bBlake3\b|0xcbf2_?9ce4_?8422_?2325|0x0000_0100_0000_01b3|0x100000001b3")
 TO_BITS = re.compile(r"\bto_bits\b")
@@ -46,8 +46,8 @@ def scan(root: Path) -> tuple[list[str], int]:
         for n, line in lines:
             if TO_BITS.search(line):
                 findings.append(
-                    f"{rel}:{n}: `to_bits` in a digest test (read an output with law_bits::bits32 / bits64 / "
-                    f"out32 / out64, a bit-pattern input with law_bits::pattern32 / pattern64): {line.strip()}"
+                    f"{rel}:{n}: `to_bits` in a digest test (read an output with digest_bits::bits32 / bits64 / "
+                    f"out32 / out64, a bit-pattern input with digest_bits::pattern32 / pattern64): {line.strip()}"
                 )
     return findings, scanned
 

@@ -21,7 +21,7 @@ on:
       - 'rust-toolchain.toml'
       - 'tests/exhaustive_f32.rs'
       - 'tests/exhaustive_f32.digests'
-      - 'tests/support/law_bits.rs'
+      - 'tests/support/digest_bits.rs'
       - 'scripts/exhaustive_count.py'
       - 'scripts/test_exhaustive_count.py'
       - 'scripts/run_tests.sh'

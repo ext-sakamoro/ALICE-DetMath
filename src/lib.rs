@@ -157,6 +157,7 @@ pub use semantics::{
 };
 
 pub mod double;
+pub mod law_bits;
 pub mod metric;
 pub mod ops;
 #[cfg(feature = "simd")]

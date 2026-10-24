@@ -12,9 +12,9 @@ import law_bits_check as lb  # noqa: E402
 
 HELPER = "pub fn bits32(x: f32) -> u32 { x.to_bits() }\n"
 CLEAN = """use sha2::{Digest, Sha256};
-#[path = "support/law_bits.rs"]
-mod law_bits;
-fn h(xs: &[f32]) { let mut h = Sha256::new(); for &x in xs { h.update(law_bits::out32(x)); } }
+#[path = "support/digest_bits.rs"]
+mod digest_bits;
+fn h(xs: &[f32]) { let mut h = Sha256::new(); for &x in xs { h.update(digest_bits::out32(x)); } }
 """
 
 
@@ -22,7 +22,7 @@ class Tree:
     def __init__(self, d: str, files: dict[str, str], helper: bool = True):
         self.root = Path(d)
         if helper:
-            files = {"tests/support/law_bits.rs": HELPER, **files}
+            files = {"tests/support/digest_bits.rs": HELPER, **files}
         for rel, text in files.items():
             p = self.root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,7 @@ class Cases(unittest.TestCase):
         self.assertEqual(self.check({"tests/golden.rs": CLEAN}), (0, [], 1))
 
     def test_a_raw_to_bits_in_a_digest_test_is_a_finding(self):
-        src = CLEAN.replace("law_bits::out32(x)", "x.to_bits().to_le_bytes()")
+        src = CLEAN.replace("digest_bits::out32(x)", "x.to_bits().to_le_bytes()")
         rc, findings, scanned = self.check({"tests/golden.rs": src})
         self.assertEqual((rc, scanned, len(findings)), (1, 1, 1), findings)
         self.assertIn("tests/golden.rs:4", findings[0])
@@ -73,7 +73,7 @@ class Cases(unittest.TestCase):
         self.assertEqual((rc, findings, scanned), (0, [], 1))
 
     def test_a_comment_does_not_count(self):
-        src = CLEAN + "// not x.to_bits() but law_bits::bits32\n/// Sha256 over to_bits\n"
+        src = CLEAN + "// not x.to_bits() but digest_bits::bits32\n/// Sha256 over to_bits\n"
         self.assertEqual(self.check({"tests/golden.rs": src}), (0, [], 1))
         # a digest named only in a comment does not make a digest test
         self.assertEqual(self.check({"tests/golden.rs": CLEAN, "tests/a.rs": "// Sha256\nfn f(x: f32) -> u32 { x.to_bits() }\n"}),
@@ -84,11 +84,11 @@ class Cases(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             t = Tree(d, {"tests/golden.rs": CLEAN}, helper=False)
             (t.root / "tests/support").mkdir(parents=True)
-            (t.root / "tests/support/law_bits.rs").write_text(helper, encoding="utf-8")
+            (t.root / "tests/support/digest_bits.rs").write_text(helper, encoding="utf-8")
             self.assertEqual(t.run(), (0, [], 1))
 
     def test_a_nested_test_file_is_scanned(self):
-        src = CLEAN.replace("law_bits::out32(x)", "x.to_bits().to_le_bytes()")
+        src = CLEAN.replace("digest_bits::out32(x)", "x.to_bits().to_le_bytes()")
         rc, findings, scanned = self.check({"tests/golden.rs": CLEAN, "tests/common/pins.rs": src})
         self.assertEqual((rc, scanned, len(findings)), (1, 2, 1), findings)
 

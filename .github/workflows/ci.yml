@@ -339,7 +339,7 @@ jobs:
         run: python scripts/test_entropy_guard.py
       - name: Entropy guard (no OS entropy or wall clock in src/)
         run: python scripts/entropy_guard.py
-      # a digest test reads float bits only through tests/support/law_bits.rs, which refuses
+      # a digest test reads float bits only through tests/support/digest_bits.rs, which refuses
       # a NaN other than the canonical one (0 digest tests found fails)
       - name: Law digest float bits (test, then check)
         run: |

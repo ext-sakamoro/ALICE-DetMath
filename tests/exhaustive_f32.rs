@@ -8,7 +8,7 @@
 //!
 //! The fold is `h = (h ^ bits) * P` with `P` odd: every step is a bijection of the
 //! state for a fixed input word, so a change of any single output always changes
-//! the digest. An output is read with `law_bits::bits32`, which refuses a NaN other
+//! the digest. An output is read with `digest_bits::bits32`, which refuses a NaN other
 //! than the canonical quiet NaN: a function that lets the platform's NaN through fails
 //! here on every target, instead of having the NaN folded as the canonical one.
 //!
@@ -26,8 +26,8 @@
 //! of an output re-pins them in the same commit.
 
 use alice_det_math as dm;
-#[path = "support/law_bits.rs"]
-mod law_bits;
+#[path = "support/digest_bits.rs"]
+mod digest_bits;
 
 const ALL_INPUTS: u64 = 1 << 32;
 
@@ -47,7 +47,7 @@ fn sweep(name: &str, f: fn(f32) -> f32) {
     let mut n: u64 = 0;
     for b in 0..=u32::MAX {
         let y = f(f32::from_bits(b));
-        let bits = law_bits::bits32(y);
+        let bits = digest_bits::bits32(y);
         h = (h ^ u64::from(bits)).wrapping_mul(0x0000_0100_0000_01b3);
         n += 1;
     }
