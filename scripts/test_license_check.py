@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import license_check as lc  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-PKG = ["Cargo.toml", "LICENSE-APACHE", "NOTICE", "TRADEMARK_NOTICE", "src/lib.rs"]
+PKG = ["Cargo.toml", "LICENSE-Proprietary", "TRADEMARK_NOTICE", "src/lib.rs"]
 
 
 class LicenseCheck(unittest.TestCase):
@@ -25,27 +25,44 @@ class LicenseCheck(unittest.TestCase):
         self.assertGreater(checked, 0)
         self.assertEqual(problems, [])
 
-    def test_dual_licence_in_cargo_toml_is_red(self) -> None:
-        p = self.d / "Cargo.toml"
-        p.write_text(p.read_text(encoding="utf-8").replace('license = "Apache-2.0"', 'license = "MIT OR Apache-2.0"'), encoding="utf-8")
+    def edit(self, name: str, old: str, new: str) -> None:
+        p = self.d / name
+        text = p.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        p.write_text(text.replace(old, new), encoding="utf-8")
+
+    def test_apache_in_cargo_toml_is_red(self) -> None:
+        self.edit("Cargo.toml", 'license = "LicenseRef-Proprietary"', 'license = "Apache-2.0"')
         self.assertTrue(any("Cargo.toml license" in x for x in lc.check(self.d, PKG)[1]))
 
-    def test_missing_notice_is_red(self) -> None:
-        (self.d / "NOTICE").unlink()
-        self.assertTrue(any("NOTICE is missing" in x for x in lc.check(self.d, PKG)[1]))
+    def test_missing_publish_false_is_red(self) -> None:
+        self.edit("Cargo.toml", "publish = false\n", "")
+        self.assertTrue(any("publish = false" in x for x in lc.check(self.d, PKG)[1]))
 
-    def test_notice_not_packaged_is_red(self) -> None:
-        pkg = [p for p in PKG if p != "NOTICE"]
-        self.assertTrue(any("NOTICE is not in the published package" in x for x in lc.check(self.d, pkg)[1]))
+    def test_missing_licence_text_is_red(self) -> None:
+        (self.d / "LICENSE-Proprietary").unlink()
+        self.assertTrue(any("LICENSE-Proprietary is missing" in x for x in lc.check(self.d, PKG)[1]))
 
-    def test_leftover_mit_file_is_red(self) -> None:
-        (self.d / "LICENSE-MIT").write_text("MIT", encoding="utf-8")
-        self.assertTrue(any("LICENSE-MIT exists" in x for x in lc.check(self.d, PKG)[1]))
+    def test_licence_text_not_packaged_is_red(self) -> None:
+        pkg = [p for p in PKG if p != "LICENSE-Proprietary"]
+        self.assertTrue(any("LICENSE-Proprietary is not in the published package" in x for x in lc.check(self.d, pkg)[1]))
 
-    def test_readme_still_dual_is_red(self) -> None:
-        p = self.d / "README_JP.md"
-        p.write_text(p.read_text(encoding="utf-8").replace("License: Apache-2.0", "License: MIT OR Apache-2.0"), encoding="utf-8")
-        self.assertTrue(any("README_JP.md" in x for x in lc.check(self.d, PKG)[1]))
+    def test_leftover_old_licence_files_are_red(self) -> None:
+        for name in ["LICENSE-APACHE", "LICENSE-MIT", "NOTICE"]:
+            (self.d / name).write_text("old", encoding="utf-8")
+            self.assertTrue(any(f"{name} exists" in x for x in lc.check(self.d, PKG)[1]), name)
+            (self.d / name).unlink()
+
+    def test_old_licence_file_in_package_is_red(self) -> None:
+        self.assertTrue(any("NOTICE is in the published package" in x for x in lc.check(self.d, PKG + ["NOTICE"])[1]))
+
+    def test_readme_still_apache_is_red(self) -> None:
+        self.edit("README_JP.md", "License: LicenseRef-Proprietary", "License: Apache-2.0")
+        self.assertTrue(any("README_JP.md: License line" in x for x in lc.check(self.d, PKG)[1]))
+
+    def test_readme_without_licence_link_is_red(self) -> None:
+        self.edit("README.md", "](LICENSE-Proprietary)", ")")
+        self.assertTrue(any("README.md: does not link LICENSE-Proprietary" in x for x in lc.check(self.d, PKG)[1]))
 
 
 if __name__ == "__main__":

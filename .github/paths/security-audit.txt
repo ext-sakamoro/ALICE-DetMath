@@ -24,8 +24,7 @@ fuzz/fuzz_targets/**
 README.md
 README_JP.md
 CHANGELOG.md
-LICENSE-APACHE
-NOTICE
+LICENSE-Proprietary
 TRADEMARK_NOTICE
 # the changes and gate jobs
 scripts/changed_paths.py

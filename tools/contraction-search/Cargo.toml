@@ -7,7 +7,7 @@ name = "contraction-search"
 version = "0.1.0"
 edition = "2021"
 publish = false
-license = "Apache-2.0"
+license = "LicenseRef-Proprietary"
 description = "ALICE-Law G4: search inputs whose output changes when one polynomial step is fused into one rounding"
 
 [[bin]]
