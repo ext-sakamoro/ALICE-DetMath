@@ -7,25 +7,6 @@ on:
     # with merge-base(origin/main) instead (patterns: .github/paths/security-audit.txt)
     # ci/**: the same checks on a branch before it is fast-forwarded to main
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'deny.toml'
-      - 'src/**'
-      - 'tests/**'
-      - 'fuzz/Cargo.toml'
-      - 'fuzz/fuzz_targets/**'
-      - 'README.md'
-      - 'README_JP.md'
-      - 'CHANGELOG.md'
-      - 'LICENSE-Proprietary'
-      - 'TRADEMARK_NOTICE'
-      - 'scripts/changed_paths.py'
-      - '.github/workflows/security-audit.yml'
-      - '.github/paths/security-audit.txt'
   schedule:
     - cron: '0 9 * * 1'
   workflow_dispatch:

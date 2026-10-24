@@ -12,22 +12,6 @@ on:
     # diff from GitHub's filter and the run is skipped; the changes job below compares
     # with merge-base(origin/main) instead (patterns: .github/paths/exhaustive-f32.txt)
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'tests/exhaustive_f32.rs'
-      - 'tests/exhaustive_f32.digests'
-      - 'tests/support/digest_bits.rs'
-      - 'scripts/exhaustive_count.py'
-      - 'scripts/test_exhaustive_count.py'
-      - 'scripts/run_tests.sh'
-      - 'scripts/changed_paths.py'
-      - '.github/workflows/exhaustive-f32.yml'
-      - '.github/paths/exhaustive-f32.txt'
   schedule:
     # Sunday 18:17 UTC, a quiet hour for the shared runners
     - cron: '17 18 * * 0'

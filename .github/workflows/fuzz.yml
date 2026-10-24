@@ -7,18 +7,6 @@ on:
     # with merge-base(origin/main) instead (patterns: .github/paths/fuzz.txt)
     # ci/**: the same checks on a branch before it is fast-forwarded to main
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'fuzz/**'
-      - 'rust-toolchain.toml'
-      - 'scripts/fuzz_runs.py'
-      - 'scripts/test_fuzz_runs.py'
-      - 'scripts/changed_paths.py'
-      - '.github/workflows/fuzz.yml'
-      - '.github/paths/fuzz.txt'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
