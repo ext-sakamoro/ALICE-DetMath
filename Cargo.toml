@@ -9,7 +9,7 @@ resolver = "3"
 # Everything is built from IEEE 754 basic operations on `core`; the MSRV is
 # the oldest toolchain the CI `msrv` job compiles the no_std rlib with.
 rust-version = "1.85"
-authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
+authors = ["Moroya Sakamoto"]
 description = "Cross-platform bit-exact f32/f64 transcendentals (sin, cos, exp, ln, atan2, ...) — scalar and SIMD, no_std"
 license = "LicenseRef-Proprietary"
 publish = false
