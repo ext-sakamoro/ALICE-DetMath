@@ -303,4 +303,4 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 係数とアルゴリズムは Cephes (Stephen L. Moshier)、fdlibm (Copyright (C) 1993 by
 Sun Microsystems, Inc.)、musl libc による 各 kernel の出典はソースを参照
 
-ライセンスの問い合わせ: <contact@extoria.co.jp>
+Enquiries: https://extoria.co.jp/

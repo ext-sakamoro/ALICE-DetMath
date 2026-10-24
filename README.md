@@ -327,4 +327,4 @@ Coefficients and algorithms are from Cephes (Stephen L. Moshier), fdlibm
 (Copyright (C) 1993 by Sun Microsystems, Inc.) and musl libc; see the source
 files for the attribution of each kernel.
 
-Licence enquiries: <contact@extoria.co.jp>
+Enquiries: https://extoria.co.jp/
