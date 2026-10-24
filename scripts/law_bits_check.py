@@ -4,8 +4,9 @@
 A digest over output bits moves on one target when a function returns the platform's NaN
 (sign bit set on x86-64) instead of the canonical one. digest_bits.rs refuses such a NaN through
 alice_det_math::law_bits (bits32 / bits64 / out32 / out64) and gives the bits of a bit-pattern input as they are
-(pattern32 / pattern64). This check finds the test files that compute a digest (a SHA-256,
-BLAKE3 or FNV-1a hasher in the file) and reports every `to_bits` in them: a raw `.to_bits()`
+(pattern32 / pattern64). This check finds the test files that compute a digest (a named hasher
+such as SHA-2 / SHA-3 / BLAKE2 / BLAKE3 / CRC-32 / xxHash / FNV, or an FNV-1a constant in any
+spelling) and reports every `to_bits` in them: a raw `.to_bits()`
 hashes a leaked NaN as it is, and one mapped to the canonical NaN before hashing hides it.
 
     law_bits_check.py [ROOT]
@@ -21,8 +22,29 @@ import sys
 from pathlib import Path
 
 HELPER = Path("tests/support/digest_bits.rs")
-# a hasher in the file: the file computes a digest
-DIGEST = re.compile(r"\bSha256\b|\bSha512\b|\bblake3::|\bBlake3\b|0xcbf2_?9ce4_?8422_?2325|0x0000_0100_0000_01b3|0x100000001b3")
+# a hasher in the file: the file computes a digest (named hashers and digest crates)
+DIGEST = re.compile(
+    r"\bSha(?:1|224|256|384|512|512_256|3_\d+)\b|\bsha3::|\bKeccak\d*\b|\bblake3::|\bBlake3\b|\bBlake2[bs]\w*\b"
+    r"|\bLawIdHasher\b|\bFnvHasher\b|\bfnv1a\w*|\bcrc32\w*|\bCrc32\w*|\b[Xx]x[Hh]ash\w*|\bxxh\d+\w*|\bDefaultHasher\b"
+    r"|\bSipHasher\w*\b|\bAHasher\b"
+)
+# FNV-1a by its constants, in any spelling (underscores, leading zeros, decimal)
+FNV_CONSTANTS = {0xCBF2_9CE4_8422_2325, 0x0000_0100_0000_01B3, 0x811C_9DC5, 0x0100_0193}
+NUMBER = re.compile(r"\b(0x[0-9A-Fa-f_]+|\d[\d_]*)(?:u32|u64|usize)?\b")
+
+
+def is_digest(line: str) -> bool:
+    if DIGEST.search(line):
+        return True
+    for lit in NUMBER.findall(line):
+        digits = lit.replace("_", "")
+        try:
+            value = int(digits, 16) if digits[:2].lower() == "0x" else int(digits)
+        except ValueError:
+            continue
+        if value in FNV_CONSTANTS:
+            return True
+    return False
 TO_BITS = re.compile(r"\bto_bits\b")
 LINE_COMMENT = re.compile(r"//.*")
 
@@ -40,7 +62,7 @@ def scan(root: Path) -> tuple[list[str], int]:
         if rel == HELPER:
             continue
         lines = code_lines(p.read_text(encoding="utf-8"))
-        if not any(DIGEST.search(line) for _, line in lines):
+        if not any(is_digest(line) for _, line in lines):
             continue
         scanned += 1
         for n, line in lines:

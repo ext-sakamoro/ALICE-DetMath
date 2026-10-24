@@ -254,3 +254,15 @@ const DENSE_ASIN64: &str = "44863563774d00797cf3e10884db94c0ffc6a2dd9a174f0dfe58
 const DENSE_ACOS64: &str = "0d2936c0d6975d1b52659e1a2dd4ca08ecc8912c0b7a231a23f1e4c452ad9746";
 const DENSE_ATAN2_64: &str = "8b4074e4b57dad5b97ac6e77af303cef3b368e0876423f62ab3af3184b746d91";
 const DENSE_POWF64: &str = "65b08c71ff36c69417e8a2b530eb808c0c061be86c631ea5f60407c9060c0ea6";
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn the_pin_refuses_a_non_canonical_f32_output() {
+    Pin::new("t").f32(f32::from_bits(0xffc0_0000));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xfff8000000000000")]
+fn the_pin_refuses_a_non_canonical_f64_output() {
+    Pin::new("t").f64(f64::from_bits(0xfff8_0000_0000_0000));
+}

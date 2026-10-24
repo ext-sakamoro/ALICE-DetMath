@@ -42,13 +42,20 @@ fn pinned(name: &str) -> u64 {
     u64::from_str_radix(hex.trim(), 16).expect("a 16-hex-digit digest")
 }
 
+/// FNV-1a's offset basis: the digest before any output is folded in.
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// One output folded into the digest: its bits read with `digest_bits::bits32` (a NaN other
+/// than the canonical one is refused), then one FNV-1a step.
+fn fold32(h: u64, y: f32) -> u64 {
+    (h ^ u64::from(digest_bits::bits32(y))).wrapping_mul(0x0000_0100_0000_01b3)
+}
+
 fn sweep(name: &str, f: fn(f32) -> f32) {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut h: u64 = FNV_OFFSET;
     let mut n: u64 = 0;
     for b in 0..=u32::MAX {
-        let y = f(f32::from_bits(b));
-        let bits = digest_bits::bits32(y);
-        h = (h ^ u64::from(bits)).wrapping_mul(0x0000_0100_0000_01b3);
+        h = fold32(h, f(f32::from_bits(b)));
         n += 1;
     }
     // printed before the asserts, so a moved digest is in the log for the workflow's
@@ -135,4 +142,23 @@ fn tanh() {
 #[ignore = "exhaustive: run by exhaustive-f32.yml with --ignored"]
 fn cbrt() {
     sweep("cbrt", dm::cbrt);
+}
+
+/// oracle: FNV-1a over the words `0x3F80_0000` (1.0) and `0x7FC0_0000` (the canonical NaN),
+/// computed by hand from the offset basis and the 64-bit FNV prime `0x100_0000_01B3`.
+#[test]
+fn the_fold_is_fnv_1a_over_the_output_bits() {
+    let prime: u64 = 0x0000_0100_0000_01b3;
+    let one = (FNV_OFFSET ^ 0x3f80_0000).wrapping_mul(prime);
+    let both = (one ^ 0x7fc0_0000).wrapping_mul(prime);
+    assert_eq!(fold32(FNV_OFFSET, 1.0), one);
+    assert_eq!(fold32(one, f32::from_bits(0x7fc0_0000)), both);
+}
+
+/// The sweeps are run only with --ignored; the fold they share refuses a leaked NaN here, on
+/// every run.
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn the_fold_refuses_a_non_canonical_nan_output() {
+    let _ = fold32(FNV_OFFSET, f32::from_bits(0xffc0_0000));
 }

@@ -115,6 +115,17 @@ fn hash32x3(xs: &[f32], f: impl Fn(f32, f32, f32) -> f32) -> String {
     format!("{:x}", h.finalize())
 }
 
+/// The `sin_cos` pin's value for one input: both outputs read with [`digest_bits::bits32`]
+/// (each refused on its own if it is a non-canonical NaN), then folded into one word.
+fn sin_cos_fold32(s: f32, c: f32) -> u32 {
+    digest_bits::bits32(s) ^ digest_bits::bits32(c).rotate_left(16)
+}
+
+/// [`sin_cos_fold32`] for `sin_cos64`.
+fn sin_cos_fold64(s: f64, c: f64) -> u64 {
+    digest_bits::bits64(s) ^ digest_bits::bits64(c).rotate_left(32)
+}
+
 fn hash64(xs: &[f64], f: impl Fn(f64) -> f64) -> String {
     hash64_bits(xs, |x| digest_bits::bits64(f(x)))
 }
@@ -533,7 +544,7 @@ fn scalar_outputs_match_recorded_hashes() {
         "sin_cos",
         &hash32_bits(&g, |x| {
             let (s, c) = sin_cos(x);
-            digest_bits::bits32(s) ^ digest_bits::bits32(c).rotate_left(16)
+            sin_cos_fold32(s, c)
         }),
         want("sin_cos"),
     );
@@ -705,7 +716,7 @@ fn scalar_outputs_match_recorded_hashes() {
         "sin_cos64",
         &hash64_bits(&g, |x| {
             let (s, c) = sin_cos64(x);
-            digest_bits::bits64(s) ^ digest_bits::bits64(c).rotate_left(32)
+            sin_cos_fold64(s, c)
         }),
         want("sin_cos64"),
     );
@@ -2227,4 +2238,83 @@ fn check_semantics_classifies_current_previous_and_unknown() {
             assert!(!c.is_current() && !c.is_reproducible());
         }
     }
+}
+
+/// The default NaN an x86-64 operation raises (sign bit set): never the canonical one.
+const X86_NAN32: u32 = 0xffc0_0000;
+/// [`X86_NAN32`] for `f64`.
+const X86_NAN64: u64 = 0xfff8_0000_0000_0000;
+
+// Every digest helper above refuses an output NaN other than the canonical one. On a target
+// whose arithmetic raises the canonical NaN, a helper that read output bits raw would pass
+// every pin here and still hash a leaked NaN on another target; these feed it one directly.
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn hash32_refuses_a_non_canonical_nan_output() {
+    let _ = hash32(&[1.0], |_| f32::from_bits(X86_NAN32));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn hash32x2_refuses_a_non_canonical_nan_output() {
+    let _ = hash32x2(&[1.0, 2.0], |_, _| f32::from_bits(X86_NAN32));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn hash32x3_refuses_a_non_canonical_nan_output() {
+    let _ = hash32x3(&[1.0, 2.0, 3.0], |_, _, _| f32::from_bits(X86_NAN32));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xfff8000000000000")]
+fn hash64_refuses_a_non_canonical_nan_output() {
+    let _ = hash64(&[1.0], |_| f64::from_bits(X86_NAN64));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn the_sin_cos_fold_refuses_a_non_canonical_sine() {
+    let _ = sin_cos_fold32(f32::from_bits(X86_NAN32), 1.0);
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn the_sin_cos_fold_refuses_a_non_canonical_cosine() {
+    let _ = sin_cos_fold32(0.0, f32::from_bits(X86_NAN32));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xfff8000000000000")]
+fn the_sin_cos64_fold_refuses_a_non_canonical_sine() {
+    let _ = sin_cos_fold64(f64::from_bits(X86_NAN64), 1.0);
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xfff8000000000000")]
+fn the_sin_cos64_fold_refuses_a_non_canonical_cosine() {
+    let _ = sin_cos_fold64(0.0, f64::from_bits(X86_NAN64));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xffc00000")]
+fn the_specials_sink_refuses_a_non_canonical_f32_output() {
+    use common::specials::Sink as _;
+    let mut s = HashSink {
+        h: Sha256::new(),
+        names: Vec::new(),
+    };
+    s.v32(f32::from_bits(X86_NAN32));
+}
+
+#[test]
+#[should_panic(expected = "non-canonical NaN 0xfff8000000000000")]
+fn the_specials_sink_refuses_a_non_canonical_f64_output() {
+    use common::specials::Sink as _;
+    let mut s = HashSink {
+        h: Sha256::new(),
+        names: Vec::new(),
+    };
+    s.v64(f64::from_bits(X86_NAN64));
 }

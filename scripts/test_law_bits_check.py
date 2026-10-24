@@ -67,6 +67,26 @@ class Cases(unittest.TestCase):
         src = "fn d(x: f64) { let mut h = blake3::Hasher::new(); h.update(&x.to_bits().to_le_bytes()); }\n"
         self.assertEqual(self.check({"tests/law_id.rs": src})[:2][0], 1)
 
+    def test_every_named_hasher_marks_a_digest_test(self):
+        raw = "fn f(x: f32) -> u32 {{ let _h = {h}; x.to_bits() }}\n"
+        for h in ["Sha224::new()", "Sha384::new()", "sha3::Sha3_256::new()", "Blake2s256::new()",
+                  "LawIdHasher::new(b\"k\")", "FnvHasher::default()", "fnv1a_hash(b\"\")",
+                  "crc32fast::hash(b\"\")", "xxhash_rust::xxh64::xxh64(b\"\", 0)", "XxHash64::with_seed(0)",
+                  "std::collections::hash_map::DefaultHasher::new()"]:
+            rc, findings, scanned = self.check({"tests/golden.rs": CLEAN, "tests/law_id.rs": raw.format(h=h)})
+            self.assertEqual((rc, scanned, len(findings)), (1, 2, 1), (h, findings))
+
+    def test_an_fnv_constant_in_any_spelling_marks_a_digest_test(self):
+        for lit in ["0xcbf29ce484222325", "0xcbf2_9ce4_8422_2325", "0x0100_0000_01b3", "0x100_0000_01b3u64",
+                    "1099511628211", "0x811c9dc5", "0x01000193", "16777619u32"]:
+            raw = f"fn f(x: f32) -> u64 {{ (u64::from(x.to_bits())).wrapping_mul({lit}) }}\n"
+            rc, findings, scanned = self.check({"tests/golden.rs": CLEAN, "tests/fold.rs": raw})
+            self.assertEqual((rc, scanned, len(findings)), (1, 2, 1), (lit, findings))
+
+    def test_a_number_that_is_not_an_fnv_constant_does_not_mark_a_digest_test(self):
+        raw = "fn f(x: f32) -> u32 { x.to_bits() ^ 0x0100_0000_01b5 as u32 ^ 12345 }\n"
+        self.assertEqual(self.check({"tests/golden.rs": CLEAN, "tests/accuracy.rs": raw}), (0, [], 1))
+
     def test_a_test_without_a_digest_is_not_scanned(self):
         src = "fn t() { assert_eq!(1.0f32.to_bits(), 0x3f80_0000); }\n"
         rc, findings, scanned = self.check({"tests/golden.rs": CLEAN, "tests/accuracy.rs": src})
