@@ -22,18 +22,21 @@
 //! ```
 //!
 //! (the last takes about 20 minutes on 10 cores; it finds 1 / 2 / 1 inputs). The `P4` pin is
-//! out of reach of drawing (about one input in 2^42 near the top of `t`): `--enumerate P4`
-//! walks every `t` of a range and visits only those whose step can round differently (the
-//! step's condition solved, not tested); the pin is the only output change of the 54 batches of
-//! 2^36 values below `t = 0x3fbebedfa43fe5c9` (2^41.75 values, about 20 minutes on 10 cores):
+//! and the `LG5` pin are out of reach of drawing (about one input in 2^42 near the top of the
+//! step's variable): `--enumerate STEP LO HI` walks every value of the variable in a range and
+//! visits only those whose step can round differently (the step's condition solved, not
+//! tested). The `P4` pin is the only output change of the 54 batches of 2^36 values of `t` below
+//! `0x3fbebedfa43fe5c9` (2^41.75 values), the `LG5` pin the only one of the 108 batches of 2^36
+//! values of `w` below `0x3f4c6529c58fcd1d` (2^42.75 values), each batch a few seconds on 10
+//! cores; the batch that found each pin, alone:
 //!
 //! ```text
 //! cargo run --release --manifest-path tools/contraction-search/Cargo.toml -- --enumerate P4 3fbebb7fa43fe5c9 3fbebb8fa43fe5c9
+//! cargo run --release --manifest-path tools/contraction-search/Cargo.toml -- --enumerate LG5 3f4c5e69c58fcd1d 3f4c5e79c58fcd1d
 //! ```
 //!
 //! CI runs `--check-pins tests/contraction_goldens.rs`, which re-checks that every pin of a step
-//! the tool models still separates it. Not reached: `ln64` `LG5` (no input whose polynomial
-//! value changes among 2^34 draws). Debug and release give the same bits (no
+//! the tool models still separates it. Debug and release give the same bits (no
 //! contraction is enabled in either profile), and both run in CI on every runner.
 use alice_det_math as dm;
 
@@ -178,6 +181,8 @@ const CASES: &[Case] = &[
     ("ln64", "LG3", 0x3fe6f5e3a58b62be, 0xbfd53ed697fcad8f),
     ("ln64", "LG3", 0x3fe72308879bab79, 0xbfd4c17c11c8ccc3),
     ("ln64", "LG4", 0x3ff61060812c3e62, 0x3fd4911e6fdb0fb3),
+    // ln64 `LG5 + w * LG7` (tools/contraction-search --enumerate)
+    ("ln64", "LG5", 0x3ff6a024e491a349, 0x3fd62ceb4e859d92),
 ];
 
 fn eval(name: &str, x: f64) -> f64 {
