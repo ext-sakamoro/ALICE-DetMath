@@ -266,12 +266,13 @@ fn lerp_is_exact_at_both_endpoints() {
 
 #[test]
 fn clamp_saturates_and_passes_nan_through() {
+    // oracle: min(max(x, lo), hi) with the G2 max / min (tests/clamp_argmax_law.rs has the bits)
     assert_eq!(clamp(-5.0, 0.0, 1.0), 0.0);
     assert_eq!(clamp(5.0, 0.0, 1.0), 1.0);
     assert_eq!(clamp(0.25, 0.0, 1.0), 0.25);
     assert!(clamp(f32::NAN, 0.0, 1.0).is_nan());
-    // inverted bounds are the caller's error, not a panic: low wins
-    assert_eq!(clamp(0.5, 1.0, 0.0), 1.0);
+    // inverted bounds are the caller's error, not a panic: min is applied last, so high wins
+    assert_eq!(clamp(0.5, 1.0, 0.0), 0.0);
 }
 
 #[test]

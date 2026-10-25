@@ -160,6 +160,27 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     f3(s, "norm_linf", |x, y, z| metric::norm_linf([x, y, z]));
     f3(s, "lerp", metric::lerp);
     f3(s, "clamp", metric::clamp);
+    let index = |i: Option<usize>| i.map_or(-1.0, |i| i as f32);
+    f3(s, "argmax", |a, b, c| index(argmax(&[a, b, c])));
+    f3(s, "argmin", |a, b, c| index(argmin(&[a, b, c])));
+    let select = |mut sel: Select<u8>, a: f32, b: f32, c: f32| {
+        sel.offer(a, 0);
+        sel.offer(b, 1);
+        sel.offer(c, 2);
+        sel.into_inner()
+    };
+    f3(s, "ops_greatest", |a, b, c| {
+        select(Select::greatest(), a, b, c).map_or(-1.0, |(v, _)| v)
+    });
+    f3(s, "ops_least", |a, b, c| {
+        select(Select::least(), a, b, c).map_or(-1.0, |(v, _)| v)
+    });
+    f3(s, "ops_offer", |a, b, c| {
+        select(Select::greatest(), c, b, a).map_or(-1.0, |(_, i)| f32::from(i))
+    });
+    f3(s, "ops_into_inner", |a, b, c| {
+        select(Select::least(), c, b, a).map_or(-1.0, |(_, i)| f32::from(i))
+    });
     f3(s, "metric_new", |a, b, c| {
         match MetricWeights::new(a, b, c) {
             Ok(w) => fold_weights(w),
@@ -211,6 +232,14 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     d1(s, "sqrt64", sqrt64);
     d2(s, "max64", max64);
     d2(s, "min64", min64);
+    s.name("clamp64");
+    for x in SPECIALS64 {
+        for lo in SPECIALS64 {
+            for hi in SPECIALS64 {
+                s.v64(clamp64(x, lo, hi));
+            }
+        }
+    }
     d1(s, "sin64", sin64);
     d1(s, "cos64", cos64);
     s.name("sin_cos64");

@@ -210,6 +210,105 @@ pub fn min64(a: f64, b: f64) -> f64 {
     }
 }
 
+/// `x` restricted to `[low, high]` for `f64`: `min64(max64(x, low), high)`, and the canonical
+/// NaN for a NaN `x`. See [`crate::metric::clamp`] for the rule (the same for both widths).
+#[inline]
+#[must_use]
+pub fn clamp64(x: f64, low: f64, high: f64) -> f64 {
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    min64(max64(x, low), high)
+}
+
+/// Whether `a` is above `b` in the G2 order (`-0 < +0`), for two numbers that are not NaN.
+#[inline]
+fn above(a: f32, b: f32) -> bool {
+    a > b || (a == b && !a.is_sign_negative() && b.is_sign_negative())
+}
+
+/// The index of the first G2 maximum of `xs`.
+///
+/// That is the first element equal to the [`max`] of the elements that are not NaN: a NaN is
+/// never selected, `+0` is above `-0`, and of equal values the first is
+/// kept. `None` for an empty slice or one of NaNs only.
+#[must_use]
+pub fn argmax(xs: &[f32]) -> Option<usize> {
+    let mut best = Select::greatest();
+    for (i, &x) in xs.iter().enumerate() {
+        best.offer(x, i);
+    }
+    best.into_inner().map(|(_, i)| i)
+}
+
+/// The index of the first G2 minimum of `xs`.
+///
+/// That is the first element equal to the [`min`] of the elements that are not NaN: a NaN is
+/// never selected, `-0` is below `+0`, and of equal values the first is
+/// kept. `None` for an empty slice or one of NaNs only.
+#[must_use]
+pub fn argmin(xs: &[f32]) -> Option<usize> {
+    let mut best = Select::least();
+    for (i, &x) in xs.iter().enumerate() {
+        best.offer(x, i);
+    }
+    best.into_inner().map(|(_, i)| i)
+}
+
+/// A selection over a stream of values that carry a payload.
+///
+/// It keeps the value and payload of the first offer equal to the G2 maximum ([`Select::greatest`], [`argmax`] for a stream) or minimum
+/// ([`Select::least`], [`argmin`] for a stream) of the offered values that are not NaN.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Select<T> {
+    greatest: bool,
+    best: Option<(f32, T)>,
+}
+
+impl<T> Select<T> {
+    /// Keeps the first offer equal to the G2 maximum: `+0` is above `-0`.
+    #[must_use]
+    pub const fn greatest() -> Self {
+        Self {
+            greatest: true,
+            best: None,
+        }
+    }
+
+    /// Keeps the first offer equal to the G2 minimum: `-0` is below `+0`.
+    #[must_use]
+    pub const fn least() -> Self {
+        Self {
+            greatest: false,
+            best: None,
+        }
+    }
+
+    /// Offer a value with its payload: kept when it is not NaN and strictly beyond the value
+    /// kept so far in the selection's direction (a tie keeps the earlier offer).
+    pub fn offer(&mut self, value: f32, payload: T) {
+        if value.is_nan() {
+            return;
+        }
+        let beyond = |kept: f32| {
+            if self.greatest {
+                above(value, kept)
+            } else {
+                above(kept, value)
+            }
+        };
+        if self.best.as_ref().is_none_or(|(b, _)| beyond(*b)) {
+            self.best = Some((value, payload));
+        }
+    }
+
+    /// The value and payload kept, `None` when no value that is not NaN was offered.
+    #[must_use]
+    pub fn into_inner(self) -> Option<(f32, T)> {
+        self.best
+    }
+}
+
 /// `floor(sqrt(n))` and the remainder `n - floor(sqrt(n))²`, digit by digit.
 #[cfg(any(not(feature = "std"), test))]
 const fn isqrt_rem(n: u128) -> (u128, u128) {
