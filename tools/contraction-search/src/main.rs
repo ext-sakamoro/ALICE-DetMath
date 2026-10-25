@@ -23,6 +23,9 @@
 //!
 //! Usage: `cargo run --release -- [--log2-n N] [--keep K] [STEP ...]` (default: every step,
 //! N = 30, K = 3). Prints one `found` line per kept input and one `summary` line per step.
+//! `cargo run --release -- --enumerate STEP LO HI` walks every value of the variable of `P4` or
+//! `LG5` with bits in [LO, HI) (hex, one binade), visiting only those its step can round
+//! differently (see "the step's own condition, solved instead of tested" below).
 //! `cargo run --release -- --check-pins tests/contraction_goldens.rs` checks that each pin of a
 //! modelled step separates it (the library gives the pinned bits, the fused build does not).
 
@@ -568,6 +571,324 @@ fn search(
     t
 }
 
+// ---- enumeration of the step's variable ----
+//
+// `--enumerate STEP LO HI` walks every double of the step's variable `v` with bits in [LO, HI)
+// (one binade, so the values are `v0 + n·ulp`) instead of drawing inputs. A value is followed
+// only while the difference the fused step makes survives: the step's own two roundings, then
+// the part of the polynomial that depends on `v` alone. Only then are the inputs whose
+// reduction gives `v` constructed (the roundings `fl(r * r)`, `fl(z * z)`, `fl(s * s)` and
+// `fl(f / (2 + f))` are inverted by scanning a few ulps around the real root and keeping the
+// candidates whose forward reduction gives the value back), and each is evaluated in full with
+// both builds and against the library. The walk is split across threads by position.
+
+/// The doubles `y` within `span` ulps of `y0` with `fwd(y) == v`, added to `out`
+fn preimages(y0: f64, span: i64, v: f64, fwd: impl Fn(f64) -> f64, out: &mut Vec<f64>) {
+    for d in -span..=span {
+        let y = f64::from_bits(y0.to_bits().wrapping_add_signed(d));
+        if y.is_finite() && fwd(y).to_bits() == v.to_bits() && !out.contains(&y) {
+            out.push(y);
+        }
+    }
+}
+
+/// The inputs of `f` whose reduction (with k = 0) gives the step's variable `v`
+fn inputs_of(f: &str, v: f64, out: &mut Vec<f64>) {
+    out.clear();
+    match f {
+        // k = 0: r = x, t = fl(x * x)
+        "exp64" => {
+            let mut rs = Vec::new();
+            preimages(v.sqrt(), 2, v, |r| r * r, &mut rs);
+            for r in rs {
+                for x in [r, -r] {
+                    if dm::round64(x * INV_LN2_64) == 0.0 {
+                        out.push(x);
+                    }
+                }
+            }
+        }
+        // k = 0: f = m - 1, s = fl(f / (2 + f)), z = fl(s * s), w = fl(z * z)
+        "ln64" => {
+            let (mut zs, mut ss) = (Vec::new(), Vec::new());
+            preimages(v.sqrt(), 2, v, |z| z * z, &mut zs);
+            for z in zs {
+                preimages(z.sqrt(), 2, z, |s| s * s, &mut ss);
+            }
+            for s in ss.iter().flat_map(|&s| [s, -s]) {
+                let x0 = 1.0 + 2.0 * s / (1.0 - s);
+                preimages(x0, 4, s, ln_s, out);
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
+/// `s` of `ln64`'s reduction for an input with k = 0 (`x` in [sqrt 2 / 2, sqrt 2)), else NaN
+fn ln_s(x: f64) -> f64 {
+    if !(0x3fe6_a09e_667f_3bcd..0x3ff6_a09e_667f_3bcd).contains(&x.to_bits()) {
+        return f64::NAN;
+    }
+    // with k = 0 the reduced mantissa is x itself
+    let f = x - 1.0;
+    f / (2.0 + f)
+}
+
+/// Does the fused step change the part of the polynomial that depends on `v` alone?
+fn v_part_differs(step: Step, v: f64) -> bool {
+    let part = |fuse: Step| -> u64 {
+        let mut cx = Ctx::new(fuse, Step::None);
+        match step {
+            Step::P4 => {
+                let p4 = cx.st(Step::P4, P4, v, P5);
+                let p3 = cx.st(Step::P3, P3, v, p4);
+                let p2 = cx.st(Step::P2, P2, v, p3);
+                (v * (P1 + v * p2)).to_bits()
+            }
+            Step::Lg5 => {
+                let l5 = cx.st(Step::Lg5, LG5_64, v, LG7_64);
+                let l3 = cx.st(Step::Lg3, LG3_64, v, l5);
+                (LG1_64 + v * l3).to_bits()
+            }
+            _ => unreachable!(),
+        }
+    };
+    part(step) != part(Step::None)
+}
+
+/// The function and the step's constants `(c, k)`: the step is `c + v * k`
+fn step_constants(step: Step) -> Option<(&'static str, f64, f64)> {
+    match step {
+        Step::P4 => Some(("exp64", P4, P5)),
+        Step::Lg5 => Some(("ln64", LG5_64, LG7_64)),
+        _ => None,
+    }
+}
+
+// ---- the step's own condition, solved instead of tested ----
+//
+// With `v = V·2^ev` (`V` the 53-bit integer of one binade) and the constant `k = K·2^ek`, the
+// exact product is `X·2^(ev+ek)` with `X = V·K`, and the step's sum `c + v·k` rounds on the grid of
+// `c`, which is `G` units of `2^(ev+ek)` (a power of two). The two roundings of the step (the
+// product to 53 bits, then the sum) can differ from one only when the exact sum is within one
+// ulp of the product of a rounding boundary of the sum, `c + (j + 1/2)·G`; `c` is on its own grid,
+// so that is `X ≡ G/2 (mod G)` within `±h` with `h` the product's ulp. With `V = V0 + n`,
+// `X mod G = (K·n + V0·K) mod G` is affine in `n`, and the `n` whose value lies in the window are
+// listed in order by `first_in_window` (the Euclid-style recursion of Lefèvre's method), so the
+// walk visits about `2h/G` of the values instead of all of them. Every listed value is then
+// checked exactly (`mul_add` against the two roundings) as in `walk`.
+
+/// The least `x ≥ 0` with `l ≤ (a·x) mod m ≤ r`, for `0 ≤ l ≤ r < m` and `0 ≤ a < m`
+fn first_in_window(a: u128, m: u128, l: u128, r: u128) -> Option<u128> {
+    if l == 0 {
+        return Some(0);
+    }
+    if a == 0 {
+        return None;
+    }
+    let x = l.div_ceil(a);
+    if a * x <= r {
+        return Some(x);
+    }
+    // a·x = l' + m·y with l' in [l, r] and y ≥ 1: m·y mod a must lie in [(-r) mod a, (-l) mod a]
+    let y = first_in_window(m % a, a, (a - r % a) % a, (a - l % a) % a)?;
+    let x = (l + m * y).div_ceil(a);
+    (a * x - m * y <= r).then_some(x)
+}
+
+/// The least `x ≥ 0` with `(a·x + b) mod m` in the window `[lo, hi]` taken mod `m` (it may wrap)
+fn first_from(a: u128, b: u128, m: u128, lo: u128, hi: u128) -> Option<u128> {
+    let l = (lo + m - b % m) % m;
+    let r = (hi + m - b % m) % m;
+    if l <= r {
+        first_in_window(a, m, l, r)
+    } else {
+        // [l, m) ∪ [0, r]
+        match (first_in_window(a, m, l, m - 1), first_in_window(a, m, 0, r)) {
+            (Some(p), Some(q)) => Some(p.min(q)),
+            (p, q) => p.or(q),
+        }
+    }
+}
+
+/// `(53-bit integer, exponent of its unit)` of a positive normal double
+fn int_exp(x: f64) -> (u128, i32) {
+    let b = x.abs().to_bits();
+    let e = ((b >> 52) & 0x7ff) as i32;
+    assert!(e != 0 && e != 0x7ff, "a normal double");
+    (
+        u128::from((b & 0x000f_ffff_ffff_ffff) | 0x0010_0000_0000_0000),
+        e - 1075,
+    )
+}
+
+/// The values of the step's variable with bits in `[lo, hi)` (one binade) whose step can round
+/// differently fused (a superset of those where `v.mul_add(k, c) != c + v * k`), in order, until
+/// `each` returns false
+fn window_values(step: Step, lo: u64, hi: u64, mut each: impl FnMut(u64) -> bool) {
+    let (_, c, k) = step_constants(step).expect("a modelled step");
+    let (v0, ev) = int_exp(f64::from_bits(lo));
+    let (kk, ek) = int_exp(k);
+    let (_, ec) = int_exp(c);
+    let top = f64::from_bits(hi - 1);
+    // the sum must stay on the grid of c over the whole range (else G is not that grid)
+    assert_eq!(
+        int_exp(c + top * k).1,
+        ec,
+        "c + v·k leaves the binade of c in this range"
+    );
+    let shift = ec - (ev + ek);
+    assert!((1..120).contains(&shift), "the grid of c in product units");
+    let g = 1u128 << shift;
+    // the largest product's ulp in units of 2^(ev+ek), over the range
+    let xmax = (v0 + u128::from(hi - 1 - lo)) * kk;
+    let h = 1u128 << (128 - xmax.leading_zeros()).saturating_sub(53);
+    let (a, b) = (kk % g, (v0 * kk) % g);
+    let (wlo, whi) = ((g / 2 + g - h) % g, (g / 2 + h) % g);
+    let n = u128::from(hi - lo);
+    let mut n0 = 0u128;
+    while n0 < n {
+        let Some(x) = first_from(a, (b + a * n0) % g, g, wlo, whi) else {
+            break;
+        };
+        let at = n0 + x;
+        if at >= n {
+            break;
+        }
+        if !each(lo + at as u64) {
+            break;
+        }
+        n0 = at + 1;
+    }
+}
+
+#[derive(Default)]
+struct Walk {
+    walked: u64,
+    visited: u64,
+    flips: u64,
+    part_changed: u64,
+    inputs: u64,
+    changed: u64,
+    library_checked: u64,
+    found: Vec<Found>,
+}
+
+fn walk(step: Step, lo: u64, hi: u64, keep: usize, bad: &AtomicBool) -> Walk {
+    let (f, c, k) = step_constants(step).expect("a modelled step");
+    let mut w = Walk {
+        walked: hi - lo,
+        ..Walk::default()
+    };
+    let mut xs = Vec::new();
+    window_values(step, lo, hi, |bits| {
+        let v = f64::from_bits(bits);
+        let drift_probe = w.visited.is_multiple_of(4096);
+        w.visited += 1;
+        // the step's own roundings: one (fused) or two
+        let flips = v.mul_add(k, c).to_bits() != (c + v * k).to_bits();
+        if !flips && !drift_probe {
+            return true;
+        }
+        w.flips += u64::from(flips);
+        let part = flips && v_part_differs(step, v);
+        if !part && !drift_probe {
+            return true;
+        }
+        w.part_changed += u64::from(part);
+        inputs_of(f, v, &mut xs);
+        for &x in &xs {
+            w.inputs += 1;
+            let out = eval(f, x, &mut Ctx::new(Step::None, Step::None));
+            if out.to_bits() != library(f, x).to_bits() {
+                eprintln!(
+                    "copy drift: {f}({:#018x}) = {:#018x}, library {:#018x}",
+                    x.to_bits(),
+                    out.to_bits(),
+                    library(f, x).to_bits()
+                );
+                bad.store(true, Ordering::Relaxed);
+                return false;
+            }
+            w.library_checked += 1;
+            let fused = eval(f, x, &mut Ctx::new(step, Step::None));
+            if fused.to_bits() != out.to_bits() {
+                w.changed += 1;
+                if w.found.len() < keep {
+                    w.found.push(Found {
+                        index: bits,
+                        x,
+                        out,
+                        fused,
+                    });
+                }
+            }
+        }
+        true
+    });
+    w
+}
+
+/// `--enumerate STEP LO HI`: every value of the step's variable with bits in [LO, HI) (hex,
+/// within one binade of positive doubles)
+fn enumerate(name: &str, lo: u64, hi: u64, keep: usize) -> i32 {
+    let Some(&(step, _, f)) = STEPS.iter().find(|(_, n, _)| *n == name) else {
+        eprintln!("unknown step {name}");
+        return 1;
+    };
+    if step_constants(step).is_none() {
+        eprintln!("--enumerate models P4 and LG5, not {name}");
+        return 1;
+    }
+    if lo >= hi || lo >> 63 != 0 || lo >> 52 != (hi - 1) >> 52 {
+        eprintln!("LO..HI must lie in one binade of positive doubles");
+        return 1;
+    }
+    let threads = thread::available_parallelism().map_or(4, |p| p.get()) as u64;
+    let n = hi - lo;
+    let bad = AtomicBool::new(false);
+    let parts: Vec<Walk> = thread::scope(|s| {
+        let hs: Vec<_> = (0..threads)
+            .map(|j| {
+                let (a, b) = (lo + n * j / threads, lo + n * (j + 1) / threads);
+                let bad = &bad;
+                s.spawn(move || walk(step, a, b, keep, bad))
+            })
+            .collect();
+        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    if bad.load(Ordering::Relaxed) {
+        return 1;
+    }
+    let sum = |g: fn(&Walk) -> u64| parts.iter().map(g).sum::<u64>();
+    let visited = sum(|w| w.visited);
+    let (walked, flips, part, inputs, changed, checked) = (
+        sum(|w| w.walked),
+        sum(|w| w.flips),
+        sum(|w| w.part_changed),
+        sum(|w| w.inputs),
+        sum(|w| w.changed),
+        sum(|w| w.library_checked),
+    );
+    let mut found: Vec<Found> = parts.into_iter().flat_map(|w| w.found).collect();
+    found.sort_by_key(|f| (f.index, f.x.to_bits()));
+    for fd in found.iter().take(keep) {
+        println!(
+            "found {f} {name} v={:#018x} x={:#018x} out={:#018x} fused={:#018x}",
+            fd.index,
+            fd.x.to_bits(),
+            fd.out.to_bits(),
+            fd.fused.to_bits()
+        );
+    }
+    println!("enumerate {f} {name} v=[{lo:#018x},{hi:#018x}) walked={walked} visited={visited} step_differs={flips} part_differs={part} inputs={inputs} output_changed={changed} library_checked={checked}");
+    if walked == 0 || checked == 0 {
+        eprintln!("nothing compared for {name}");
+        return 1;
+    }
+    0
+}
+
 /// The leading-term steps of `tests/contraction_goldens.rs` with the function each is pinned
 /// through, found by an earlier search and not modelled here: a pin naming one of these pairs is
 /// skipped and counted, any other pair this tool does not model (a typo in the step or the
@@ -677,6 +998,16 @@ fn main() {
                     .expect("--log2-n N")
             }
             "--keep" => keep = args.next().and_then(|s| s.parse().ok()).expect("--keep K"),
+            "--enumerate" => {
+                let name = args.next().expect("--enumerate STEP LO HI");
+                let mut hex = || {
+                    let t = args.next().expect("--enumerate STEP LO HI");
+                    u64::from_str_radix(t.trim_start_matches("0x").replace('_', "").as_str(), 16)
+                        .expect("LO and HI are hex bits")
+                };
+                let (lo, hi) = (hex(), hex());
+                std::process::exit(enumerate(&name, lo, hi, keep))
+            }
             "--check-pins" => {
                 std::process::exit(check_pins(&args.next().expect("--check-pins FILE")))
             }
@@ -814,5 +1145,54 @@ mod tests {
         );
         assert!(!r.passes());
         assert!(!check_pins_text("").passes());
+    }
+
+    #[test]
+    fn first_in_window_is_the_least_solution() {
+        let mut z = 0x9e37_79b9_u64;
+        for _ in 0..20_000 {
+            z = splitmix64(z);
+            let m = 2 + u128::from(z % 300);
+            let a = u128::from(splitmix64(z ^ 1)) % m;
+            let l = u128::from(splitmix64(z ^ 2)) % m;
+            let r = l + u128::from(splitmix64(z ^ 3)) % (m - l);
+            let brute = (0..2 * m).find(|&x| (l..=r).contains(&((a * x) % m)));
+            assert_eq!(first_in_window(a, m, l, r), brute, "a={a} m={m} [{l},{r}]");
+        }
+    }
+
+    // every value whose step rounds differently fused is visited, over a stretch at the top of each
+    // range searched (the walk's exact test then keeps exactly those)
+    #[test]
+    fn the_window_visits_every_value_whose_step_rounds_differently() {
+        for (step, hi) in [
+            (Step::P4, 0x3fbe_bedf_a43f_e5c9_u64),
+            (Step::Lg5, 0x3f4c_6000_0000_0000_u64),
+        ] {
+            let (_, c, k) = step_constants(step).unwrap();
+            let lo = hi - (1 << 20);
+            let flips: Vec<u64> = (lo..hi)
+                .filter(|&b| {
+                    let v = f64::from_bits(b);
+                    v.mul_add(k, c).to_bits() != (c + v * k).to_bits()
+                })
+                .collect();
+            let mut seen = Vec::new();
+            window_values(step, lo, hi, |b| {
+                seen.push(b);
+                true
+            });
+            assert!(!flips.is_empty(), "{step:?}: nothing to compare");
+            assert!(
+                flips.iter().all(|b| seen.binary_search(b).is_ok()),
+                "{step:?}: a value the window skips"
+            );
+            // the window narrows the walk: under a hundredth of the values
+            assert!(
+                seen.len() < (1 << 20) / 100,
+                "{step:?}: {} visited",
+                seen.len()
+            );
+        }
     }
 }
