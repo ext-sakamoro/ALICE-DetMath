@@ -453,17 +453,12 @@ pub fn lerp(a: f32x8, b: f32x8, t: f32x8) -> f32x8 {
     canonical_nan((C_1P0 - t) * a + t * b)
 }
 
-/// [`crate::metric::clamp`] per lane.
-///
-/// A NaN in any argument gives the canonical NaN, as the scalar early return
-/// does (the comparisons alone are false against NaN and would keep a NaN
-/// `x` but ignore a NaN bound).
+/// [`crate::metric::clamp`] per lane: `min(max(x, low), high)` with [`max`] / [`min`], and
+/// the canonical NaN in a lane whose `x` is NaN (a NaN bound is no bound).
 #[inline]
 #[must_use]
 pub fn clamp(x: f32x8, low: f32x8, high: f32x8) -> f32x8 {
-    let y = high.cmp_lt(x).blend(high, x);
-    let y = y.cmp_lt(low).blend(low, y);
-    any_nan3(x, low, high).blend(C_NAN, y)
+    x.is_nan().blend(C_NAN, min(max(x, low), high))
 }
 
 /// Lanes where any of the three arguments is NaN.

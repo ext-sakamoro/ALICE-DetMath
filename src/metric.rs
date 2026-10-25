@@ -362,24 +362,23 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     canonical((1.0 - t) * a + t * b)
 }
 
-/// `x` restricted to `[low, high]`.
+/// `x` restricted to `[low, high]`: `min(max(x, low), high)` with this crate's [`max`] /
+/// [`min`] (ALICE-Law G2), and the canonical NaN for a NaN `x`.
 ///
-/// A NaN in any argument gives the canonical NaN (`f32::clamp` passes a NaN
-/// `x` through with its payload, ignores no bound, and panics on inverted
-/// bounds). With `low > high` the low bound wins, which keeps the function
-/// total.
+/// So an equal pair of zeros follows the G2 order (`clamp(-0, +0, hi)` is `+0`), a NaN bound
+/// is no bound (`clamp(1, NaN, 2)` is `1`), and with `low > high` the high bound wins
+/// (`clamp(5, 3, 1)` is `1`). `f32::clamp` instead passes a NaN `x` through with its payload
+/// and panics on inverted or NaN bounds. [`crate::clamp64`] is the same rule for `f64`.
+///
+/// [`max`]: crate::max
+/// [`min`]: crate::min
 #[inline]
 #[must_use]
 pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
-    if x.is_nan() || low.is_nan() || high.is_nan() {
+    if x.is_nan() {
         return f32::NAN;
     }
-    let y = if x > high { high } else { x };
-    if y < low {
-        low
-    } else {
-        y
-    }
+    crate::min(crate::max(x, low), high)
 }
 
 /// The cubic Hermite blend `3t² − 2t³` with `t = clamp((x − e0)/(e1 − e0), 0, 1)`.

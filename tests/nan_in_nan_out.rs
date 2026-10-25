@@ -6,7 +6,9 @@
 //! dropped in another. `norm_linf([NaN, 1, 1])` returned `1` while
 //! `norm_linf([1, 1, NaN])` returned NaN. The exceptions are the IEEE 754
 //! special cases whose value does not depend on the NaN argument:
-//! `pow(+1, NaN) = 1`, `pow(NaN, ±0) = 1` and `hypot(±inf, NaN) = +inf`.
+//! `pow(+1, NaN) = 1`, `pow(NaN, ±0) = 1` and `hypot(±inf, NaN) = +inf`, and the G2 rule of
+//! `max` / `min` / `clamp`, where a NaN operand or bound yields the other operand (`clamp` is
+//! NaN only for a NaN `x`; its bound values are checked in `tests/clamp_argmax_law.rs`).
 //!
 //! oracle: the rule above, every multi-argument public function, the NaN in
 //! each position and the other arguments over the IEEE special values.
@@ -14,7 +16,7 @@
 mod common;
 
 use alice_det_math::metric::{self, MetricWeights};
-use alice_det_math::{atan2, atan2_64, hypot, max, max64, min, min64, powf, powf64};
+use alice_det_math::{atan2, atan2_64, clamp64, hypot, max, max64, min, min64, powf, powf64};
 use common::specials::{SPECIALS32, SPECIALS64};
 
 const NAN32: u32 = 0x7fc0_0000;
@@ -31,6 +33,8 @@ fn exempt(name: &str, args: &[f64]) -> bool {
         // "must be canonical NaN" check does not apply (that value is
         // checked by tests/golden.rs's mutation tests instead)
         "max" | "min" | "max64" | "min64" => !(args[0].is_nan() && args[1].is_nan()),
+        // a NaN bound is no bound: only a NaN `x` must give the canonical NaN
+        "clamp" | "clamp64" => !args[0].is_nan(),
         _ => false,
     }
 }
@@ -109,6 +113,11 @@ fn a_nan_in_any_position_gives_the_canonical_nan() {
             c.f64("max64", &v, max64(v[0], v[1]));
             c.f64("min64", &v, min64(v[0], v[1]));
         }
+        for pos in 0..3 {
+            let mut v = [p, p, p];
+            v[pos] = f64::NAN;
+            c.f64("clamp64", &v, clamp64(v[0], v[1], v[2]));
+        }
     }
     assert!(c.n > 5000, "compared {}", c.n);
     let mut fns: Vec<&str> = c.bad.iter().map(|b| b.split('[').next().unwrap()).collect();
@@ -173,6 +182,10 @@ mod simd {
                     see(name, f(a[0], a[1]), true);
                 }
                 for (name, f) in three {
+                    // clamp: a NaN bound is no bound, so only a NaN `x` must give NaN
+                    if name == "clamp" && pos != 0 {
+                        continue;
+                    }
                     see(name, f(a[0], a[1], a[2]), false);
                 }
                 see("metric_norm", simd::metric_norm(w, a[0], a[1], a[2]), false);

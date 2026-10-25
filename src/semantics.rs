@@ -24,10 +24,11 @@ use crate::SEMANTICS_ID;
 /// `tests/golden.rs` keeps 0.4.0's pin table and proves that it differs from
 /// this release in exactly the pins of those functions.
 ///
-/// 0.5.0's identifier (`135c407d…ef000`) **is** here: this release only adds
-/// `max` / `min` / `max64` / `min64` (0.5.0 did not have them), and every
-/// function 0.5.0 covered still returns the same bits, so data a 0.5.0
-/// writer stamped is still reproduced exactly.
+/// 0.5.0's identifier (`135c407d…ef000`) and the one of 0.5.1 / 0.5.2 (`85e08846…b315`) are
+/// not here either: this release changes the bits of `clamp` (it now follows ALICE-Law G2,
+/// `min(max(x, lo), hi)`), so data stamped with them was computed with a clamp this release no
+/// longer performs. `tests/golden.rs` keeps both pin tables and proves that exactly `clamp` and
+/// the aggregate `specials` pin differ. The list is empty in this release.
 ///
 /// An entry is added only together with that release's pin table in
 /// `tests/golden.rs`, and the test proves two things about it: the table
@@ -56,10 +57,7 @@ use crate::SEMANTICS_ID;
 /// identifier accepted here repeats this: freeze one more historical sweep.
 ///
 /// Writers always stamp [`SEMANTICS_ID`]. Readers use [`check_semantics`].
-pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[[
-    0x13, 0x5c, 0x40, 0x7d, 0x42, 0x49, 0xc1, 0xc2, 0x00, 0xe4, 0xd1, 0xbe, 0x79, 0xa1, 0x2e, 0x84,
-    0x8c, 0xe5, 0xc3, 0x55, 0xfc, 0x3a, 0x91, 0x8d, 0xa9, 0x65, 0x84, 0x9e, 0x69, 0x7e, 0xf0, 0x00,
-]];
+pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[];
 
 /// What a stored arithmetic identifier says about the data stamped with it.
 ///

@@ -112,7 +112,7 @@
 /// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// 85e0884623b154a3b2b264374907b6cbac09307ca3f9a08339e48c567d3cb315
+/// a2e46794a49b62730d8eb75d10e6dbfdd59d6562a985ae94c716fc637a57e3cf
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
@@ -146,8 +146,8 @@
 /// running the re-pin before the table is updated reproduces the old value and
 /// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
-    0x85, 0xe0, 0x88, 0x46, 0x23, 0xb1, 0x54, 0xa3, 0xb2, 0xb2, 0x64, 0x37, 0x49, 0x07, 0xb6, 0xcb,
-    0xac, 0x09, 0x30, 0x7c, 0xa3, 0xf9, 0xa0, 0x83, 0x39, 0xe4, 0x8c, 0x56, 0x7d, 0x3c, 0xb3, 0x15,
+    0xa2, 0xe4, 0x67, 0x94, 0xa4, 0x9b, 0x62, 0x73, 0x0d, 0x8e, 0xb7, 0x5d, 0x10, 0xe6, 0xdb, 0xfd,
+    0xd5, 0x9d, 0x65, 0x62, 0xa9, 0x85, 0xae, 0x94, 0xc7, 0x16, 0xfc, 0x63, 0x7a, 0x57, 0xe3, 0xcf,
 ];
 
 pub mod semantics;
@@ -179,7 +179,9 @@ pub use double::{
     acos64, asin64, atan2_64, atan64, cos64, exp64, ln64, log10_64, log2_64, powf64, sin64,
     sin_cos64, tan64,
 };
-pub use ops::{max, max64, min, min64, round, round64, sqrt, sqrt64};
+pub use ops::{
+    argmax, argmin, clamp64, max, max64, min, min64, round, round64, sqrt, sqrt64, Select,
+};
 pub use single::{
     acos, asin, atan, atan2, cbrt, cos, exp, hypot, ln, log10, log2, powf, powi, sin, sin_cos, tan,
     tanh,
