@@ -1,0 +1,43 @@
+# ALICE-Law G11: this repository's own rows of conformance/g11.toml (the rows of the checkers the ALICE
+# crates share are generated from ALICE-Law). ALICE-Law's scripts/g11_table_gen.py writes conformance/g11.toml
+# from both (python3 scripts/g11_table_gen.py --repo <this repository> --name ALICE-DetMath --write, run in an
+# ALICE-Law checkout).
+#
+# The golden, exhaustive-sweep and identifier suites are run by scripts/run_tests.sh, which fails a step when
+# a named test binary ran fewer tests than named; its zero test is therefore the compared-nothing test of each
+# leg, and each canary is a test of a binary the leg names.
+
+[[row]]
+gate = "G1"
+checker = ".github/workflows/ci.yml#- name: Test (release, default features)>scripts/run_tests.sh"
+canary = "tests/golden.rs::a_table_that_cannot_be_ordered_or_parsed_is_rejected"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G4"
+checker = ".github/workflows/ci.yml#- name: Test (release, default features)>scripts/run_tests.sh"
+canary = "tests/golden.rs::semantics_id_matches_the_recorded_constant"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G5"
+checker = ".github/workflows/ci.yml#- name: Test (release, default features)>scripts/run_tests.sh"
+canary = "tests/golden.rs::semantics_id_matches_the_recorded_constant"
+zero = "scripts/test_run_tests.py::RunTests.test_a_minimum_missed_because_a_test_is_ignored_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G6"
+checker = ".github/workflows/ci.yml#- name: Test (release, default features)>scripts/run_tests.sh"
+canary = "tests/golden.rs::the_0_4_0_identifier_is_rejected_because_exactly_these_functions_changed"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G10"
+checker = ".github/workflows/ci.yml#run: python scripts/entropy_guard.py"
+canary = "scripts/test_entropy_guard.py::EntropyGuard.test_every_source_in_production_code_is_reported"
+zero = "scripts/test_entropy_guard.py::EntropyGuard.test_no_source_file_compares_nothing"
+shared = "n/a: the entropy guard's ALLOWED table is this crate's own, so the guard is not a shared copy"

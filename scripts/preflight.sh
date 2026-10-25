@@ -168,6 +168,7 @@ python3 scripts/test_changed_paths.py
 python3 scripts/test_exhaustive_count.py
 python3 scripts/test_shared_files.py
 scripts/shared_files.sh
+scripts/g11_table.sh
 python3 scripts/changed_paths.py sync
 
 step "ci.yml / actionlint: actionlint"
