@@ -21,7 +21,7 @@
 //! cargo run --release --manifest-path tools/contraction-search/Cargo.toml -- --log2-n 37 P3 AT8 LG4
 //! ```
 //!
-//! (the last takes about 20 minutes on 10 cores; it finds 1 / 2 / 1 inputs). The `P4` pin is
+//! (the last takes about 20 minutes on 10 cores; it finds 1 / 2 / 1 inputs). The `P4` pin
 //! and the `LG5` pin are out of reach of drawing (about one input in 2^42 near the top of the
 //! step's variable): `--enumerate STEP LO HI` walks every value of the variable in a range and
 //! visits only those whose step can round differently (the step's condition solved, not
