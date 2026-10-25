@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 試験: `scripts/test_libm_dependency_guard.py` (ALICE の crate で共有) が fixture の一時 dir を消さず、走らせるたびに 62 件残していた fixture は module の試験の後に消し、試験は自分の一時 dir の中で走って (実行する command の `$TMPDIR` も同じ) 何かが残ると名前を挙げて失敗する
 - **Breaking:** `metric::clamp` と `simd::clamp` が ALICE-Law G2 の規則に従う: この crate の `max` / `min` による `min(max(x, lo), hi)` で、NaN の `x` は既定の NaN 等しい 0 の組は G2 の順 (`clamp(-0, +0, 1)` は `+0`)、NaN の境界は境界にならない (`clamp(1, NaN, 2)` は `1`、これまでは NaN)、逆転した境界では上限が勝つ (`clamp(5, 3, 1)` は `1`、これまでは `3`) 試験 `tests/clamp_argmax_law.rs` (規則から書いた bit の表、scalar / f64 / f32x8)、`tests/nan_in_nan_out.rs` は NaN の `x` だけを NaN の位置として見る `SEMANTICS_ID` が `85e0884623b154a3b2b264374907b6cbac09307ca3f9a08339e48c567d3cb315` から `a2e46794a49b62730d8eb75d10e6dbfdd59d6562a985ae94c716fc637a57e3cf` に動く (`clamp` の bit が変わり、下の 7 関数が表に加わった、公開数値関数は 52 から 59、固定値は 56 から 63) `PREVIOUS_SEMANTICS_IDS` は空になる: 0.5.0 (`135c407d…`) と 0.5.1 / 0.5.2 (`85e08846…`) の識別子は `Mismatch` になり、`tests/golden.rs` の `the_0_5_identifiers_are_rejected_because_exactly_clamp_changed` が両方の固定値の表から動いた固定値がちょうど `clamp` と `specials` であることを示す 版は 0.5.2 のまま (crates.io への公開を凍結している間は版を動かさない) 消費者は git の rev を移す時にこの変更を受け取る
 
 - Licence: `Apache-2.0` → `LicenseRef-Proprietary`
