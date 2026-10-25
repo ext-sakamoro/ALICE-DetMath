@@ -21,10 +21,19 @@
 //! cargo run --release --manifest-path tools/contraction-search/Cargo.toml -- --log2-n 37 P3 AT8 LG4
 //! ```
 //!
-//! (the last takes about 20 minutes on 10 cores; it finds 1 / 2 / 1 inputs). CI runs
-//! `--check-pins tests/contraction_goldens.rs`, which re-checks that every pin of a step the
-//! tool models still separates it. Not reached: `exp64` `P4` and `ln64` `LG5` (no input whose
-//! polynomial value changes among 2^34 draws each). Debug and release give the same bits (no
+//! (the last takes about 20 minutes on 10 cores; it finds 1 / 2 / 1 inputs). The `P4` pin is
+//! out of reach of drawing (about one input in 2^42 near the top of `t`): `--enumerate P4`
+//! walks every `t` of a range and visits only those whose step can round differently (the
+//! step's condition solved, not tested); the pin is the only output change of the 54 batches of
+//! 2^36 values below `t = 0x3fbebedfa43fe5c9` (2^41.75 values, about 20 minutes on 10 cores):
+//!
+//! ```text
+//! cargo run --release --manifest-path tools/contraction-search/Cargo.toml -- --enumerate P4 3fbebb7fa43fe5c9 3fbebb8fa43fe5c9
+//! ```
+//!
+//! CI runs `--check-pins tests/contraction_goldens.rs`, which re-checks that every pin of a step
+//! the tool models still separates it. Not reached: `ln64` `LG5` (no input whose polynomial
+//! value changes among 2^34 draws). Debug and release give the same bits (no
 //! contraction is enabled in either profile), and both run in CI on every runner.
 use alice_det_math as dm;
 
@@ -41,6 +50,8 @@ const CASES: &[Case] = &[
     ("exp64", "P2", 0xc0699d09b3ec876b, 0x2d74d6374702d36d),
     ("exp64", "P2", 0x407aed763d649376, 0x66c7cc03d9275006),
     ("exp64", "P3", 0xc043f4ee4ace3a88, 0x3c555c9d437b2669),
+    // exp64 `P4 + t * P5` (tools/contraction-search --enumerate)
+    ("exp64", "P4", 0x3fd62cbe02873b96, 0x3ff6a014e11fc3d9),
     // atan64: `AT[0] + w * (…)` (s1) and `AT[1] + w * (…)` (s2)
     (
         "atan64",
