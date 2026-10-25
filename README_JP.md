@@ -256,16 +256,16 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 [ALICE-Zip](https://github.com/ext-sakamoro/ALICE-Zip) はこの crate に依存して
 いない 生成器は現在 `libm` を使っている
 
-<!-- law-integration:begin law=986f6fb1915b11777677b56397fb49e215f94518 -->
+<!-- law-integration:begin law=0a5de013ca1268eac22fe44908138d09a431fce0 -->
 ## ALICE-Law との統合
 
-ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
+ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `0a5de013ca12` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
 
 | | |
 |---|---|
-| release train | alice-det-math 0.5.0 (published)、Law への依存: あり |
-| 算術 | train の alice-det-math 0.5.0、算術の識別子 `135c407d4249c1c200e4d1be79a12e848ce5c355fc3a918da965849e697ef000` この crate が alice-det-math |
-| end to end 検査 | 対象 (`alice-det-math = "0.5"`)、digest `966a78784bb4e3341ac6627d519db896f398176b71c2402b188294db6c8e3728`、aarch64 と x86_64 で同じ |
+| release train | alice-det-math 0.5.1 (published)、Law への依存: あり |
+| 算術 | train の alice-det-math 0.5.1、算術の識別子 `85e0884623b154a3b2b264374907b6cbac09307ca3f9a08339e48c567d3cb315` この crate が alice-det-math |
+| end to end 検査 | 対象 (`alice-det-math = "0.5"`)、digest `9f7cf676708a272e3817ebbf0727c610f391e1547747af4307ee44d5523267c2`、aarch64 と x86_64 で同じ |
 
 ### 適合 (G1-G14)
 
@@ -281,7 +281,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `986f6fb1915b` と
 | G8 persisted-semantics-id | 対象外 | no durable form is written or read: scripts/api_boundary.py finds no function writing or reading bytes or text and no serde / Read impl (its 1 enumerated item, … |
 | G9 persisted-meaning-change-is-major | 適合 | definition: SEMANTICS_ID moving counts as a persisted-meaning change, recorded as the semver-major equivalent (a 0.x minor), unless both hold -- the old … |
 | G10 no-run-varying-artifacts | 適合 | the published crate's library src/ reads no wall clock, no unseeded RNG and no UUID, and the absence is ratcheted by two layers with the clock-via-elapsed hole … |
-| G11 gate-self-tests | 未達 | clause (c) checked, not yet a pass: the files this crate shares with the other crates are checked against ALICE-Law's table at a pinned revision … |
+| G11 gate-self-tests | 未達 | unmet: clause (c) for one row only. Every copy this crate carries is at the target ALICE-Law 0a5de013's shared-files table records (scripts/shared_files.sh: 0 … |
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
 | G13 no-unspecified-order | 適合 | two layers: clippy resolves paths, so a renamed import, a re-export or a macro expansion inside this crate that reaches std::thread::spawn / scope / Builder or … |
 | G14 float-environment-invariants | 適合 | the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test … |
