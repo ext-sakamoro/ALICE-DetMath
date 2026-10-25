@@ -171,7 +171,11 @@ the output bits of `sin` / `cos` / `sin_cos`, `round` / `round64` / `cbrt`, the
 `metric` functions and `powf` changed, and the 11 `metric` entry points that
 had been outside the table joined it. It moved once more in 0.5.1 for the
 second reason only: `max` / `min` / `max64` / `min64` were added to the table,
-and every function 0.5.0 covered still returns the same bits.
+and every function 0.5.0 covered still returns the same bits. It moves again
+(unreleased) for both reasons: `clamp` now follows the G2 rule, `min(max(x, lo), hi)` with
+this crate's `max` / `min` (an equal pair of zeros in the G2 order, a NaN bound
+is no bound, the high bound wins over an inverted low one), and `clamp64`,
+`argmax` / `argmin` and `Select` joined the table.
 
 ### Reading an identifier back
 
@@ -179,9 +183,10 @@ Data written by an earlier release carries that release's identifier.
 `check_semantics(&id)` returns `Verified` for `SEMANTICS_ID`,
 `VerifiedPrevious(id)` for an entry of `PREVIOUS_SEMANTICS_IDS`, and
 `Mismatch` otherwise. An entry is listed only when this release returns that
-release's bits on every function the release pinned — 0.5.0 is listed, since
-0.5.1 changed no output, while 0.4.0 is not, since 0.5.0 did — and a test
-proves it from that release's pin table.
+release's bits on every function the release pinned, and a test proves it from
+that release's pin table. The list is now empty (unreleased): `clamp` changed, so the
+0.5.0 and 0.5.1 identifiers are not reproduced (a test shows that exactly
+`clamp` and the aggregate `specials` pin moved), and 0.4.0's was not before.
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
 Other ALICE crates make the same comparison for their own identifiers with
 `check_semantics_against(&stored, &current, previous)`, or

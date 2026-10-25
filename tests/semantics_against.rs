@@ -118,10 +118,9 @@ fn on_its_own_identifiers_it_agrees_with_check_semantics() {
             hex(id)
         );
     }
-    assert!(
-        !PREVIOUS_SEMANTICS_IDS.is_empty(),
-        "the previous path was compared"
-    );
+    // this release lists no previous identifier (clamp's bits changed); the previous path is
+    // compared on lists of its own in the tests above (OLD_A / OLD_B)
+    assert!(ids.len() >= 3, "nothing compared");
 }
 
 #[test]

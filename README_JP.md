@@ -152,16 +152,20 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
 `round64` / `cbrt`、`metric` の関数、`powf` の出力ビットが変わり、表の外にあった
 `metric` の 11 の入口が表に加わった 0.5.1 では表に加わる関数が増えたことだけで
 変わった `max` / `min` / `max64` / `min64` が表に加わり、0.5.0 が覆っていた関数は
-すべて同じビットを返す
+すべて同じビットを返す 次の版 (未公開) では 2 つの理由が重なって変わる `clamp` が G2 の規則
+(この crate の `max` / `min` による `min(max(x, lo), hi)`: 等しい 0 の組は G2 の順、NaN
+の境界は境界にならない、逆転した境界では上限が勝つ) に従い、`clamp64`、`argmax` /
+`argmin`、`Select` が表に加わった
 
 ### 識別子を読み戻す
 
 前の版が書いたデータにはその版の識別子が付いている `check_semantics(&id)` は
 `SEMANTICS_ID` なら `Verified`、`PREVIOUS_SEMANTICS_IDS` の要素なら
 `VerifiedPrevious(id)`、それ以外は `Mismatch` を返す 要素になるのは、その版が
-固定した全関数でこの版が同じビットを返す版だけ (0.5.1 は出力を変えていないので
-0.5.0 が入り、0.5.0 は出力を変えたので 0.4.0 は入らない) で、その版の固定値の表から
-test が証明する
+固定した全関数でこの版が同じビットを返す版だけで、その版の固定値の表から test が
+証明する 未公開の変更でこの一覧は空になった `clamp` が変わったので 0.5.0 と 0.5.1 の識別子は再現
+されない (動いた固定値がちょうど `clamp` と集約の `specials` であることを test が示す)
+0.4.0 は以前から入っていない
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->
 ALICE の他の crate は自分の識別子で同じ比較を
 `check_semantics_against(&stored, &current, previous)` か、`Err(SemanticsMismatch)` が
