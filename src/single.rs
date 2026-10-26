@@ -323,14 +323,17 @@ pub fn log10(x: f32) -> f32 {
 
 /// Deterministic `x^y` for real `y`.
 ///
-/// Evaluated as `exp64(y · ln64 x)` in double precision and rounded once to
+/// Evaluated as `exp64(y · ln64 |x|)` in double precision and rounded once to
 /// `f32`, so the argument of the exponential carries ~29 spare bits and the
 /// result is within 1 ulp of the correctly rounded value over the measured
-/// domain. Special cases follow IEEE `pow` for the inputs the engine uses:
-/// `x < 0 → NaN` (non-integer `y` is the common case here, so no
-/// integer-exponent sign rule is attempted), `x == 0 → 0 / 1 / inf` for
-/// `y > 0 / y == 0 / y < 0`, `y == 0 → 1` and `x == 1 → 1` for every `x` /
-/// `y` (NaN included, as IEEE `pow`).
+/// domain. Every special case is IEEE 754 `pow` (C99 Annex F.10.4.4):
+/// `pow(x, ±0) = 1` and `pow(+1, y) = 1` for every `x` / `y` (NaN included),
+/// `pow(-1, ±inf) = 1`; a negative base with an integer `y` takes its
+/// magnitude from `|x|` and is negative when `y` is odd (`pow(-2, 3) = -8`),
+/// with a non-integer finite `y` it is NaN; `±0` and `-inf` keep their sign
+/// for an odd integer `y` (`pow(-0, -3) = -inf`, `pow(-inf, 3) = -inf`) and
+/// give `+0` / `+inf` otherwise. Every `|y| ≥ 2²⁴` (and `±inf`) is an even
+/// integer.
 #[inline]
 #[must_use]
 pub fn powf(x: f32, y: f32) -> f32 {
@@ -340,13 +343,40 @@ pub fn powf(x: f32, y: f32) -> f32 {
     if y == 0.0 || x == 1.0 {
         return 1.0;
     }
-    if x.is_nan() || y.is_nan() || x < 0.0 {
+    if x.is_nan() || y.is_nan() {
         return f32::NAN;
     }
+    let (y_int, y_odd) = int_parity(y);
     if x == 0.0 {
-        return if y > 0.0 { 0.0 } else { f32::INFINITY };
+        let r = if y > 0.0 { 0.0 } else { f32::INFINITY };
+        return if x.is_sign_negative() && y_odd { -r } else { r };
+    }
+    if x < 0.0 {
+        // pow(-1, ±inf) = 1 comes from |x| = 1 below; a finite negative base with a
+        // non-integer y is NaN, while pow(-inf, y) is ±0 / ±inf for every y
+        if !y_int && x.is_finite() {
+            return f32::NAN;
+        }
+        let m = powf(-x, y);
+        return if y_odd { -m } else { m };
     }
     exp64(f64::from(y) * ln64(f64::from(x))) as f32
+}
+
+/// `(y is an integer, y is an odd integer)` for a non-NaN `y`. Every
+/// `|y| ≥ 2²⁴` (and `±inf`) is an even integer; below that `y` converts to
+/// `i32` exactly when it is integral.
+#[inline(always)]
+fn int_parity(y: f32) -> (bool, bool) {
+    if y.abs() >= 16_777_216.0 {
+        return (true, false);
+    }
+    let n = y as i32;
+    if n as f32 == y {
+        (true, n & 1 != 0)
+    } else {
+        (false, false)
+    }
 }
 
 /// Deterministic integer power by repeated squaring (`n` may be negative).

@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `powf`: 負の底を IEEE 754 `pow` (C99 Annex F.10.4.4) の規則にした これまでは負の底をすべて NaN にしていた (偶数の指数でも `powf(-2, 2)` が NaN) 整数の指数は `|x|` の値に奇数なら負の符号を付け (`powf(-2, 3) = -8`)、有限の非整数の指数は NaN、`pow(-1, ±inf) = 1`、`±0` と `-inf` は奇数の整数の指数で符号を保つ (`powf(-0, -3) = -inf`、`powf(-inf, 3) = -inf`) `|y| ≥ 2²⁴` は偶数の整数 正の底の bit は変わらない 試験 `tests/pow_negative_base.rs`: Annex F の特殊値 42 件を bit で、負の底と整数の指数 6264 組を mpmath 400 bit の正しく丸めた値 (`scripts/gen_powf_negbase_reference.py`) と比べて最大 1 ulp (6258 組は一致)、整数の指数の値が正の底の値と bit で一致し符号が偶奇に従うことを約 10 万組で見る
 - `hypot`: 両方の引数が subnormal の時に +0 を返していた (`hypot(2⁻¹⁴⁹, 2⁻¹⁴⁹)` は正しく丸めると `2⁻¹⁴⁹`) 2⁶⁴ の倍率でも 2 乗が underflow するため、この場合だけ `f64` で求める (subnormal の 2 乗は `f64` で厳密、和と `sqrt64` と `f32` への丸めが各 1 回) それ以外の入力の bit は変わらない 試験 `tests/hypot_subnormal.rs`: 整数だけの oracle (正しく丸めた bit は √(a² + b²) に最も近い整数そのもの) で約 420 万組と端の値、符号の組み合わせを比べ、比べた組が 400 万を超えない時は失敗
 
 ## [0.5.1] - 2026-10-15
