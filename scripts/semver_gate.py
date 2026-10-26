@@ -51,6 +51,9 @@ Differences from release_train.py eb0779d (behaviour, not code layout):
     fails until Cargo.toml carries that bump. A pre-release that equals the latest release
     has no defined smallest next release and is refused in this mode too
   - `http_fetch` does not retry an HTTP 4xx answer (a 404 is the answer "no such crate")
+  - every run names the package (`--package <crate>` after the baseline arguments): given only
+    --manifest-path of a workspace root that has other members, cargo-semver-checks 0.50 checks
+    nothing, prints nothing and exits 0, which the gate refused as "did not run"
   - `feature_specs` and `semver_problems` take one more keyword argument, `universe` (the
     list `feature_universe` returns). With no declared consumer set the all-features set
     is that universe; without it they raise ValueError (eb0779d used the [features] keys,
@@ -470,6 +473,9 @@ def semver_problems(repo: Path, manifest_path: str, crate: str, version: str, ma
 def _compare(repo, manifest_path, crate, version, manifest, entry, run, target_dir, universe, baseline, step,
              what) -> tuple[list[str], int, str]:
     problems, compared = [], 0
+    # the package is named: given only --manifest-path of a workspace root with other members,
+    # cargo-semver-checks checks nothing, prints nothing and exits 0
+    baseline = [*baseline, "--package", crate]
     with tempfile.TemporaryDirectory() as tmp:
         for label, _, features, _ in feature_specs(manifest, entry, universe):
             code, out = run(repo, manifest_path, baseline, features, target_dir or Path(tmp))

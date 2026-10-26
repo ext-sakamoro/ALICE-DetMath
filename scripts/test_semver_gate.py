@@ -142,7 +142,7 @@ class Semver(unittest.TestCase):
         entry = {"consumer-features": [["a", "std"]], "consumer-check-features": [["py"]]}
         p, n, note = problems("1.1.0", "1.0.0", run, manifest={"features": {"a": [], "py": []}}, entry=entry)
         self.assertEqual((p, n), ([], 4))
-        base = ("--baseline-version", "1.0.0")
+        base = ("--baseline-version", "1.0.0", "--package", "x")
         self.assertEqual(seen, [(base, None), (base, ()), (base, ("a", "std")), (base, ("py",))])
         self.assertEqual(sg.semver_feature_args(None), ["--default-features"])
         self.assertEqual(sg.semver_feature_args([]), ["--only-explicit-features"])
@@ -192,7 +192,7 @@ class EqualVersion(unittest.TestCase):
         p, n, note = problems("0.5.1", "0.5.1", run, self.MODE)
         self.assertEqual((p, n), ([], 2))
         # the step is passed to the tool, so it cannot infer "no change"
-        self.assertEqual(set(seen), {("--baseline-version", "0.5.1", "--release-type", "minor")})
+        self.assertEqual(set(seen), {("--baseline-version", "0.5.1", "--release-type", "minor", "--package", "x")})
         self.assertIn("version equals the published 0.5.1: checking the next release as the smallest step, "
                       "0.5.2 (minor)", note)
 
@@ -201,7 +201,7 @@ class EqualVersion(unittest.TestCase):
             seen = []
 
             def run(repo, manifest_path, baseline, features, target_dir, step=step):
-                seen.append(baseline[-1])
+                seen.append(baseline[baseline.index("--release-type") + 1])
                 return 0, semver_output(step, 9, 0, assume=True)
             p, n, _ = problems(version, version, run, self.MODE)
             self.assertEqual((p, n, set(seen)), ([], 2, {step}), version)
@@ -236,7 +236,7 @@ class EqualVersion(unittest.TestCase):
             return 0, semver_output("minor", 50, 0, from_v="0.5.1", to_v="0.5.2")
         p, n, note = problems("0.5.2", "0.5.1", run, self.MODE)
         self.assertEqual((p, n), ([], 2))
-        self.assertEqual(set(seen), {("--baseline-version", "0.5.1")})
+        self.assertEqual(set(seen), {("--baseline-version", "0.5.1", "--package", "x")})
         self.assertNotIn("equals", note)
         self.assertIn("0.5.1 -> 0.5.2 (minor)", note)
 
@@ -312,7 +312,7 @@ class BumpBaseline(unittest.TestCase):
         p, n, note = self.check("0.5.1", lambda *a: (0, semver_output("minor", 9, 0)), latest_v="0.4.0", baseline="auto")
         self.assertEqual(p, [])
         self.assertTrue(n > 0)
-        self.assertTrue(self.args and all(a == ["--baseline-rev", base, "--release-type", "minor"] for a in self.args),
+        self.assertTrue(self.args and all(a == ["--baseline-rev", base, "--release-type", "minor", "--package", "x"] for a in self.args),
                         self.args)
         self.assertIn("0.5.0 -> 0.5.1 (minor)", note)
 
@@ -334,7 +334,7 @@ class BumpBaseline(unittest.TestCase):
         self.at("1.1.0")
         p, n, note = self.check("1.1.0", lambda *a: (0, semver_output("minor", 9, 0)))
         self.assertEqual((p, n), ([], len(sg.feature_specs({}, None, []))))
-        self.assertTrue(self.args and all(a == ["--baseline-rev", before, "--release-type", "minor"] for a in self.args),
+        self.assertTrue(self.args and all(a == ["--baseline-rev", before, "--release-type", "minor", "--package", "x"] for a in self.args),
                         self.args)
         self.assertIn(f"bump base {before[:12]} (1.0.0)", note)
         self.assertIn("1.0.0 -> 1.1.0 (minor)", note)
@@ -793,6 +793,46 @@ class ImplicitFeatureEndToEnd(unittest.TestCase):
             self.assertIn("function_missing", p[0])
             # the [features] keys (none here) would compare no all-features set and pass
             self.assertEqual(gate([])[:2], ([], 2))
+
+
+class WorkspaceRootEndToEnd(unittest.TestCase):
+    """the real tool on a workspace whose root package has another member: given only --manifest-path,
+    cargo-semver-checks 0.50 checks nothing, prints nothing and exits 0; the gate names the package"""
+
+    def workspace(self, root: Path, src: str, version: str) -> Path:
+        d = root / "probe"
+        (d / "src").mkdir(parents=True)
+        (d / "sub" / "src").mkdir(parents=True)
+        (d / "Cargo.toml").write_text(f'[package]\nname = "probe"\nversion = "{version}"\nedition = "2021"\n'
+                                      'publish = false\n\n[workspace]\nmembers = [".", "sub"]\n', encoding="utf-8")
+        (d / "sub" / "Cargo.toml").write_text('[package]\nname = "sub"\nversion = "0.1.0"\nedition = "2021"\n'
+                                              'publish = false\n', encoding="utf-8")
+        (d / "sub" / "src" / "lib.rs").write_text("", encoding="utf-8")
+        (d / "src" / "lib.rs").write_text(src, encoding="utf-8")
+        return d
+
+    def gate(self, new_src: str) -> tuple[list[str], int]:
+        if shutil.which("cargo-semver-checks") is None:
+            self.fail("cargo-semver-checks is not installed (CI installs it; locally: cargo install cargo-semver-checks)")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            base = self.workspace(root / "b", "pub fn kept() -> u32 {\n    1\n}\n", "1.0.0")
+            new = self.workspace(root / "n", new_src, "1.1.0")
+            p, n, _ = sg.semver_problems(
+                new, "Cargo.toml", "probe", "1.1.0", {}, None, latest_fixture("probe", "1.0.0"),
+                run=lambda repo, mp, baseline, features, td: sg.run_semver_checks(
+                    repo, mp, ["--baseline-root", str(base), *baseline[2:]], features, td),
+                target_dir=root / "target", universe=[])
+            return p, n
+
+    def test_an_unchanged_workspace_root_is_compared(self):
+        p, n = self.gate("pub fn kept() -> u32 {\n    1\n}\n")
+        self.assertEqual((p, n), ([], 2))  # default features and none
+
+    def test_a_removed_item_of_a_workspace_root_is_refused(self):
+        p, n = self.gate("")
+        self.assertEqual(len(p), 2, p)
+        self.assertTrue(all("function_missing" in x for x in p), p)
 
 
 if __name__ == "__main__":
