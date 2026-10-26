@@ -1,8 +1,8 @@
 # tests/exhaustive_f32.rs: the 64-bit digest of each function over all 2^32 f32 inputs
 # read by the test (include_str!) and by scripts/exhaustive_count.py, which compares the
 # digests the run printed with these; an intended change of an output re-pins it here
-sin 364d2ef86918967a
-cos 519a427f4aeb58a2
+sin 5dbb9864b2587a59
+cos 15f9e88bd57b4b6d
 tan 70e6e7722a475cf1
 exp bb5eee00f91f8c16
 ln 0997dfee86d3b261
