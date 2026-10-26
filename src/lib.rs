@@ -65,7 +65,7 @@
 //! | [`sin64`] / [`cos64`] / [`sin_cos64`] | every finite `f64` (Cody–Waite below `2^20·π/2`, Payne–Hanek above) | ≤ 1 ulp of correctly rounded, measured max 1 over 6234 points of an independent 2400-bit reference (musl `sin.c` / `cos.c`) |
 //! | [`tan64`] | every finite `f64` (same reduction as [`sin64`]) | ≤ 1 ulp of correctly rounded, measured max 1 over 6310 points of an independent 2400-bit reference (fdlibm `k_tan.c`) |
 //! | [`atan64`] / [`atan2_64`] | every finite `f64`, all quadrants | ≤ 1 ulp of correctly rounded, measured max 1 over 1758 points of an independent 2400-bit reference covering every branch of the reduction (fdlibm `s_atan.c` / `e_atan2.c`) |
-//! | [`erf`] | finite | ≤ 1 ulp, measured max 0 over 7250 points of an independent 2400-bit reference ([`erf64`] rounded once) |
+//! | [`erf()`] | finite | ≤ 1 ulp, measured max 0 over 7250 points of an independent 2400-bit reference ([`erf64`] rounded once) |
 //! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (musl `erf.c` from fdlibm `s_erf.c`, with [`exp64`]) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
@@ -115,7 +115,7 @@
 /// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// a2e46794a49b62730d8eb75d10e6dbfdd59d6562a985ae94c716fc637a57e3cf
+/// a2a11b9b826227fa7a9ed8ab2c1ce63dbb07ad4c39aa2c46a363ddea6b47dbe9
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
@@ -149,8 +149,8 @@
 /// running the re-pin before the table is updated reproduces the old value and
 /// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
-    0xa2, 0xe4, 0x67, 0x94, 0xa4, 0x9b, 0x62, 0x73, 0x0d, 0x8e, 0xb7, 0x5d, 0x10, 0xe6, 0xdb, 0xfd,
-    0xd5, 0x9d, 0x65, 0x62, 0xa9, 0x85, 0xae, 0x94, 0xc7, 0x16, 0xfc, 0x63, 0x7a, 0x57, 0xe3, 0xcf,
+    0xa2, 0xa1, 0x1b, 0x9b, 0x82, 0x62, 0x27, 0xfa, 0x7a, 0x9e, 0xd8, 0xab, 0x2c, 0x1c, 0xe6, 0x3d,
+    0xbb, 0x07, 0xad, 0x4c, 0x39, 0xaa, 0x2c, 0x46, 0xa3, 0x63, 0xdd, 0xea, 0x6b, 0x47, 0xdb, 0xe9,
 ];
 
 pub mod semantics;

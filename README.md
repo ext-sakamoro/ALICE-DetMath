@@ -106,6 +106,24 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   A power of two returns its exponent exactly, down to the last subnormal;
   `log2_64` is ≤ 2 ulp and `log10_64` ≤ 1 ulp, and the `f32` entry points are
   the `f64` kernels rounded once (measured max 0 ulp from correctly rounded)
+- **`sin` / `cos` / `sin_cos` (`f32`) over every finite argument**: below
+  `2^13` the single-precision Cephes reduction (≤ 2 ulp); from `2^13` on the
+  argument is reduced in double precision through `sin64` / `cos64` and
+  rounded once, ≤ 1 ulp up to `f32::MAX`
+<!-- claim-test: large_arguments_within_1_ulp_of_correctly_rounded -->
+  (measured max 0 over 10240 values from `mpmath` at 600 bits)
+- **`powf64`**: `f64` power over every pair of finite arguments — fdlibm
+  `e_pow.c`, which carries `log2 x` and `y·log2 x` in extra precision, so `x`
+  next to 1 with a large `|y|` stays accurate; ≤ 1 ulp of correctly rounded
+<!-- claim-test: powf64_within_1_ulp_of_correctly_rounded_reference -->
+  (measured against 6987 pairs from `mpmath` at 2400 bits). `powf` and
+  `powf64` follow IEEE 754 `pow` for every special case, negative bases
+  included (`pow(-2, 3) = -8`, a non-integer exponent gives NaN)
+- **`erf` / `erf64`**: the error function — musl `erf.c` (from fdlibm
+  `s_erf.c`) with this crate's `exp64`; `erf64` ≤ 1 ulp of correctly rounded
+<!-- claim-test: erf64_within_1_ulp_of_correctly_rounded_reference -->
+  over every branch of the algorithm, `erf` is `erf64` rounded once (≤ 1 ulp,
+  measured max 0)
 - **SIMD** (`simd` feature): `wide::f32x8` versions of `sin` / `cos` /
   `sin_cos` / `exp` / `ln` / `round` / `sqrt`, lane-for-lane bit-identical to
   the scalar functions — same constants, same operation order, no `mul_add`
@@ -231,6 +249,9 @@ uv run --with mpmath python3 scripts/gen_exp64_reference.py
 uv run --with mpmath python3 scripts/gen_log64_reference.py
 uv run --with mpmath python3 scripts/gen_powf64_reference.py
 uv run --with mpmath python3 scripts/gen_atan64_reference.py
+uv run --with mpmath python3 scripts/gen_erf_reference.py
+uv run --with mpmath python3 scripts/gen_powf_negbase_reference.py
+uv run --with mpmath python3 scripts/gen_sin_cos32_large_reference.py
 ```
 
 ## no_std

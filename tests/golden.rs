@@ -358,15 +358,15 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "sin",
-        "84cf4edf30a5b6f644c1dc74dde2640e4467770ed5c35a296353c9e5b1174bf7",
+        "a9feff05303cfc4107ac3c855048efaa636615e23a477f6ea04075ff684f2517",
     ),
     (
         "cos",
-        "8310296979062107b644a1d340ca181facf1be5ea5122af76a74ec26eb33b38c",
+        "376f24f9f5d9ee37dfa51e464bb6ae341cb69978b1a0768bba95f5b16ec96f22",
     ),
     (
         "sin_cos",
-        "19566da559090072ddbde9238a32500d4f254162991648082813f0fe504f739f",
+        "d0bf4c21d5f13283893fb954b45c2f9127d33d7862e844d7a050b03bfecd778c",
     ),
     (
         "exp",
@@ -386,7 +386,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "powf",
-        "aeeb77e2053b833490655db02c832d6305502dfb873b2bbb03b2557f64460e0e",
+        "09275f109b8a4c4c7198e834fdd6f0f2083ab6db85909da5e847e993b5db1bfa",
     ),
     (
         "powi",
@@ -398,7 +398,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "hypot",
-        "0cae2245259eaa5ec7267c3abe0db438088ebf5f53d33e28319bfe2579a3c4cd",
+        "ec4c7823be970a04dd167bea5e3ee390f95fbb87fa223889c5519ea8241acdec",
     ),
     (
         "atan",
@@ -423,6 +423,10 @@ const GOLDEN: &[(&str, &str)] = &[
     (
         "tanh",
         "8ae2d42020033aebfa823eb7ff3996d03ce8c0b4f5fd1f38c58d6197af1a3ff4",
+    ),
+    (
+        "erf",
+        "d7b2c87da116e262612481accc1083b043b398a580aea23bfd020c8b3273d824",
     ),
     (
         "round",
@@ -510,7 +514,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "powf64",
-        "6bd59fa5f716c2adc9d5d9a4bdecf4f600889587ba0b5a927d4826fa1b593969",
+        "49fec7cfa239dadfe4fcd1dcb49fc3f09ca5eaa25c5497b254e17e01feaeea5a",
     ),
     (
         "round64",
@@ -533,6 +537,10 @@ const GOLDEN: &[(&str, &str)] = &[
         "bb8669e863c925b799c8d73eaf50965b2e7c60eab00a9bacbc24644025d7d3d6",
     ),
     (
+        "erf64",
+        "557e03d68112056ca4226847a5542141e35949ef2079282883b80b2697997146",
+    ),
+    (
         "sin64_dense",
         "ce7f4729ce2f51e9c0fccd9657ffee833d04cfdb4497f72b4ab70da89e0dd525",
     ),
@@ -550,7 +558,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "specials",
-        "ea1b9b7f266cd4c3c72a92ef6f1b0c9282479091aa100c43d077b1aabbd314aa",
+        "06190bb8fc647ea81c08031a1ad3cf56e1b6a3baed8914b7535614b6da2b7893",
     ),
 ];
 
@@ -596,6 +604,7 @@ fn scalar_outputs_match_recorded_hashes() {
     check("acos", &hash32(&g, acos), want("acos"));
     check("tan", &hash32(&g, tan), want("tan"));
     check("tanh", &hash32(&g, tanh), want("tanh"));
+    check("erf", &hash32(&g, erf), want("erf"));
     check("round", &hash32(&g, round), want("round"));
     check("sqrt", &hash32(&g, sqrt), want("sqrt"));
     check(
@@ -768,6 +777,7 @@ fn scalar_outputs_match_recorded_hashes() {
     check("log2_64", &hash64(&g, log2_64), want("log2_64"));
     check("log10_64", &hash64(&g, log10_64), want("log10_64"));
     check("tan64", &hash64(&g, tan64), want("tan64"));
+    check("erf64", &hash64(&g, erf64), want("erf64"));
     check(
         "powf64",
         &hash64(&g, |x| powf64(x.abs(), x * 1.0e-2)),
@@ -854,7 +864,7 @@ fn specials_hash(sin: fn(f32) -> f32) -> (String, Vec<&'static str>) {
 fn every_function_at_the_ieee_specials_matches_the_recorded_hash() {
     let (hash, names) = specials_hash(alice_det_math::sin);
     check("specials", &hash, want("specials"));
-    assert_eq!(names.len(), 59, "functions hashed at the specials");
+    assert_eq!(names.len(), 61, "functions hashed at the specials");
 }
 
 /// The specials cover exactly the functions [`GOLDEN`] pins by name, so a
@@ -876,7 +886,7 @@ fn the_specials_cover_every_public_numeric_function() {
         .map(|s| s.pin())
         .collect();
     wanted.sort_unstable();
-    assert_eq!(wanted.len(), 59);
+    assert_eq!(wanted.len(), 61);
     assert_eq!(covered, wanted, "the specials miss or add a function");
 }
 
@@ -971,7 +981,9 @@ fn fold_semantics_id(entries: &[(&str, &str)]) -> Result<[u8; 32], String> {
 const SOURCES: &[(&str, &str)] = &[
     ("", include_str!("../src/lib.rs")),
     ("double", include_str!("../src/double.rs")),
+    ("double::pow", include_str!("../src/double/pow.rs")),
     ("double::trig", include_str!("../src/double/trig.rs")),
+    ("erf", include_str!("../src/erf.rs")),
     ("law_bits", include_str!("../src/law_bits.rs")),
     ("metric", include_str!("../src/metric.rs")),
     ("ops", include_str!("../src/ops.rs")),
@@ -1327,7 +1339,8 @@ fn semantics_id_covers_every_public_numeric_function() {
     let (simd, scalar): (Vec<Surface>, Vec<Surface>) = public_numeric_surface()
         .into_iter()
         .partition(|s| s.module.starts_with("simd"));
-    // 59 = 13 `double` (9 of its own + 4 from its private `trig`)
+    // 61 = 13 `double` (9 of its own + 4 from its private `trig`)
+    //    + 2 `erf` (erf / erf64)
     //    + 15 `ops` (round / round64 / sqrt / sqrt64 / max / min / max64 / min64 / clamp64 /
     //      argmax / argmin, and `Select`'s greatest / least / offer / into_inner)
     //    + 17 `single`
@@ -1336,7 +1349,7 @@ fn semantics_id_covers_every_public_numeric_function() {
     // same commit.
     assert_eq!(
         scalar.len(),
-        59,
+        61,
         "public numeric surface: {:?}",
         ids(&scalar)
     );
@@ -1363,7 +1376,7 @@ fn semantics_id_covers_every_public_numeric_function() {
         );
     }
     let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
-    assert_eq!(pinned.len(), 63, "golden pins: {pinned:?}");
+    assert_eq!(pinned.len(), 65, "golden pins: {pinned:?}");
     let wanted: Vec<String> = scalar.iter().map(Surface::pin).collect();
     for s in &scalar {
         assert!(
@@ -2200,6 +2213,271 @@ const GOLDEN_V0_5_1: &[(&str, &str)] = &[
 /// Pins renamed between 0.5.1 and this release: none.
 const RENAMED_SINCE_V0_5_1: &[(&str, &str)] = &[];
 
+/// The pin table of the unpublished identifier `a2e46794…e3cf` (main up to 39507d1, the
+/// version still 0.5.2 while publication is frozen; consumers took it by git rev). This
+/// release changes the bits of `sin` / `cos` / `sin_cos` (`|x| ≥ 2^13`), `powf` (negative
+/// bases), `powf64` (fdlibm `e_pow.c`) and `hypot` (two subnormals), so that identifier is
+/// not reproduced and is not listed as previous;
+/// [`the_a2e46794_identifier_is_rejected_because_exactly_these_functions_changed`] proves
+/// which pins moved.
+const GOLDEN_A2E46794: &[(&str, &str)] = &[
+    (
+        "smoothstep",
+        "184e9e4776478a4608497033c7e9f39e14b6b629b691a9bb9ac2a4313f2de33e",
+    ),
+    (
+        "metric_norm",
+        "00f35aac72ff55e1069259196427d703926b47f7b4349fb4cc7f3f7b8effdc60",
+    ),
+    (
+        "metric_lipschitz",
+        "ff8c5743709b8a02beb42eb169064e2bd7f290096c9c99ac40551583be3b1f58",
+    ),
+    (
+        "norm_l1",
+        "522716e421c074fd03f831a1fb5b51280da91c573c90530b02c522982c677839",
+    ),
+    (
+        "norm_l2",
+        "69e09bc27dee17bbdc9eeeb4ab0f984f6539e4c487463c725b34b9f48426dbf9",
+    ),
+    (
+        "norm_linf",
+        "d4446c6e32de4948c74bbb5b76daa0e1de4daebe00e44503e720f149b981da18",
+    ),
+    (
+        "lerp",
+        "fe010775a3074825cbf8e3b28cf598d7e7d3a598e7c3da185f7f9525c7b6e6a6",
+    ),
+    (
+        "clamp",
+        "0839f2e8df960550266d37fc3280ce60ba686bd5f97673bc8a44663ad7a96243",
+    ),
+    (
+        "metric_new",
+        "b472f053e4fe43fedcff6e06189ce4ca6cff559cafe0326cdccf449f6596bff5",
+    ),
+    (
+        "metric_weights",
+        "f73d181f731d1d95280a5855ffcc3bd7413ccc974395d6be5add6be82e89337a",
+    ),
+    (
+        "metric_minimum",
+        "92f1a9f945518c7aeeb964edfd07e8920ca3f45a4f2158c6a6fa07a57e6ecf08",
+    ),
+    (
+        "metric_axis_extent",
+        "631977eb6838a15b591abe0c3734da5dc1526735934c3994aeebf6c9b540338a",
+    ),
+    (
+        "metric_euclidean_radius",
+        "99caadab73f41d5a4419a900e5995dfeb5a14d657ac2b747f9aab1b7257b8a41",
+    ),
+    (
+        "metric_normalised",
+        "0584c61ae6d933378863f0b612e59bbbb36db0c0d7fc958a316568f93bc2cb56",
+    ),
+    (
+        "sin",
+        "84cf4edf30a5b6f644c1dc74dde2640e4467770ed5c35a296353c9e5b1174bf7",
+    ),
+    (
+        "cos",
+        "8310296979062107b644a1d340ca181facf1be5ea5122af76a74ec26eb33b38c",
+    ),
+    (
+        "sin_cos",
+        "19566da559090072ddbde9238a32500d4f254162991648082813f0fe504f739f",
+    ),
+    (
+        "exp",
+        "fa74cbe1433a80c6a2c1f02332275bdd624da09f773c69877696d989948010c8",
+    ),
+    (
+        "ln",
+        "f740b2d9021d091ae3f5a18ecf346fbe5205b2d3b0209e96dca70b710da2e924",
+    ),
+    (
+        "log2",
+        "31911ba674cb7bce895b09de45c8d9ea1a84a5c26ba5936ef5a01faa05ac551e",
+    ),
+    (
+        "log10",
+        "2acdd36905c9d2ae3bb1d97db141d37f6c4823f630703fd8efede750a5c1caa1",
+    ),
+    (
+        "powf",
+        "aeeb77e2053b833490655db02c832d6305502dfb873b2bbb03b2557f64460e0e",
+    ),
+    (
+        "powi",
+        "769743b0123bb1c3926c8ec7445002b3de11fb6476f438dc67139313c2064117",
+    ),
+    (
+        "cbrt",
+        "bbdce4d0d01cac1ca2389e7bfdee76fdba318edf3801cdc2a70888611105f3f3",
+    ),
+    (
+        "hypot",
+        "0cae2245259eaa5ec7267c3abe0db438088ebf5f53d33e28319bfe2579a3c4cd",
+    ),
+    (
+        "atan",
+        "3c5b4e38c7b09d816a5815073c8128d698b92173c2c443eef9a12fb06043dc78",
+    ),
+    (
+        "atan2",
+        "6fcbd5192a639e6e9b6b431485a4c3421b009b28f5d667b8a263124bf3ea28a4",
+    ),
+    (
+        "asin",
+        "ca20e5817f24d9970dca42171443c33af93ed8123c2eb9bb3441cd5427fb2fb7",
+    ),
+    (
+        "acos",
+        "b2e19e15112788c5523f4d7e53fcc143b58a1f24be543ffc76219c430fe56a56",
+    ),
+    (
+        "tan",
+        "ba94160fda3f50340c31f1abe034701d4bda9993cf0608635e802db72a9164fb",
+    ),
+    (
+        "tanh",
+        "8ae2d42020033aebfa823eb7ff3996d03ce8c0b4f5fd1f38c58d6197af1a3ff4",
+    ),
+    (
+        "round",
+        "3f4ae38799a1c0e4e19ed084c94b07dd2f65c052c7b4a3572a818ed3656aaf41",
+    ),
+    (
+        "sqrt",
+        "64877c5a8a670097edf21dd0aeca4faf56ad9925952e7c48cb460ea5b7fb829d",
+    ),
+    (
+        "max",
+        "93fd4a229d231ca16606ded184e71469c8dbffb54e62232d6086edf858240c78",
+    ),
+    (
+        "min",
+        "49f0b49b870d11dc1be9d2ffbf1f1f887400e93217943daaa885e145d6c9c571",
+    ),
+    (
+        "max64",
+        "6ae804e54c77d6cc2d690465511daa4bfa73f3345751c521bba499d49925d89c",
+    ),
+    (
+        "min64",
+        "24b06cd31dc3324a15bad0de2605ba8177ef471e30aae60c95104e0a9f009aa4",
+    ),
+    (
+        "clamp64",
+        "2f47d28209a3ba74192164d26004239137b9dde7ba13388f5f67d05950e5af65",
+    ),
+    (
+        "argmax",
+        "3d72c9a3a4e83ab2f894e9383b249befe3ea359e8b79b63d71bbcc4488380c08",
+    ),
+    (
+        "argmin",
+        "b4cd46d934eab486027ba62654ef06b5015344070a2b241c5062d3705ce23edf",
+    ),
+    (
+        "ops_greatest",
+        "195a5bffc7b88b2c1afbdfd618569fe47dc6764a39736a130fba34984fb06585",
+    ),
+    (
+        "ops_least",
+        "fe579644fa6ccdc2bfdc938509075b9ae3b7d5753be3553239fc71f56852d064",
+    ),
+    (
+        "ops_offer",
+        "5fb561d162a8ae64ae64c9dcda9b5e6a6ea6084a5908d15fa2322914d74c6d3d",
+    ),
+    (
+        "ops_into_inner",
+        "cf35da849d1984d2d8beaa944a8ddc21e8c25ea0114bed054e8ad180a2ef7df0",
+    ),
+    (
+        "atan64",
+        "110c479ea68f1a9acd63fef9328f388d5ddf39ac1082274e9a35855dd60784e1",
+    ),
+    (
+        "atan2_64",
+        "f2263508c440333a745930d61fb5b65ab7efa441f7846f7048ca701af46caa26",
+    ),
+    (
+        "asin64",
+        "3f1953ff567f5d6c4e69b61a0b0b31100528d0f837788693a5617bf042dcc32d",
+    ),
+    (
+        "acos64",
+        "fe196c16623f5b61946c47cb78b286ca6ee1ad04233a5e438dd90b7c4e9fa43b",
+    ),
+    (
+        "exp64",
+        "a3782891336fb2cf0385790ea3589fd05fce413c4bbf5252048a6f8b72d54a39",
+    ),
+    (
+        "ln64",
+        "053aec9251fe146bb064b9a66a5f662ca59eb31b8507b9a50f27135f39dfc8c9",
+    ),
+    (
+        "log2_64",
+        "c3586ee8c0d3d001f36b1d57846cc1172d0b42b7629588054c050fc74126fd07",
+    ),
+    (
+        "log10_64",
+        "b3e8502088c819da30e0f12076d08b0fc52ef6f3496970b4600d1ff2f1c97934",
+    ),
+    (
+        "powf64",
+        "6bd59fa5f716c2adc9d5d9a4bdecf4f600889587ba0b5a927d4826fa1b593969",
+    ),
+    (
+        "round64",
+        "b0cfa27c69e463997beae85c03c962fa14995026c465dba50005833862049284",
+    ),
+    (
+        "sqrt64",
+        "45b138399157594f7ce1e36a01940a185ec7f04de57fe041e47ecf99aa40bf00",
+    ),
+    (
+        "sin64",
+        "f67cfac4494c1bc738191d44db12d9a02df667dc86c5bf9471dded124824b367",
+    ),
+    (
+        "cos64",
+        "c8b013bf72744ff237e34a15b5cb05c3b33391970917db0074446fd70b349377",
+    ),
+    (
+        "tan64",
+        "bb8669e863c925b799c8d73eaf50965b2e7c60eab00a9bacbc24644025d7d3d6",
+    ),
+    (
+        "sin64_dense",
+        "ce7f4729ce2f51e9c0fccd9657ffee833d04cfdb4497f72b4ab70da89e0dd525",
+    ),
+    (
+        "cos64_dense",
+        "4de5c741eb8cb0fb9cfea9aeda36ffeebbd0de8b4f1ad3b697f0ed9eb6e60918",
+    ),
+    (
+        "tan64_dense",
+        "cf5945d72c4e963e438588ff84821a51bc2b2d909db13239dea400667f6ea80e",
+    ),
+    (
+        "sin_cos64",
+        "37e1a316a90d2f09b318b52950c4ddaa2103b6410a075b1b43ac70101debc1a8",
+    ),
+    (
+        "specials",
+        "ea1b9b7f266cd4c3c72a92ef6f1b0c9282479091aa100c43d077b1aabbd314aa",
+    ),
+];
+
+/// Pins renamed since `a2e46794…`: none.
+const RENAMED_SINCE_A2E46794: &[(&str, &str)] = &[];
+
 /// One pin table per entry of [`alice_det_math::PREVIOUS_SEMANTICS_IDS`], in
 /// the same order, with the renames that map its names onto [`GOLDEN`].
 /// A pin table: `(name, 64 hex digits)` per function.
@@ -2521,8 +2799,11 @@ fn the_0_4_0_identifier_is_rejected_because_exactly_these_functions_changed() {
             "sin",
             "cos",
             "sin_cos",
+            "powf",
             "cbrt",
+            "hypot",
             "round",
+            "powf64",
             "round64"
         ]
     );
@@ -2564,7 +2845,11 @@ fn the_0_5_identifiers_are_rejected_because_exactly_clamp_changed() {
         assert_eq!(check_semantics(&id), SemanticsCheck::Mismatch);
         let (moved, compared) = moved_pins(table, renames);
         assert_eq!(compared, pins, "pins compared");
-        assert_eq!(moved, ["clamp", "specials"], "{id_hex}");
+        assert_eq!(
+            moved,
+            ["clamp", "sin", "cos", "sin_cos", "powf", "hypot", "powf64", "specials"],
+            "{id_hex}"
+        );
     }
     let stored = GOLDEN_V0_5_0
         .iter()
@@ -2576,6 +2861,34 @@ fn the_0_5_identifiers_are_rejected_because_exactly_clamp_changed() {
         stored,
         "0.5.0's sweep still reproduces its hash"
     );
+}
+
+/// The unpublished identifier `a2e46794…e3cf` (main up to 39507d1, taken by git rev) is not
+/// accepted any more, and the reason is exactly this release's changes, each visible in its
+/// pins: `sin` / `cos` / `sin_cos` (`|x| ≥ 2^13` takes the double-precision kernels), `powf`
+/// (IEEE 754 negative bases), `powf64` (fdlibm `e_pow.c`) and `hypot` (two subnormal
+/// operands); the aggregate `specials` pin moves with them. `erf` / `erf64` are new and are
+/// not in that table. Every other pin is still reproduced. A further change to any function
+/// moves this set and fails here.
+#[test]
+fn the_a2e46794_identifier_is_rejected_because_exactly_these_functions_changed() {
+    use alice_det_math::{check_semantics, SemanticsCheck, PREVIOUS_SEMANTICS_IDS, SEMANTICS_ID};
+    let id = fold_semantics_id(GOLDEN_A2E46794).expect("the a2e46794 table folds");
+    assert_eq!(
+        id,
+        hex32("a2e46794a49b62730d8eb75d10e6dbfdd59d6562a985ae94c716fc637a57e3cf").unwrap(),
+        "the frozen table does not fold to its identifier"
+    );
+    assert_ne!(id, SEMANTICS_ID);
+    assert!(!PREVIOUS_SEMANTICS_IDS.contains(&id));
+    assert_eq!(check_semantics(&id), SemanticsCheck::Mismatch);
+    let (moved, compared) = moved_pins(GOLDEN_A2E46794, RENAMED_SINCE_A2E46794);
+    assert_eq!(compared, 63, "pins compared");
+    assert_eq!(
+        moved,
+        ["sin", "cos", "sin_cos", "powf", "hypot", "powf64", "specials"]
+    );
+    assert!(!GOLDEN_A2E46794.iter().any(|(n, _)| n.starts_with("erf")));
 }
 
 /// The three-way result and the two predicates, including an identifier one

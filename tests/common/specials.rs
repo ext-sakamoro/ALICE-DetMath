@@ -131,6 +131,7 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     f1(s, "acos", acos);
     f1(s, "tan", tan);
     f1(s, "tanh", tanh);
+    f1(s, "erf", erf);
     f1(s, "round", round);
     f1(s, "sqrt", sqrt);
     f2(s, "max", max);
@@ -227,6 +228,7 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     d1(s, "log2_64", log2_64);
     d1(s, "log10_64", log10_64);
     d1(s, "tan64", tan64);
+    d1(s, "erf64", erf64);
     d2(s, "powf64", powf64);
     d1(s, "round64", round64);
     d1(s, "sqrt64", sqrt64);

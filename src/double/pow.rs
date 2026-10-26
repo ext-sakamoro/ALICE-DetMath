@@ -90,7 +90,7 @@ fn underflow(s: f64) -> f64 {
     clippy::cast_sign_loss,
     clippy::cast_possible_wrap
 )]
-pub fn pow(x: f64, y: f64) -> f64 {
+pub(super) fn pow(x: f64, y: f64) -> f64 {
     let (hx, lx) = (high_word(x), low_word(x));
     let (hy, ly) = (high_word(y), low_word(y));
     let mut ix = hx & 0x7fff_ffff;

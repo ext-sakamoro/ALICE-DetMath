@@ -226,9 +226,10 @@ fn atan_asin_acos_powf_f64() {
     p.finish("powf64", DENSE_POWF64);
 }
 
-// recorded digests (DET_MATH_PRINT_DENSE=1), alice-det-math 0.5.1 on aarch64-apple-darwin release
-const DENSE_SIN: &str = "e28bfbdf54590431020fc2d754381083079502e375db3c93546e465b8f8333df";
-const DENSE_COS: &str = "2df14cae436db7efbcb3e7ddb31f4123aac22a2ea71e611715b8697f250600ab";
+// recorded digests (DET_MATH_PRINT_DENSE=1), alice-det-math 0.5.1 on aarch64-apple-darwin release;
+// sin / cos / powf64 re-recorded for SEMANTICS_ID a2a11b9b… (|x| ≥ 2^13 trig, fdlibm e_pow)
+const DENSE_SIN: &str = "ef66e2d64ca63dfe3fc6e1adc6eac680dad1fd03b6daf35b79cfcaaa0e51d975";
+const DENSE_COS: &str = "bff951beff0898837f73730939383966ad1d5dfb2976a46361103e9ba3d86aba";
 const DENSE_TAN: &str = "f9b424606bedc6aca6d8158d8fb5b296ee749e703aaad5c9461c9d433c93d561";
 const DENSE_EXP: &str = "f2f6c46a1e0714e35ad97558e1f384cd4666a201c0ffbc58d3414a2c28f80042";
 const DENSE_LN: &str = "1f5d761ef78bb4010bdb6895a26ebddcc5f3c41e374e77e8556bf3e5e292f6e1";
@@ -253,7 +254,7 @@ const DENSE_ATAN64: &str = "d43f3b8a0f5f463e94aee9e27e5bf0e7a5740d823cb3df82afed
 const DENSE_ASIN64: &str = "44863563774d00797cf3e10884db94c0ffc6a2dd9a174f0dfe5864a08ecee497";
 const DENSE_ACOS64: &str = "0d2936c0d6975d1b52659e1a2dd4ca08ecc8912c0b7a231a23f1e4c452ad9746";
 const DENSE_ATAN2_64: &str = "8b4074e4b57dad5b97ac6e77af303cef3b368e0876423f62ab3af3184b746d91";
-const DENSE_POWF64: &str = "65b08c71ff36c69417e8a2b530eb808c0c061be86c631ea5f60407c9060c0ea6";
+const DENSE_POWF64: &str = "6a347b861d9ceac1fa751e7e2d892762035dccebc959ba34c0b52bb50fa805a7";
 
 #[test]
 #[should_panic(expected = "non-canonical NaN 0xffc00000")]
