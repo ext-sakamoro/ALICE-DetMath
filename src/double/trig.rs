@@ -311,7 +311,7 @@ const PIO2: [f64; 8] = [
 /// `x · 2^n` (musl `scalbn`): exact except where the result is subnormal,
 /// where it is rounded once.
 #[inline]
-fn scalbn(x: f64, mut n: i32) -> f64 {
+pub(super) fn scalbn(x: f64, mut n: i32) -> f64 {
     let mut y = x;
     if n > 1023 {
         y *= f64::from_bits(0x7fe0_0000_0000_0000); // 0x1p1023

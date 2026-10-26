@@ -69,7 +69,7 @@
 //! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (musl `erf.c` from fdlibm `s_erf.c`, with [`exp64`]) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
-//! | [`powf64`] | `x ∈ [1e-3, 1e3]`, `\|y\| ≤ 8` | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) ⚠️ outside this domain the result can be *wrong*, not just less accurate — see [`powf64`] |
+//! | [`powf64`] | every finite pair | ≤ 1 ulp of correctly rounded, measured max 1 over 6987 pairs of an independent 2400-bit reference covering `x` next to 1 with `\|y\|` up to 1e18, negative bases, the overflow edge and subnormal results (fdlibm `e_pow.c`, FreeBSD msun); IEEE 754 `pow` special cases |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
 //!
 //! The reduction subtracts `k·π/2` in four `f32` pieces, the third formed

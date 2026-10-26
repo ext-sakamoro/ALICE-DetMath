@@ -319,7 +319,7 @@ fn powf64_reference() -> Vec<(f64, f64, f64)> {
         .map(|l| hex_row::<3>(l).into())
         .collect();
     assert!(
-        rows.len() > 2000,
+        rows.len() > 6500,
         "powf64 reference has {} rows",
         rows.len()
     );
@@ -978,7 +978,7 @@ fn exp64_ln64_within_2_ulp_of_correctly_rounded_reference() {
 }
 
 #[test]
-fn powf64_within_16_ulp_of_correctly_rounded_reference() {
+fn powf64_within_1_ulp_of_correctly_rounded_reference() {
     let rows = powf64_reference();
     let mut worst = (0u64, 0.0f64, 0.0f64);
     for &(x, y, p) in &rows {
@@ -995,7 +995,7 @@ fn powf64_within_16_ulp_of_correctly_rounded_reference() {
         worst.2
     );
     assert!(
-        worst.0 <= 16,
+        worst.0 <= 1,
         "powf64 {} ulp at x = {:e}, y = {}",
         worst.0,
         worst.1,
@@ -1005,7 +1005,18 @@ fn powf64_within_16_ulp_of_correctly_rounded_reference() {
     assert_eq!(powf64(2.0, 0.0), 1.0);
     assert_eq!(powf64(0.0, 2.0), 0.0);
     assert_eq!(powf64(0.0, -1.0), f64::INFINITY);
-    assert!(powf64(-2.0, 0.5).is_nan());
+    assert_eq!(powf64(-2.0, 0.5).to_bits(), f64::NAN.to_bits());
+    assert_eq!(powf64(-2.0, 3.0), -8.0);
+    assert_eq!(powf64(-2.0, 2.0), 4.0);
+    assert_eq!(powf64(-0.0, -3.0), f64::NEG_INFINITY);
+    assert_eq!(powf64(-0.0, 3.0).to_bits(), (-0.0f64).to_bits());
+    assert_eq!(powf64(f64::NEG_INFINITY, 3.0), f64::NEG_INFINITY);
+    assert_eq!(powf64(f64::NEG_INFINITY, 0.5), f64::INFINITY);
+    assert_eq!(powf64(-1.0, f64::INFINITY), 1.0);
+    // x within one ulp of 1 with a large |y| (the earlier evaluation doubled
+    // the exponent here: 0.79556 instead of 0.89492)
+    let x = f64::from_bits(1.0f64.to_bits() - 1);
+    assert!((powf64(x, 1e15) - 0.894_918_789_8).abs() < 1e-9);
     assert_eq!(powf64(f64::INFINITY, 1.0), f64::INFINITY);
     assert_eq!(powf64(f64::INFINITY, -1.0), 0.0);
 
@@ -1036,7 +1047,9 @@ fn bit_exact_pins() {
     assert_eq!(hypot(1.5f32, 2.5).to_bits(), 0x403a_9728);
     assert_eq!(exp64(1.0f64).to_bits(), 0x4005_bf0a_8b14_576a);
     assert_eq!(ln64(10.0f64).to_bits(), 0x4002_6bb1_bbb5_5516);
-    assert_eq!(powf64(3.0f64, 2.5).to_bits(), 0x402f_2d4a_4563_563d);
+    // 0.6: fdlibm e_pow gives the correctly rounded value (0.24 ulp from the
+    // true 3^2.5); the earlier exp64(y·ln64 x) value 0x402f_2d4a_4563_563d was 2.76 ulp off
+    assert_eq!(powf64(3.0f64, 2.5).to_bits(), 0x402f_2d4a_4563_5640);
 }
 
 /// A NaN input must produce the canonical `f32::NAN` / `f64::NAN` bits, from

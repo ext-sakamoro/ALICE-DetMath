@@ -8,6 +8,7 @@
 
 use crate::ops::{round64, sqrt64};
 
+mod pow;
 mod trig;
 pub use trig::{cos64, sin64, sin_cos64, tan64};
 
@@ -508,73 +509,21 @@ pub fn log10_64(x: f64) -> f64 {
     z + y * LOG10_2HI_64
 }
 
-/// Exact product `a·b = p + e` (Dekker / Veltkamp splitting, no `fma`).
-#[inline(always)]
-fn two_prod(a: f64, b: f64) -> (f64, f64) {
-    const SPLIT: f64 = 134_217_729.0; // 2^27 + 1
-    let p = a * b;
-    let ta = SPLIT * a;
-    let a_hi = ta - (ta - a);
-    let a_lo = a - a_hi;
-    let tb = SPLIT * b;
-    let b_hi = tb - (tb - b);
-    let b_lo = b - b_hi;
-    let e = ((a_hi * b_hi - p) + a_hi * b_lo + a_lo * b_hi) + a_lo * b_lo;
-    (p, e)
-}
-
-/// Deterministic `x^y` in double precision, same special-case rules as
-/// [`crate::powf`].
+/// Deterministic `x^y` in double precision: fdlibm `e_pow.c` (FreeBSD msun),
+/// in the `pow` submodule.
 ///
-/// `y · ln x` is formed as a double-double (`ln64` plus a one-step residual
-/// correction, exact product via Dekker splitting) so the exponential's
-/// argument error is not amplified by `|y · ln x|`; measured ≤ 13 ulp over
-/// the documented domain `x ∈ [1e-3, 1e3]`, `|y| ≤ 8` (the residual is
-/// limited by `exp64`'s own rounding).
-///
-/// # Outside that domain the result can be wrong, not merely less accurate
-///
-/// The residual step is `l_lo = x · exp64(−l_hi) − 1`. When `x` is within one
-/// ulp of 1, `exp64(−l_hi)` rounds to exactly `1`, the expression collapses to
-/// `x − 1`, which is the whole logarithm rather than its residual, and
-/// `y · l_lo` then adds a second copy of `y · ln x`: the effective exponent is
-/// doubled. Inside the documented domain the duplicated term is below half an
-/// ulp of the result, so the bound above holds; with a large `|y|` it is not.
-/// Measured at `x = 1 − 1 ulp`, `y = 1e15`: this returns
-/// `7.9556e-1` where the correctly rounded value is `8.9492e-1`, an error of
-/// 8.9e14 ulp, with `ln(returned) / ln(true) = 2.06`.
-///
-/// Reduce such a case yourself (for `x = 1 + d` with a small `d`, evaluating
-/// `exp64(y · d)` with the `ln(1 + d)` series is accurate) or keep `|y|`
-/// inside the documented bound.
+/// `log2 x` is formed as a two-word value and `y·log2 x` in simulated extra
+/// precision before the exponential, so the result is within 1 ulp of the
+/// correctly rounded value for every pair of finite arguments, including `x`
+/// next to 1 with a large `|y|` (measured against an independent 2400-bit
+/// reference, `tests/data/powf64_reference.txt`). Every special case is
+/// IEEE 754 `pow` (C99 Annex F.10.4.4), the same rules as [`crate::powf`]:
+/// `pow(x, ±0) = 1` and `pow(+1, y) = 1` for every `x` / `y` (NaN included),
+/// a negative base with an integer `y` takes the sign from its parity and with
+/// a non-integer finite `y` is NaN, and `±0` / `-inf` keep their sign for an
+/// odd integer `y`. A NaN result is the canonical NaN.
 #[inline]
 #[must_use]
 pub fn powf64(x: f64, y: f64) -> f64 {
-    // IEEE 754: pow(x, ±0) = 1 and pow(+1, y) = 1 for every x / y, NaN
-    // included (at x = 1 the exact product `y · ln x` would split an
-    // infinite or near-`MAX` y and overflow to a platform-signed NaN)
-    if y == 0.0 || x == 1.0 {
-        return 1.0;
-    }
-    if x.is_nan() || y.is_nan() || x < 0.0 {
-        return f64::NAN;
-    }
-    if x == 0.0 {
-        return if y > 0.0 { 0.0 } else { f64::INFINITY };
-    }
-    if x.is_infinite() {
-        return if y > 0.0 { f64::INFINITY } else { 0.0 };
-    }
-    // ln x = l_hi + l_lo: residual of one exp round trip recovers the low part.
-    let l_hi = ln64(x);
-    let l_lo = x * exp64(-l_hi) - 1.0;
-    let (t_hi, mut t_lo) = two_prod(y, l_hi);
-    t_lo += y * l_lo;
-    if t_hi > 709.782_712_893_384 {
-        return f64::INFINITY;
-    }
-    if t_hi < -745.133_219_101_941_1 {
-        return 0.0;
-    }
-    exp64(t_hi) * (1.0 + t_lo)
+    pow::pow(x, y)
 }
