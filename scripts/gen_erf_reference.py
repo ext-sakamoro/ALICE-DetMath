@@ -8,7 +8,7 @@ rounded to the nearest double (or single), ties to even, by comparing the
 three candidates around it in high precision.
 
 Inputs (all finite, both signs): zero and the smallest magnitudes, the
-`|x| < 2^-28` shortcut, every branch boundary of the fdlibm algorithm
+`|x| < 2^-28` shortcut, every branch boundary of the musl erf.c (fdlibm s_erf.c) algorithm
 (0.84375, 1.25, the 1/0.35 switch, 6) with their neighbours, the saturation region
 (where erf rounds to ±1), small arguments by powers of two, a uniform sweep
 of [-6.5, 6.5] (where erf is not ±1), and the activation range [-8, 8] at a

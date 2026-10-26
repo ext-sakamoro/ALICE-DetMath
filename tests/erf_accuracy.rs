@@ -1,7 +1,7 @@
 //! Accuracy of [`erf`] / [`erf64`] against correctly rounded values from an
 //! independent 2400-bit evaluation (`mpmath`, `scripts/gen_erf_reference.py`),
 //! not from any libm. Each test counts the inputs that reach each branch of the
-//! fdlibm algorithm and fails if one is unmeasured, and fails if the table is
+//! musl `erf.c` algorithm and fails if one is unmeasured, and fails if the table is
 //! shorter than expected (a comparison over no rows passes nothing).
 
 use alice_det_math::{erf, erf64};
@@ -40,7 +40,7 @@ fn data_rows(text: &'static str) -> impl Iterator<Item = &'static str> {
 const ERF64_REFERENCE: &str = include_str!("data/erf64_reference.txt");
 const ERF32_REFERENCE: &str = include_str!("data/erf32_reference.txt");
 
-/// The branch of the fdlibm `s_erf.c` algorithm that `|x|` falls in, so that
+/// The branch of the musl `erf.c` (fdlibm `s_erf.c`) algorithm that `|x|` falls in, so that
 /// every one of them is shown to be measured.
 fn erf_branch(ax: f64) -> usize {
     if ax < 3.725_290_298_461_914e-9 {
@@ -124,4 +124,40 @@ fn erf_within_1_ulp_of_correctly_rounded_reference() {
         "a branch is unmeasured: {per_branch:?}"
     );
     assert!(worst.0 <= 1, "erf {} ulp at {:e}", worst.0, worst.1);
+}
+
+/// oracle: the special values, compared as bits (an ulp distance of 0
+/// cannot tell `-0` from `+0`): signed zeros keep their sign, the infinities
+/// give ±1, and NaN gives the canonical NaN.
+#[test]
+fn erf_special_values_are_bit_exact() {
+    let cases64: [(f64, f64); 5] = [
+        (0.0, 0.0),
+        (-0.0, -0.0),
+        (f64::INFINITY, 1.0),
+        (f64::NEG_INFINITY, -1.0),
+        (f64::NAN, f64::NAN),
+    ];
+    for (x, want) in cases64 {
+        assert_eq!(erf64(x).to_bits(), want.to_bits(), "erf64({x:?})");
+    }
+    let cases32: [(f32, f32); 5] = [
+        (0.0, 0.0),
+        (-0.0, -0.0),
+        (f32::INFINITY, 1.0),
+        (f32::NEG_INFINITY, -1.0),
+        (f32::NAN, f32::NAN),
+    ];
+    for (x, want) in cases32 {
+        assert_eq!(erf(x).to_bits(), want.to_bits(), "erf({x:?})");
+    }
+    // a non-canonical NaN payload still gives the canonical NaN
+    assert_eq!(
+        erf64(f64::from_bits(0xfff8_0000_0000_0001)).to_bits(),
+        f64::NAN.to_bits()
+    );
+    assert_eq!(
+        erf(f32::from_bits(0xffc0_0001)).to_bits(),
+        f32::NAN.to_bits()
+    );
 }

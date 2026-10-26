@@ -66,7 +66,7 @@
 //! | [`tan64`] | every finite `f64` (same reduction as [`sin64`]) | ≤ 1 ulp of correctly rounded, measured max 1 over 6310 points of an independent 2400-bit reference (fdlibm `k_tan.c`) |
 //! | [`atan64`] / [`atan2_64`] | every finite `f64`, all quadrants | ≤ 1 ulp of correctly rounded, measured max 1 over 1758 points of an independent 2400-bit reference covering every branch of the reduction (fdlibm `s_atan.c` / `e_atan2.c`) |
 //! | [`erf`] | finite | ≤ 1 ulp, measured max 0 over 7250 points of an independent 2400-bit reference ([`erf64`] rounded once) |
-//! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (fdlibm `s_erf.c` with [`exp64`]) |
+//! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (musl `erf.c` from fdlibm `s_erf.c`, with [`exp64`]) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
 //! | [`powf64`] | `x ∈ [1e-3, 1e3]`, `\|y\| ≤ 8` | ≤ 16 ulp measured 13 (`exp64(y·ln64 x)` with double-double argument) ⚠️ outside this domain the result can be *wrong*, not just less accurate — see [`powf64`] |

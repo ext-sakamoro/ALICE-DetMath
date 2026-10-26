@@ -1,6 +1,6 @@
 //! The error function, `erf(x) = 2/√π ∫₀ˣ e^{-t²} dt`.
 //!
-//! [`erf64`] is fdlibm `s_erf.c` (rational approximations on four ranges of
+//! [`erf64`] is musl `erf.c` (from fdlibm `s_erf.c`: rational approximations on four ranges of
 //! `|x|`, the tails through `exp(-x² - 0.5625 + R/S)/x`) with the
 //! exponentials taken from [`exp64`], so every operation is an IEEE 754 basic
 //! operation or a function of this crate and the result is the same bits on
@@ -108,7 +108,8 @@ fn erfc_mid(ax: f64) -> f64 {
 }
 
 /// Deterministic error function `erf(x) = 2/√π ∫₀ˣ e^{-t²} dt` in double
-/// precision (fdlibm `s_erf.c`, with [`exp64`] for the exponentials).
+/// precision (musl `erf.c`, from fdlibm `s_erf.c`, with [`exp64`] for the
+/// exponentials).
 ///
 /// `erf64(±inf) = ±1`, `erf64(NaN) = NaN`, `erf64(-0) = -0`; `|x| ≥ 6` returns
 /// `±1` (the true value is within `2^-53` of it from `|x| ≈ 5.92`).
@@ -139,6 +140,10 @@ pub fn erf64(x: f64) -> f64 {
 
 /// Deterministic error function in single precision: [`erf64`] evaluated
 /// in double precision and rounded once (≤ 1 ulp).
+///
+/// The bound holds for every input: [`erf64`] is within 1 ulp of `f64`, which
+/// is at most `2^-29` ulp of `f32` before the cast, and the one rounding to
+/// `f32` adds at most 0.5 ulp, so the result is within `0.5 + 2^-29 < 1` ulp.
 ///
 /// `erf(±inf) = ±1`, `erf(NaN) = NaN`, `erf(-0) = -0`.
 #[inline]
