@@ -26,8 +26,12 @@
 //! `cargo run --release -- --enumerate STEP LO HI` walks every value of the variable of `P4` or
 //! `LG5` with bits in [LO, HI) (hex, one binade), visiting only those its step can round
 //! differently (see "the step's own condition, solved instead of tested" below).
+//! `cargo run --release -- --pow-erf [--log2-n N] [--keep K] [function:STEP ...]` and
+//! `cargo run --release -- --pow-erf-enumerate function:STEP LO HI` are the same two searches for
+//! every polynomial step of `powf64` and `erf64` (`pow_erf.rs`).
 //! `cargo run --release -- --check-pins tests/contraction_goldens.rs` checks that each pin of a
-//! modelled step separates it (the library gives the pinned bits, the fused build does not).
+//! modelled step separates it (the library gives the pinned bits, the fused build does not), and
+//! fails while a step of `powf64` / `erf64` has no pin that separates it.
 
 // the fdlibm constants are copied digit for digit from src/double.rs, which keeps them so
 #![allow(clippy::excessive_precision)]
@@ -38,6 +42,8 @@
 
 use alice_det_math as dm;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+mod pow_erf;
 use std::thread;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -725,8 +731,13 @@ fn int_exp(x: f64) -> (u128, i32) {
 /// The values of the step's variable with bits in `[lo, hi)` (one binade) whose step can round
 /// differently fused (a superset of those where `v.mul_add(k, c) != c + v * k`), in order, until
 /// `each` returns false
-fn window_values(step: Step, lo: u64, hi: u64, mut each: impl FnMut(u64) -> bool) {
+fn window_values(step: Step, lo: u64, hi: u64, each: impl FnMut(u64) -> bool) {
     let (_, c, k) = step_constants(step).expect("a modelled step");
+    window_ck(c, k, lo, hi, each);
+}
+
+/// [`window_values`] for the step `c + v * k` with constants `c` and `k`
+fn window_ck(c: f64, k: f64, lo: u64, hi: u64, mut each: impl FnMut(u64) -> bool) {
     let (v0, ev) = int_exp(f64::from_bits(lo));
     let (kk, ek) = int_exp(k);
     let (_, ec) = int_exp(c);
@@ -936,14 +947,35 @@ fn check_pins_text(text: &str) -> PinReport {
         let Some((step_name, rest)) = rest.split_once("\",") else {
             continue;
         };
-        let mut nums = rest.split(',').take(2).map(|t| {
-            let t = t.trim_end_matches(')').replace('_', "");
-            t.strip_prefix("0x")
-                .and_then(|h| u64::from_str_radix(h, 16).ok())
-        });
-        let (Some(Some(xb)), Some(Some(want))) = (nums.next(), nums.next()) else {
+        let cols = if name == "powf64" { 3 } else { 2 };
+        let nums: Vec<Option<u64>> = rest
+            .split(',')
+            .take(cols)
+            .map(|t| {
+                let t = t.trim_end_matches(')').replace('_', "");
+                t.strip_prefix("0x")
+                    .and_then(|h| u64::from_str_radix(h, 16).ok())
+            })
+            .collect();
+        if nums.len() < cols || nums.iter().any(Option::is_none) {
             continue;
+        }
+        let xb = nums[0].unwrap_or_default();
+        let (yb, want) = if cols == 3 {
+            (nums[1].unwrap_or_default(), nums[2].unwrap_or_default())
+        } else {
+            (0, nums[1].unwrap_or_default())
         };
+        if let Some(s) = pow_erf::step_of(name, step_name) {
+            let (lib, fused, ok) =
+                pow_erf::pin_separates(name, s, f64::from_bits(xb), f64::from_bits(yb), want);
+            r.checked += 1;
+            if !ok {
+                r.bad += 1;
+                println!("pin {name} {step_name} x={xb:#018x} y={yb:#018x}: library {lib:#018x}, fused {fused:#018x}, pinned {want:#018x}");
+            }
+            continue;
+        }
         let Some(&(step, _, f)) = STEPS.iter().find(|(_, n, f)| *n == step_name && *f == name)
         else {
             if LEADING.contains(&(name, step_name)) {
@@ -973,11 +1005,15 @@ fn check_pins_text(text: &str) -> PinReport {
 fn check_pins(path: &str) -> i32 {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
     let r = check_pins_text(&text);
+    let missing = pow_erf::steps_without_pin(&text);
     println!(
-        "check-pins: {} pins checked, {} of leading steps not modelled here, {} of unknown steps, {} not separating",
-        r.checked, r.skipped, r.unknown, r.bad
+        "check-pins: {} pins checked, {} of leading steps not modelled here, {} of unknown steps, {} not separating, {} powf64 / erf64 steps without a pin",
+        r.checked, r.skipped, r.unknown, r.bad, missing.len()
     );
-    if r.passes() {
+    for m in &missing {
+        println!("no pin separates {m}");
+    }
+    if r.passes() && missing.is_empty() {
         0
     } else {
         1
@@ -1007,6 +1043,20 @@ fn main() {
                 };
                 let (lo, hi) = (hex(), hex());
                 std::process::exit(enumerate(&name, lo, hi, keep))
+            }
+            "--pow-erf-enumerate" => {
+                let name = args.next().expect("--pow-erf-enumerate STEP LO HI");
+                let mut hex = || {
+                    let t = args.next().expect("--pow-erf-enumerate STEP LO HI");
+                    u64::from_str_radix(t.trim_start_matches("0x").replace('_', "").as_str(), 16)
+                        .expect("LO and HI are hex bits")
+                };
+                let (lo, hi) = (hex(), hex());
+                std::process::exit(pow_erf_enumerate(&name, lo, hi, keep))
+            }
+            "--pow-erf" => {
+                let rest: Vec<String> = args.collect();
+                std::process::exit(pow_erf_main(&rest))
             }
             "--check-pins" => {
                 std::process::exit(check_pins(&args.next().expect("--check-pins FILE")))
@@ -1063,6 +1113,126 @@ fn main() {
         eprintln!("no step selected");
         std::process::exit(1);
     }
+}
+
+/// `--pow-erf [--log2-n N] [--keep K] [STEP ...]`: the search of `main` for the polynomial steps
+/// of `powf64` and `erf64` (`pow_erf.rs`); a STEP is `function:NAME` (`erf64:PP3`) or NAME.
+fn pow_erf_main(args: &[String]) -> i32 {
+    let mut log2_n = 24u32;
+    let mut keep = 3usize;
+    let mut chosen: Vec<String> = Vec::new();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--log2-n" => log2_n = it.next().and_then(|s| s.parse().ok()).expect("--log2-n N"),
+            "--keep" => keep = it.next().and_then(|s| s.parse().ok()).expect("--keep K"),
+            s => chosen.extend([s.to_string()]),
+        }
+    }
+    let n = 1u64 << log2_n;
+    let threads = thread::available_parallelism().map_or(4, |p| p.get()) as u64;
+    let mut run = 0;
+    for (k, &(step, name, f)) in pow_erf::STEPS.iter().enumerate() {
+        let full = format!("{f}:{name}");
+        if !chosen.is_empty() && !chosen.iter().any(|c| *c == full || *c == name) {
+            continue;
+        }
+        run += 1;
+        let seed = 0x7065_0000 + k as u64;
+        let parts: Vec<pow_erf::Tally> = thread::scope(|s| {
+            let hs: Vec<_> = (0..threads)
+                .map(|j| {
+                    let (lo, hi) = (n * j / threads, n * (j + 1) / threads);
+                    s.spawn(move || pow_erf::search(step, f, seed, lo, hi, keep))
+                })
+                .collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        if parts.iter().any(|t| t.drift) {
+            return 1;
+        }
+        let compared: u64 = parts.iter().map(|t| t.compared).sum();
+        let flips: u64 = parts.iter().map(|t| t.flips).sum();
+        let changed: u64 = parts.iter().map(|t| t.changed).sum();
+        let checked: u64 = parts.iter().map(|t| t.library_checked).sum();
+        let mut found: Vec<pow_erf::Found> = parts.into_iter().flat_map(|t| t.found).collect();
+        found.sort_by_key(|f| f.index);
+        for fd in found.iter().take(keep) {
+            println!(
+                "found {f} {name} index={} x={:#018x} y={:#018x} out={:#018x} fused={:#018x}",
+                fd.index,
+                fd.x.to_bits(),
+                fd.y.to_bits(),
+                fd.out.to_bits(),
+                fd.fused.to_bits()
+            );
+        }
+        println!("summary {f} {name} drawn={compared} step_differs={flips} output_changed={changed} library_checked={checked}");
+        if compared == 0 || checked == 0 {
+            eprintln!("nothing compared for {full}");
+            return 1;
+        }
+    }
+    if run == 0 {
+        eprintln!("no step matched");
+        return 1;
+    }
+    0
+}
+
+/// `--pow-erf-enumerate STEP LO HI`: walk the variable of a `powf64` / `erf64` step over bits
+/// [LO, HI) (hex); STEP is `function:NAME` (see `pow_erf::walk`).
+fn pow_erf_enumerate(name: &str, lo: u64, hi: u64, keep: usize) -> i32 {
+    let Some(&(step, pin, f)) = pow_erf::STEPS
+        .iter()
+        .find(|(s, n, f)| format!("{f}:{n}") == name && pow_erf::WALKED.contains(s))
+    else {
+        eprintln!(
+            "--pow-erf-enumerate models {:?}, not {name}",
+            pow_erf::WALKED
+        );
+        return 1;
+    };
+    if lo >= hi || lo >> 63 != 0 || lo >> 52 != (hi - 1) >> 52 {
+        eprintln!("LO..HI must lie in one binade of positive doubles");
+        return 1;
+    }
+    let threads = thread::available_parallelism().map_or(4, |p| p.get()) as u64;
+    let n = hi - lo;
+    let parts: Vec<pow_erf::Tally> = thread::scope(|s| {
+        let hs: Vec<_> = (0..threads)
+            .map(|j| {
+                let (a, b) = (lo + n * j / threads, lo + n * (j + 1) / threads);
+                s.spawn(move || pow_erf::walk(step, f, a, b, keep))
+            })
+            .collect();
+        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    if parts.iter().any(|t| t.drift) {
+        return 1;
+    }
+    let visited: u64 = parts.iter().map(|t| t.compared).sum();
+    let flips: u64 = parts.iter().map(|t| t.flips).sum();
+    let changed: u64 = parts.iter().map(|t| t.changed).sum();
+    let checked: u64 = parts.iter().map(|t| t.library_checked).sum();
+    let mut found: Vec<pow_erf::Found> = parts.into_iter().flat_map(|t| t.found).collect();
+    found.sort_by_key(|f| f.index);
+    for fd in found.iter().take(keep) {
+        println!(
+            "found {f} {pin} index={} x={:#018x} y={:#018x} out={:#018x} fused={:#018x}",
+            fd.index,
+            fd.x.to_bits(),
+            fd.y.to_bits(),
+            fd.out.to_bits(),
+            fd.fused.to_bits()
+        );
+    }
+    println!("enumerate {f} {pin} v=[{lo:#018x},{hi:#018x}) visited={visited} step_differs={flips} output_changed={changed} library_checked={checked}");
+    if visited == 0 {
+        eprintln!("nothing visited for {name}");
+        return 1;
+    }
+    0
 }
 
 #[cfg(test)]
