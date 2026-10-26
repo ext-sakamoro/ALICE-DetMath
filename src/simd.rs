@@ -78,6 +78,7 @@ const C_SINP2: f32x8 = f32x8::new([SIN_P[2]; 8]);
 const C_TOINT: f32x8 = f32x8::new([TOINT; 8]);
 const C_INFINITY: f32x8 = f32x8::new([f32::INFINITY; 8]);
 const C_MAX: f32x8 = f32x8::new([f32::MAX; 8]);
+const C_TRIG_F64_FROM: f32x8 = f32x8::new([crate::single::TRIG_F64_FROM; 8]);
 const C_MINPOSITIVE: f32x8 = f32x8::new([f32::MIN_POSITIVE; 8]);
 const C_NAN: f32x8 = f32x8::new([f32::NAN; 8]);
 const C_NEGINFINITY: f32x8 = f32x8::new([f32::NEG_INFINITY; 8]);
@@ -221,13 +222,28 @@ fn keep_zero(x: f32x8, v: f32x8) -> f32x8 {
     x.cmp_eq(C_0P0).blend(x, v)
 }
 
+/// The finite lanes at or above `single::TRIG_F64_FROM`, which the scalar
+/// functions reduce in double precision: those lanes are recomputed by the
+/// scalar function so every lane is bit-identical to it.
+#[inline(always)]
+fn f64_trig_lanes(x: f32x8) -> f32x8 {
+    let ax = x.abs();
+    ax.cmp_ge(C_TRIG_F64_FROM) & ax.cmp_le(C_MAX)
+}
+
 /// Deterministic `sin` per lane (`NaN` for non-finite lanes).
 #[inline]
 #[must_use]
 pub fn sin(x: f32x8) -> f32x8 {
     let (q, r) = reduce_pio2(x);
     let (sv, _) = quadrant(q, sin_poly(r), cos_poly(r));
-    keep_zero(x, canon(x, sv))
+    let v = keep_zero(x, canon(x, sv));
+    let big = f64_trig_lanes(x);
+    if big.any() {
+        big.blend(map(x, crate::sin), v)
+    } else {
+        v
+    }
 }
 
 /// Deterministic `cos` per lane (`NaN` for non-finite lanes).
@@ -236,7 +252,13 @@ pub fn sin(x: f32x8) -> f32x8 {
 pub fn cos(x: f32x8) -> f32x8 {
     let (q, r) = reduce_pio2(x);
     let (_, cv) = quadrant(q, sin_poly(r), cos_poly(r));
-    canon(x, cv)
+    let v = canon(x, cv);
+    let big = f64_trig_lanes(x);
+    if big.any() {
+        big.blend(map(x, crate::cos), v)
+    } else {
+        v
+    }
 }
 
 /// Deterministic `(sin, cos)` per lane from one range reduction.
@@ -245,7 +267,16 @@ pub fn cos(x: f32x8) -> f32x8 {
 pub fn sin_cos(x: f32x8) -> (f32x8, f32x8) {
     let (q, r) = reduce_pio2(x);
     let (sv, cv) = quadrant(q, sin_poly(r), cos_poly(r));
-    (keep_zero(x, canon(x, sv)), canon(x, cv))
+    let (s, c) = (keep_zero(x, canon(x, sv)), canon(x, cv));
+    let big = f64_trig_lanes(x);
+    if big.any() {
+        (
+            big.blend(map(x, crate::sin), s),
+            big.blend(map(x, crate::cos), c),
+        )
+    } else {
+        (s, c)
+    }
 }
 
 /// Deterministic `exp` per lane (`+inf` above ≈ 88.72, `0` below ≈ −103.97,

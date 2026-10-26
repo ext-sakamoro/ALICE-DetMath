@@ -2,7 +2,9 @@
 //! `powf` / `powi` / `cbrt` / `hypot`, and the `f32` entry points of the
 //! double-precision fdlibm kernels in [`crate::double`].
 
-use crate::double::{acos64, asin64, exp64, ln64, log10_64, log2_64, reduce_pio2_64};
+use crate::double::{
+    acos64, asin64, cos64, exp64, ln64, log10_64, log2_64, reduce_pio2_64, sin64, sin_cos64,
+};
 use crate::ops::{sqrt, sqrt64};
 
 /// First piece of π/2 (Cephes `DP1`×2).
@@ -117,11 +119,17 @@ pub(crate) fn canon(v: f32) -> f32 {
     }
 }
 
+/// The smallest `|x|` the single-precision reduction does not reduce exactly:
+/// [`reduce_pio2`]'s first two products are exact only for `|k| < 2^13`, so
+/// [`sin`] / [`cos`] / [`sin_cos`] at or above `2^13` take the double-precision
+/// kernels ([`sin64`] / [`cos64`], Payne–Hanek above `2^20·π/2`) instead.
+pub(crate) const TRIG_F64_FROM: f32 = 8192.0;
+
 /// Deterministic `sin(x)`.
 ///
-/// `|x| > 2^24` is beyond the single-precision reduction: the result is
-/// deterministic but meaningless (`±inf` or the canonical NaN), as with
-/// Cephes `sinf` (which returns 0 there) — reduce the argument first.
+/// `|x| < 2^13` is reduced in single precision (Cephes `sinf`, ≤ 2 ulp);
+/// every larger finite `x` is [`sin64`] rounded once to `f32`, which is within
+/// `0.5 + 2^-29 < 1` ulp because [`sin64`] is within 1 ulp of `f64`.
 #[inline]
 #[must_use]
 pub fn sin(x: f32) -> f32 {
@@ -130,6 +138,9 @@ pub fn sin(x: f32) -> f32 {
     }
     if x == 0.0 {
         return x; // ±0 → ±0 (the polynomial's `r + p` would turn −0 into +0)
+    }
+    if x.abs() >= TRIG_F64_FROM {
+        return sin64(f64::from(x)) as f32;
     }
     let (k, r) = reduce_pio2(x);
     canon(match k {
@@ -140,12 +151,15 @@ pub fn sin(x: f32) -> f32 {
     })
 }
 
-/// Deterministic `cos(x)` (see [`sin`] for the `|x| > 2^24` caveat).
+/// Deterministic `cos(x)`, reduced as [`sin`] is ([`cos64`] at `|x| ≥ 2^13`).
 #[inline]
 #[must_use]
 pub fn cos(x: f32) -> f32 {
     if !x.is_finite() {
         return f32::NAN;
+    }
+    if x.abs() >= TRIG_F64_FROM {
+        return cos64(f64::from(x)) as f32;
     }
     let (k, r) = reduce_pio2(x);
     canon(match k {
@@ -166,6 +180,10 @@ pub fn sin_cos(x: f32) -> (f32, f32) {
     }
     if x == 0.0 {
         return (x, 1.0); // as `sin`: ±0 → ±0
+    }
+    if x.abs() >= TRIG_F64_FROM {
+        let (s, c) = sin_cos64(f64::from(x));
+        return (s as f32, c as f32);
     }
     let (k, r) = reduce_pio2(x);
     let s = sin_poly(r);
