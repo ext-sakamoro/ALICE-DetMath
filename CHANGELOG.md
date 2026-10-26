@@ -59,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: clippy の禁止一覧の canary (`scripts/clippy_canary.py`) を追加した 植える呼び出しの表 `scripts/clippy_canary_calls.tsv` は `scripts/gen_clippy_canary_calls.py` が `clippy.toml` から 1 entry 1 行で生成し、CI が再生成して byte で比べる この repo は 6 件 (`disallowed-methods` 5 件と `disallowed-types` 1 件、すべて植える) `scripts/clippy_canary.py` / `scripts/test_clippy_canary.py` / `scripts/gen_clippy_canary_calls.py` / `scripts/test_gen_clippy_canary_calls.py` は ALICE-DB と同じ中身
 - CI: 公開する文面の検査の pin を ALICE-Law 779fa44 (checker sha256 e439fdd7…) に進めた 新しい版で HEAD の全 file に指摘 0 件
 
+### Fixed
+
+- `hypot`: 両方の引数が subnormal の時に +0 を返していた (`hypot(2⁻¹⁴⁹, 2⁻¹⁴⁹)` は正しく丸めると `2⁻¹⁴⁹`) 2⁶⁴ の倍率でも 2 乗が underflow するため、この場合だけ `f64` で求める (subnormal の 2 乗は `f64` で厳密、和と `sqrt64` と `f32` への丸めが各 1 回) それ以外の入力の bit は変わらない 試験 `tests/hypot_subnormal.rs`: 整数だけの oracle (正しく丸めた bit は √(a² + b²) に最も近い整数そのもの) で約 420 万組と端の値、符号の組み合わせを比べ、比べた組が 400 万を超えない時は失敗
+
 ## [0.5.1] - 2026-10-15
 
 ### Added

@@ -3,7 +3,7 @@
 //! double-precision fdlibm kernels in [`crate::double`].
 
 use crate::double::{acos64, asin64, exp64, ln64, log10_64, log2_64, reduce_pio2_64};
-use crate::ops::sqrt;
+use crate::ops::{sqrt, sqrt64};
 
 /// First piece of π/2 (Cephes `DP1`×2).
 ///
@@ -422,6 +422,13 @@ pub fn cbrt(x: f32) -> f32 {
 
 /// Deterministic `sqrt(x² + y²)` with power-of-two scaling so intermediate
 /// squares neither overflow nor flush to zero.
+///
+/// When both operands are subnormal the scaled squares of the `f32` formula
+/// would still underflow, so that case is evaluated in `f64`: each square of a
+/// subnormal is exact there, the sum and [`sqrt64`] round once each, and the
+/// result rounds once to the subnormal grid (`hypot(2⁻¹⁴⁹, 2⁻¹⁴⁹)` is
+/// `2⁻¹⁴⁹`, the correctly rounded `√2·2⁻¹⁴⁹`). Every other input takes the
+/// `f32` formula unchanged.
 #[inline]
 #[must_use]
 pub fn hypot(x: f32, y: f32) -> f32 {
@@ -436,6 +443,10 @@ pub fn hypot(x: f32, y: f32) -> f32 {
     let m = if ax > ay { ax } else { ay };
     if m == 0.0 {
         return 0.0;
+    }
+    if m < f32::MIN_POSITIVE {
+        let (dx, dy) = (f64::from(ax), f64::from(ay));
+        return sqrt64(dx * dx + dy * dy) as f32;
     }
     // Scaling by powers of two is exact, so the result is bit-identical to
     // the unscaled formula whenever that formula does not over/underflow.
