@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `erf64` / `erf` (`src/erf.rs`): 決定論の誤差関数 `erf64` は fdlibm `s_erf.c` (|x| の 4 区間の有理近似、裾は `exp(-x² - 0.5625 + R/S)/x`、`1/0.35` の切り替えは上位語 `0x4006db6d` の値) で、指数は `exp64` を使う `erf` は `erf64` を 1 回丸める 試験 `tests/erf_accuracy.rs`: mpmath 2400 bit の正しく丸めた値 (`scripts/gen_erf_reference.py`、binary64 6492 点 / binary32 7250 点) と比べ、`erf64` は最大 1 ulp、`erf` は最大 0 ulp、分岐ごとに測った点を数え 0 の分岐と短い表は失敗 erf を tanh 近似の形 (GELU の tanh 形) に替える変異は 6004 ulp で失敗する
 - `clamp64` (`f64` の `clamp`、同じ規則)、`argmax` / `argmin` (slice の中で NaN でない要素の G2 の最大 / 最小に等しい最初の要素の位置、NaN は選ばない、`+0` は `-0` より上、等しい値は先のものを残す、空と NaN だけは `None`) と、payload を持つ値の流れに同じ規則で選ぶ `Select<T>` (`greatest` / `least` / `offer` / `into_inner`) 試験 `tests/clamp_argmax_law.rs` (規則から書いた期待値、特殊値の 3 つ組の全 343 通りで slice と流れの形が一致)、7 関数の固定値を `tests/golden.rs` と `specials` に足した
 
 - G4: exp64 の `P4 + t * P5` と ln64 の `LG5 + w * LG7` の段を見分ける入力を `tests/contraction_goldens.rs` に pin した (計 47 件) 抽出では届かない (1 入力あたり約 2^-42) ので、`tools/contraction-search --enumerate STEP LO HI` が段の変数を 1 binade たどり、段の和が丸めの境目から積の 1 ulp 以内にある値だけを訪れる (残差 (K·n + V0·K) mod G を Lefèvre の再帰で解く、総当たりと比べる試験付き) 倍精度の kernel の多項式の段はすべて見分ける入力があるか出力で等価と示されたので、conformance の G4 を fail-known から pass にした
