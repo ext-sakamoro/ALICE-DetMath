@@ -226,6 +226,19 @@ jobs:
           key: id-move-${{ steps.id-base.outputs.crate }}
       - name: Identifier moves (against the published release)
         run: python3 scripts/id_move_check.py
+      # the version names the arithmetic: SEMANTICS_ID must be the identifier
+      # scripts/semantics_versions.toml records for this version (tests/semantics_version.rs, in the test
+      # jobs), and that table is append-only against the base (a row changed or removed fails), so the
+      # identifier cannot move under an unchanged version (0.5.2 carried two across git revisions)
+      - name: Version names its identifier (append-only table, tests)
+        run: python3 scripts/test_semantics_versions_check.py
+      - name: Version names its identifier (append-only table, against the base)
+        shell: bash
+        run: |
+          git fetch --quiet origin main
+          base=$(git merge-base HEAD origin/main)
+          if [ "$base" = "$(git rev-parse HEAD)" ]; then base=$(git rev-parse HEAD~1); fi
+          python3 scripts/semantics_versions_check.py --base "$base"
       # G7 / G8: the public API is enumerated from rustdoc JSON; every item that takes or
       # returns bytes, text or a reader, every non-Rust ABI fn, serde / FromStr / Read impl
       # and outside re-export needs a decision in scripts/api_boundary.toml (shared with the

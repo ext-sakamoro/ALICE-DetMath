@@ -63,6 +63,17 @@ python3 scripts/check_eol.py
 python3 scripts/test_id_move_check.py
 python3 scripts/id_move_check.py
 
+step "ci.yml / clippy: Version names its identifier (append-only table)"
+python3 scripts/test_semantics_versions_check.py
+(
+  set -euo pipefail
+  git fetch --quiet origin main
+  base=$(git merge-base HEAD origin/main)
+  if [ "$base" = "$(git rev-parse HEAD)" ]; then base=$(git rev-parse HEAD~1); fi
+  python3 scripts/semantics_versions_check.py --base "$base"
+)
+cargo test --test semantics_version
+
 step "ci.yml / clippy: clippy (default, all targets)"
 relint
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo clippy --all-targets -- -D warnings )
