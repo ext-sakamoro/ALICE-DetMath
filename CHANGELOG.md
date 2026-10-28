@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI (ALICE-Law G11): shared-files と G11 の表の pin を ALICE-Law ba0cdcda に上げ、README の ALICE-Law の block を再生成した clippy canary の 4 file (`scripts/clippy_canary.py` と生成器と各試験) を表の目標 (ALICE-Analytics の main の bytes) にした
 - 版が識別子を名指す試験: `scripts/semantics_versions.toml` に版ごとの `SEMANTICS_ID` を 1 行ずつ記録し (0.5.0 / 0.5.1 / 0.6.0)、`tests/semantics_version.rs` が crate の `SEMANTICS_ID` を自分の版の行と比べる (識別子を変えて版を変えないと落ちる、版の行が無くても落ちる) `scripts/semantics_versions_check.py` はその表を base と比べて追記だけを許す (行の変更・削除は finding、比べた行が 0 なら失敗) ci.yml の clippy job と preflight で走る
 - G4: `powf64` と `erf64` の多項式の 58 段すべてに、その段を 1 回丸め (`mul_add`) にすると出力が変わる入力を `tests/contraction_goldens.rs` に固定した (`erf64` 49 件、`powf64` 9 件は両方の引数を持つ `CASES_POW`) `tools/contraction-search` に `--pow-erf` (library の source から生成した写しで全段を切り替えて抽出) と `--pow-erf-enumerate` (段の変数を走査し、入力を逆に組み立て、写しの段がその値を読む時だけ採る) を足した 抽出で 54 段、走査で `powf64` の `L4` / `L5` / `P4` と `erf64` の `SB6` `--check-pins` はこの 58 段のどれかに固定値が無いと失敗する
 - `erf64` / `erf` (`src/erf.rs`): 決定論の誤差関数 `erf64` は musl `erf.c` (fdlibm `s_erf.c` 由来、|x| の 4 区間の有理近似、裾は `exp(-x² - 0.5625 + R/S)/x`、`1/0.35` の切り替えは上位語 `0x4006db6d` の値) で、指数は `exp64` を使う `erf` は `erf64` を 1 回丸める 試験 `tests/erf_accuracy.rs`: mpmath 2400 bit の正しく丸めた値 (`scripts/gen_erf_reference.py`、binary64 6492 点 / binary32 7250 点) と比べ、`erf64` は最大 1 ulp、`erf` は最大 0 ulp、分岐ごとに測った点を数え 0 の分岐と短い表は失敗 erf を tanh 近似の形 (GELU の tanh 形) に替える変異は 6004 ulp で失敗する
