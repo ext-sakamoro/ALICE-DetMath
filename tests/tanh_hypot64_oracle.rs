@@ -8,13 +8,15 @@
 
 use alice_det_math::double::{hypot64, tanh64};
 
-/// Regression ceilings on the committed tables, against the true value: the contract is 1 ulp, these are
-/// this implementation's measured maxima (tanh64 0.669, hypot64 0.735) with a small margin. They hold the
-/// compensations in place: without the quotient's remainder or the subtraction's error tanh64 reaches
-/// 0.847, with the Taylor series stopped at ln3/2 0.755; hypot64 without the products' errors 0.868, and a
-/// wrong Dekker split moves both above 0.84, all still inside the 1 ulp contract
-const TANH_TRUE_CEILING: f64 = 0.70;
-const HYPOT_TRUE_CEILING: f64 = 0.75;
+/// Regression ceilings against the true value, for every table (the committed one and any larger sweep
+/// from the same generator): the contract is 1 ulp, these are this implementation's maxima over the
+/// largest sweeps measured (tanh64 0.775 and hypot64 0.750 over 300513 / 262501 rows; an independent
+/// 2.1M-point sweep found 0.759 / 0.625) plus a margin of 0.025 / 0.03. They hold the compensations in
+/// place: without the quotient's remainder or the subtraction's error tanh64 reaches 0.847, with the
+/// series stopped at ln(3)/2 0.829; hypot64 without the products' errors 0.868, and a wrong Dekker split
+/// moves both above 0.84, all still inside the 1 ulp contract
+const TANH_TRUE_CEILING: f64 = 0.80;
+const HYPOT_TRUE_CEILING: f64 = 0.78;
 
 // tanh: (x, correctly rounded tanh(x)), mpmath 1.4.1 at 200 bits
 const TANH_REF: &[(u64, u64)] = &[
@@ -131,14 +133,12 @@ fn tanh64_is_within_1_ulp_of_the_dense_reference() {
         true_worst.0,
         true_worst.1
     );
-    if std::env::var_os("DET_MATH_REF_DIR").is_none() {
-        assert!(
-            true_worst.0 <= TANH_TRUE_CEILING,
-            "tanh64 {:.3} ulp from the true value at {:e}, above the measured ceiling {TANH_TRUE_CEILING}",
-            true_worst.0,
-            true_worst.1
-        );
-    }
+    assert!(
+        true_worst.0 <= TANH_TRUE_CEILING,
+        "tanh64 {:.3} ulp from the true value at {:e}, above the measured ceiling {TANH_TRUE_CEILING}",
+        true_worst.0,
+        true_worst.1
+    );
     println!("tanh64: measured max {} ulp over {} reference rows (at {:e}); rows at 0 / 1 / 2 / 3+ ulp: {hist:?}", worst.0, rows.len(), worst.1);
     assert!(worst.0 <= 1, "tanh64 {} ulp at {:e}", worst.0, worst.1);
 }
@@ -177,15 +177,13 @@ fn hypot64_is_within_1_ulp_of_the_dense_reference() {
         true_worst.1,
         true_worst.2
     );
-    if std::env::var_os("DET_MATH_REF_DIR").is_none() {
-        assert!(
-            true_worst.0 <= HYPOT_TRUE_CEILING,
-            "hypot64 {:.3} ulp from the true value at ({:e}, {:e}), above the measured ceiling {HYPOT_TRUE_CEILING}",
-            true_worst.0,
-            true_worst.1,
-            true_worst.2
-        );
-    }
+    assert!(
+        true_worst.0 <= HYPOT_TRUE_CEILING,
+        "hypot64 {:.3} ulp from the true value at ({:e}, {:e}), above the measured ceiling {HYPOT_TRUE_CEILING}",
+        true_worst.0,
+        true_worst.1,
+        true_worst.2
+    );
     println!("hypot64: measured max {} ulp over {} reference rows (at {:e}, {:e}); rows at 0 / 1 / 2 / 3+ ulp: {hist:?}", worst.0, rows.len(), worst.1, worst.2);
     assert!(
         worst.0 <= 1,

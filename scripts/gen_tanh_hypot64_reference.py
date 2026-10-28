@@ -8,7 +8,8 @@ the three candidate doubles around it in high precision.
 
 Inputs (all finite, seeded, so the output is deterministic):
 - tanh: log-uniform |x| over [2^-60, 22] with a random sign; dense around x = 0.0039 (the region where
-  an earlier small-argument formula reached 3 ulp); both branch thresholds of the implementation
+  an earlier small-argument formula reached 3 ulp); dense over [0.5, 0.72], where the series and the
+  `expm1` formula meet (and around ln(3)/2, where an earlier switch between them was); both branch thresholds of the implementation
   (ln(5/3)/2 and ln(3)/2) and their neighbours; the saturation edge near 19.06 and 22; the worst case
   an independent sweep found for the earlier formula.
 - hypot: log-uniform x over the whole range with y = x * ratio, ratio log-uniform in [2^-60, 1]; both
@@ -72,6 +73,8 @@ def tanh_inputs(rng: random.Random, n: int) -> list[float]:
         xs.append(log_uniform(rng, 2.0**-60, 22.0) * rng.choice((1.0, -1.0)))
     for _ in range(n // 4):
         xs.append(rng.uniform(0.001, 0.01))
+    for _ in range(n // 2):
+        xs.append(rng.uniform(0.5, 0.72))
     for t in (math.log(5 / 3) / 2, math.log(3) / 2, 19.0615474653985, 22.0):
         x = t
         for _ in range(64):
@@ -84,6 +87,8 @@ def tanh_inputs(rng: random.Random, n: int) -> list[float]:
         for _ in range(n // 16):
             xs.append(t * (1.0 + rng.uniform(-1e-3, 1e-3)))
     xs.append(0.0038994723714718257)
+    xs.append(0.8147541756207133)  # the worst case an independent sweep found for this formula
+    xs.append(0.5496040630103467)  # the worst case of the series stopped at ln(3)/2
     return xs
 
 

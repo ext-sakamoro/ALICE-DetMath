@@ -124,7 +124,7 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   above it `1 − 2/(t + 2)` with `t` from fdlibm `expm1`, the quotient's exact
   remainder carried so the result is rounded once, `±1` from 22; odd bit for bit;
 <!-- claim-test: tanh64_is_within_1_ulp_of_the_dense_reference -->
-  ≤ 1 ulp of correctly rounded and of the true value (measured over 6513 rows
+  ≤ 1 ulp of correctly rounded and of the true value (measured over 8515 rows
   from `mpmath` at 400 bits, `scripts/gen_tanh_hypot64_reference.py`)
 - **`hypot64`**: `f64` `sqrt(x² + y²)` without overflow or underflow — both
   arguments scaled by a power of two when the larger passes `2^±500`, `x² + y²`
