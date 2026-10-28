@@ -3,10 +3,18 @@
 //! never the functions' own output; the identities (odd symmetry, Pythagorean triples scaled by
 //! powers of two, inf / NaN rules) are exact by construction.
 //!
-//! Bounds, declared before measuring: `tanh64` within 2 ULP of the correctly rounded value and
-//! `hypot64` within 1 ULP.
+//! Bounds: within 1 ULP of the correctly rounded value for both, checked on the dense references
+//! `tests/data/tanh64_reference.txt` / `hypot64_reference.txt` (`scripts/gen_tanh_hypot64_reference.py`).
 
 use alice_det_math::double::{hypot64, tanh64};
+
+/// Regression ceilings on the committed tables, against the true value: the contract is 1 ulp, these are
+/// this implementation's measured maxima (tanh64 0.669, hypot64 0.735) with a small margin. They hold the
+/// compensations in place: without the quotient's remainder or the subtraction's error tanh64 reaches
+/// 0.847, with the Taylor series stopped at ln3/2 0.755; hypot64 without the products' errors 0.868, and a
+/// wrong Dekker split moves both above 0.84, all still inside the 1 ulp contract
+const TANH_TRUE_CEILING: f64 = 0.70;
+const HYPOT_TRUE_CEILING: f64 = 0.75;
 
 // tanh: (x, correctly rounded tanh(x)), mpmath 1.4.1 at 200 bits
 const TANH_REF: &[(u64, u64)] = &[
@@ -67,6 +75,137 @@ const HYPOT_REF: &[(u64, u64, u64)] = &[
     (0x1fe9be34ac46b18f, 0x1fe9be34ac46b18f, 0x1ff233faab66b109), // (6e-155, 6e-155)
 ];
 
+const TANH64_REFERENCE: &str = include_str!("data/tanh64_reference.txt");
+const HYPOT64_REFERENCE: &str = include_str!("data/hypot64_reference.txt");
+
+/// The reference rows: the committed table, or `DET_MATH_REF_DIR/<name>` when that is set (a larger
+/// sweep generated with the same script, for measuring; not committed)
+fn reference(name: &str, committed: &'static str) -> Vec<Vec<f64>> {
+    let text = std::env::var("DET_MATH_REF_DIR").map_or_else(
+        |_| committed.to_string(),
+        |dir| {
+            std::fs::read_to_string(std::path::Path::new(&dir).join(name))
+                .expect("read the reference")
+        },
+    );
+    text.lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| {
+            l.split_whitespace()
+                .map(|h| f64::from_bits(u64::from_str_radix(h, 16).expect("hex")))
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn tanh64_is_within_1_ulp_of_the_dense_reference() {
+    let rows = reference("tanh64_reference.txt", TANH64_REFERENCE);
+    assert!(
+        rows.len() > 6000,
+        "tanh64 reference has {} rows",
+        rows.len()
+    );
+    let mut worst = (0u64, 0.0f64);
+    let mut hist = [0usize; 4];
+    let mut true_worst = (0.0f64, 0.0f64);
+    for r in &rows {
+        let got = tanh64(r[0]);
+        let d = ulps(got, r[1]);
+        hist[(d as usize).min(3)] += 1;
+        if d > worst.0 {
+            worst = (d, r[0]);
+        }
+        let e = true_ulps(got, r[1], r[2]);
+        if e > true_worst.0 {
+            true_worst = (e, r[0]);
+        }
+    }
+    println!(
+        "tanh64: max error against the true value {:.3} ulp (at {:e})",
+        true_worst.0, true_worst.1
+    );
+    assert!(
+        true_worst.0 <= 1.0,
+        "tanh64 {:.3} ulp from the true value at {:e}",
+        true_worst.0,
+        true_worst.1
+    );
+    if std::env::var_os("DET_MATH_REF_DIR").is_none() {
+        assert!(
+            true_worst.0 <= TANH_TRUE_CEILING,
+            "tanh64 {:.3} ulp from the true value at {:e}, above the measured ceiling {TANH_TRUE_CEILING}",
+            true_worst.0,
+            true_worst.1
+        );
+    }
+    println!("tanh64: measured max {} ulp over {} reference rows (at {:e}); rows at 0 / 1 / 2 / 3+ ulp: {hist:?}", worst.0, rows.len(), worst.1);
+    assert!(worst.0 <= 1, "tanh64 {} ulp at {:e}", worst.0, worst.1);
+}
+
+#[test]
+fn hypot64_is_within_1_ulp_of_the_dense_reference() {
+    let rows = reference("hypot64_reference.txt", HYPOT64_REFERENCE);
+    assert!(
+        rows.len() > 5000,
+        "hypot64 reference has {} rows",
+        rows.len()
+    );
+    let mut worst = (0u64, 0.0f64, 0.0f64);
+    let mut hist = [0usize; 4];
+    let mut true_worst = (0.0f64, 0.0f64, 0.0f64);
+    for r in &rows {
+        let got = hypot64(r[0], r[1]);
+        let d = ulps(got, r[2]);
+        hist[(d as usize).min(3)] += 1;
+        if d > worst.0 {
+            worst = (d, r[0], r[1]);
+        }
+        let e = true_ulps(got, r[2], r[3]);
+        if e > true_worst.0 {
+            true_worst = (e, r[0], r[1]);
+        }
+    }
+    println!(
+        "hypot64: max error against the true value {:.3} ulp (at {:e}, {:e})",
+        true_worst.0, true_worst.1, true_worst.2
+    );
+    assert!(
+        true_worst.0 <= 1.0,
+        "hypot64 {:.3} ulp from the true value at ({:e}, {:e})",
+        true_worst.0,
+        true_worst.1,
+        true_worst.2
+    );
+    if std::env::var_os("DET_MATH_REF_DIR").is_none() {
+        assert!(
+            true_worst.0 <= HYPOT_TRUE_CEILING,
+            "hypot64 {:.3} ulp from the true value at ({:e}, {:e}), above the measured ceiling {HYPOT_TRUE_CEILING}",
+            true_worst.0,
+            true_worst.1,
+            true_worst.2
+        );
+    }
+    println!("hypot64: measured max {} ulp over {} reference rows (at {:e}, {:e}); rows at 0 / 1 / 2 / 3+ ulp: {hist:?}", worst.0, rows.len(), worst.1, worst.2);
+    assert!(
+        worst.0 <= 1,
+        "hypot64 {} ulp at ({:e}, {:e})",
+        worst.0,
+        worst.1,
+        worst.2
+    );
+}
+
+/// The error of `got` against the true value, in units of `got`'s last place, from the reference's
+/// correctly rounded `hi` and `frac = (true − hi) / ulp(hi)`: `(got − hi)/ulp(hi)` is a small exact
+/// integer, so the error in `hi`'s units is exact up to `frac`'s own rounding, at every magnitude
+fn true_ulps(got: f64, hi: f64, frac: f64) -> f64 {
+    let spacing = |v: f64| f64::from_bits(v.abs().to_bits() + 1) - v.abs();
+    let (u_hi, u_got) = (spacing(hi), spacing(got));
+    let steps = (got - hi) / u_hi;
+    ((steps - frac) * (u_hi / u_got)).abs()
+}
+
 /// distance in units in the last place between two finite f64 of the same sign
 fn ulps(a: f64, b: f64) -> u64 {
     assert_eq!(
@@ -78,13 +217,13 @@ fn ulps(a: f64, b: f64) -> u64 {
 }
 
 #[test]
-fn tanh64_is_within_2_ulp_of_the_reference() {
+fn tanh64_is_within_1_ulp_of_the_reference() {
     let mut worst = 0;
     for &(x, want) in TANH_REF {
         let (x, want) = (f64::from_bits(x), f64::from_bits(want));
         let got = tanh64(x);
         assert!(
-            ulps(got, want) <= 2,
+            ulps(got, want) <= 1,
             "tanh64({x:e}) = {got:e}, reference {want:e}, {} ulp",
             ulps(got, want)
         );

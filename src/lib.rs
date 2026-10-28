@@ -69,8 +69,8 @@
 //! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (musl `erf.c` from fdlibm `s_erf.c`, with [`exp64`]) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
-//! | [`tanh64`] | every `f64` | ≤ 2 ulp of correctly rounded, measured max 1 over 33 points of an independent mpmath reference at 200 bits (`exp64` based, `expm1` by Kahan's `(u − 1)·y / ln u` below 0.55, `x` below 2^-27, `±1` from 22) |
-//! | [`hypot64`] | every pair | ≤ 1 ulp of correctly rounded, measured max 1 over 19 pairs of an independent mpmath reference at 200 bits; exact on Pythagorean triples at every power-of-two scale, no overflow or underflow (scaled by `2^∓600`) |
+//! | [`tanh64`] | every `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6513 rows of an independent mpmath reference at 400 bits and 300513 of a larger sweep from the same generator, 0.775 ulp from the true value (0.669 on the committed rows); Taylor series (25 terms) to `|x| = 0.7`, above it `1 − 2/(t + 2)` on fdlibm `expm1`, rounded once |
+//! | [`hypot64`] | every pair | ≤ 1 ulp of correctly rounded, measured max 1 over 5251 rows of an independent mpmath reference at 400 bits and 262501 of a larger sweep, 0.750 ulp from the true value (0.735 on the committed rows); `x² + y²` as an exact double-double, the root corrected once by Newton; exact on Pythagorean triples at every power-of-two scale, no overflow or underflow |
 //! | [`powf64`] | every finite pair | ≤ 1 ulp of correctly rounded, measured max 1 over 6987 pairs of an independent 2400-bit reference covering `x` next to 1 with `\|y\|` up to 1e18, negative bases, the overflow edge and subnormal results (fdlibm `e_pow.c`, FreeBSD msun); IEEE 754 `pow` special cases |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
 //!
@@ -117,7 +117,7 @@
 /// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// dd43c59f7775b230b11b0ddea29a6fbe2ca5f0338fe0deac56724e3fd8d486e8
+/// 6fc214e924c53557f33775df51f1f8dfe2f246d67a9e493d6fb5837d999022f2
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
@@ -151,8 +151,8 @@
 /// running the re-pin before the table is updated reproduces the old value and
 /// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
-    0xdd, 0x43, 0xc5, 0x9f, 0x77, 0x75, 0xb2, 0x30, 0xb1, 0x1b, 0x0d, 0xde, 0xa2, 0x9a, 0x6f, 0xbe,
-    0x2c, 0xa5, 0xf0, 0x33, 0x8f, 0xe0, 0xde, 0xac, 0x56, 0x72, 0x4e, 0x3f, 0xd8, 0xd4, 0x86, 0xe8,
+    0x6f, 0xc2, 0x14, 0xe9, 0x24, 0xc5, 0x35, 0x57, 0xf3, 0x37, 0x75, 0xdf, 0x51, 0xf1, 0xf8, 0xdf,
+    0xe2, 0xf2, 0x46, 0xd6, 0x7a, 0x9e, 0x49, 0x3d, 0x6f, 0xb5, 0x83, 0x7d, 0x99, 0x90, 0x22, 0xf2,
 ];
 
 pub mod semantics;

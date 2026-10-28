@@ -528,16 +528,170 @@ pub fn powf64(x: f64, y: f64) -> f64 {
     pow::pow(x, y)
 }
 
-/// Deterministic `tanh` for `f64`, within 2 ulp of the correctly rounded value (measured against
-/// mpmath references, `tests/tanh_hypot64_oracle.rs`).
+/// Knuth's two-sum: `a + b = s + e` exactly, `s = fl(a + b)`
+#[inline(always)]
+fn two_sum64(a: f64, b: f64) -> (f64, f64) {
+    let s = a + b;
+    let bb = s - a;
+    (s, (a - (s - bb)) + (b - bb))
+}
+
+/// Dekker's exact product `a·b = p + e`, `p = fl(a·b)`, with Veltkamp's split of each factor into two
+/// halves of at most 26 bits (every partial product is exact in `f64`) and no fused multiply-add.
+/// Exact for `|a|, |b| < 2^996` (the split multiplies by `2^27 + 1`).
+#[inline(always)]
+fn two_prod64(a: f64, b: f64) -> (f64, f64) {
+    const SPLIT: f64 = 134_217_729.0; // 2^27 + 1
+    let split = |v: f64| {
+        let c = SPLIT * v;
+        let h = c - (c - v);
+        (h, v - h)
+    };
+    let p = a * b;
+    let (ah, al) = split(a);
+    let (bh, bl) = split(b);
+    (p, (((ah * bh - p) + ah * bl) + al * bh) + al * bl)
+}
+
+/// `e^x − 1` without the cancellation of `exp64(x) − 1` near 0: fdlibm `s_expm1.c` (reduction
+/// `x = k·ln2 + r` with `ln2` in two parts, a rational approximation of `r` on `|r| ≤ ln2/2`, and the
+/// result rebuilt from `2^k` with the correction term), within 1 ulp. Private: it is the kernel of
+/// [`tanh64`] (pinned there), not part of the crate's surface.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn expm1_kernel(x: f64) -> f64 {
+    const O_THRESHOLD: f64 = 7.097_827_128_933_839_730_96e2;
+    const LN2_HI: f64 = 6.931_471_803_691_238_164_90e-1;
+    const LN2_LO: f64 = 1.908_214_929_270_587_700_02e-10;
+    const INVLN2: f64 = 1.442_695_040_888_963_387_00;
+    const Q1: f64 = -3.333_333_333_333_313_164_28e-2;
+    const Q2: f64 = 1.587_301_587_254_814_601_65e-3;
+    const Q3: f64 = -7.936_507_578_674_879_424_73e-5;
+    const Q4: f64 = 4.008_217_827_329_362_395_52e-6;
+    const Q5: f64 = -2.010_992_181_836_243_713_26e-7;
+    let hx_full = (x.to_bits() >> 32) as u32;
+    let neg = hx_full >> 31 != 0;
+    let hx = hx_full & 0x7fff_ffff;
+    if hx >= 0x4043_687a {
+        // |x| >= 56 ln2
+        if x.is_nan() {
+            return f64::NAN;
+        }
+        if hx >= 0x4086_2e42 && !neg && x > O_THRESHOLD {
+            return f64::INFINITY;
+        }
+        if neg {
+            return -1.0;
+        }
+    }
+    let (mut x, k, c) = if hx > 0x3fd6_2e42 {
+        // |x| > ln2 / 2
+        let (hi, lo, k) = if hx < 0x3ff0_a2b2 {
+            if neg {
+                (x + LN2_HI, -LN2_LO, -1)
+            } else {
+                (x - LN2_HI, LN2_LO, 1)
+            }
+        } else {
+            let k = (INVLN2 * x + if neg { -0.5 } else { 0.5 }) as i32;
+            let t = f64::from(k);
+            (x - t * LN2_HI, t * LN2_LO, k)
+        };
+        let r = hi - lo;
+        (r, k, (hi - r) - lo)
+    } else if hx < 0x3c90_0000 {
+        // |x| < 2^-54: the result is x
+        return x;
+    } else {
+        (x, 0, 0.0)
+    };
+    let hfx = 0.5 * x;
+    let hxs = x * hfx;
+    let r1 = 1.0 + hxs * (Q1 + hxs * (Q2 + hxs * (Q3 + hxs * (Q4 + hxs * Q5))));
+    let t = 3.0 - r1 * hfx;
+    let mut e = hxs * ((r1 - t) / (6.0 - x * t));
+    if k == 0 {
+        return x - (x * e - hxs);
+    }
+    e = x * (e - c) - c;
+    e -= hxs;
+    if k == -1 {
+        return 0.5 * (x - e) - 0.5;
+    }
+    if k == 1 {
+        return if x < -0.25 {
+            -2.0 * (e - (x + 0.5))
+        } else {
+            1.0 + 2.0 * (x - e)
+        };
+    }
+    let twopk = |k: i32| f64::from_bits(((0x3ff + k) as u64) << 52);
+    if k <= -2 || k > 56 {
+        let mut y = 1.0 - (e - x);
+        y = if k == 1024 {
+            y * 2.0 * f64::from_bits(0x7fe0_0000_0000_0000)
+        } else {
+            y * twopk(k)
+        };
+        return y - 1.0;
+    }
+    if k < 20 {
+        // 1 - 2^-k
+        let t = f64::from_bits(u64::from(0x3ff0_0000_u32 - (0x0020_0000_u32 >> k)) << 32);
+        (t - (e - x)) * twopk(k)
+    } else {
+        let t = twopk(-k);
+        x -= e + t;
+        (x + 1.0) * twopk(k)
+    }
+}
+
+/// The odd Taylor coefficients of `tanh` from `x³` to `x⁵¹` (mpmath at 200 bits, rounded to the nearest
+/// double): `tanh x = x + x·z·P(z)`, `z = x²`. On `|x| ≤ 0.7` the series after these terms is below
+/// `2^-60` of the result (4.4e-19 at the end of the range), and the correction `x·z·P(z)` is at most a
+/// sixth of the result, so its rounding adds a fraction of an ulp.
+const TANH_TAYLOR: [f64; 25] = [
+    -0.3333333333333333,
+    0.13333333333333333,
+    -0.05396825396825397,
+    0.021869488536155203,
+    -0.008863235529902197,
+    0.003592128036572481,
+    -0.0014558343870513183,
+    0.000590027440945586,
+    -0.00023912911424355248,
+    9.691537956929451e-05,
+    -3.927832388331683e-05,
+    1.5918905069328964e-05,
+    -6.451689215655431e-06,
+    2.6147711512907546e-06,
+    -1.0597268320104654e-06,
+    4.294911078273806e-07,
+    -1.7406618963571648e-07,
+    7.054636946400968e-08,
+    -2.859136662305254e-08,
+    1.1587644432798853e-08,
+    -4.6962953982309016e-09,
+    1.903336833931276e-09,
+    -7.713933635359062e-10,
+    3.126339545892087e-10,
+    -1.26705769303054e-10,
+];
+
+/// Deterministic `tanh` for `f64`, within 1 ulp of the correctly rounded value (measured against a
+/// dense mpmath reference, `tests/data/tanh64_reference.txt`, and a larger sweep from the same
+/// generator).
 ///
-/// Odd bit for bit (the result for `-x` is the negated result for `x`, `-0` included). Below
-/// `2^-27` the result is `x` (the `x³/3` term is under half an ulp); from `22` it is `±1` (`1 −
-/// tanh x` is below `2^-54` from `x ≈ 19.06`, so the formula rounds to 1 there already). Between,
-/// with `y = 2|x|` and `e^y` from [`exp64`]: from `|x| = 0.55` the result is `1 − 2/(e^y + 1)`,
-/// which does not cancel; below, `expm1 y` is formed as `(u − 1)·y / ln u` with `u = e^y`
-/// (Kahan's construction with [`ln64`], so no digits are lost to `u − 1`) and the result is
-/// `expm1 y / (expm1 y + 2)`. A NaN is the canonical NaN.
+/// Up to `|x| = 0.7` the Taylor series `TANH_TAYLOR` (`x + x·z·P(z)`, Horner in `z = x²`): an
+/// `expm1` based formula there carries `expm1`'s error amplified, since `expm1(±2x)` lies a binade or more
+/// above the result (past 0.7 the factor `∂t/∂e = 2/(e + 2)²` is small enough). Above it musl `tanh.c`'s `1 − 2/(t + 2)` with `t = expm1(2|x|)` from `expm1_kernel`
+/// (fdlibm `s_expm1.c`), `t + 2` kept as a two-sum, the quotient's exact remainder (Dekker's product)
+/// and the subtraction's own error added together so the result is rounded once; `±1` from 22 (`1 − tanh x` is below `2^-54`
+/// from `x ≈ 19.06`). Odd bit for bit (`−0` included); subnormal arguments return themselves. A NaN
+/// is the canonical NaN.
 #[inline]
 #[must_use]
 pub fn tanh64(x: f64) -> f64 {
@@ -545,18 +699,26 @@ pub fn tanh64(x: f64) -> f64 {
         return f64::NAN;
     }
     let ax = x.abs();
-    let t = if ax < 7.450_580_596_923_828e-9 {
-        // 2^-27
-        ax
-    } else if ax >= 22.0 {
+    let t = if ax >= 22.0 {
         1.0
-    } else if ax >= 0.55 {
-        1.0 - 2.0 / (exp64(2.0 * ax) + 1.0)
+    } else if ax > 0.7 {
+        // 1 − 2/(e + 2) rounded once: the quotient's correction and the subtraction's own error are
+        // added together at the end
+        let e = expm1_kernel(2.0 * ax);
+        let (dh, dl) = two_sum64(e, 2.0);
+        let q = 2.0 / dh;
+        let (p, pe) = two_prod64(q, dh);
+        let q_lo = (((2.0 - p) - pe) - q * dl) / dh;
+        let (s, s_err) = two_sum64(1.0, -q);
+        s + (s_err - q_lo)
     } else {
-        let y = 2.0 * ax;
-        let u = exp64(y);
-        let em1 = if u == 1.0 { y } else { (u - 1.0) * y / ln64(u) };
-        em1 / (em1 + 2.0)
+        // below `2^-27` (and for subnormals) the correction is under half an ulp and `x` is returned
+        let z = ax * ax;
+        let mut p = TANH_TAYLOR[TANH_TAYLOR.len() - 1];
+        for &c in TANH_TAYLOR[..TANH_TAYLOR.len() - 1].iter().rev() {
+            p = c + z * p;
+        }
+        ax + ax * (z * p)
     };
     if x.is_sign_negative() {
         -t
@@ -576,8 +738,9 @@ const fn pow2(k: i64) -> f64 {
 ///
 /// An infinity wins over a NaN (IEEE 754 `hypot`); otherwise a NaN gives the canonical NaN. When
 /// the larger magnitude is above `2^500` or below `2^-500`, both are scaled by `2^∓600` first;
-/// a power of two scales exactly, so the result equals the unscaled formula wherever that one
-/// does not over- or underflow. The root is [`crate::ops::sqrt64`] (IEEE, correctly rounded).
+/// a power of two scales exactly. `x² + y²` is formed exactly as a double-double (no fused
+/// multiply-add) and the root [`crate::ops::sqrt64`] (IEEE, correctly rounded) is corrected once by
+/// Newton's step on its exact residual.
 #[inline]
 #[must_use]
 pub fn hypot64(x: f64, y: f64) -> f64 {
@@ -601,5 +764,14 @@ pub fn hypot64(x: f64, y: f64) -> f64 {
         (1.0, 1.0)
     };
     let (sx, sy) = (ax * scale, ay * scale);
-    sqrt64(sx * sx + sy * sy) * unscale
+    // x² + y² as a double-double (Dekker's products, Knuth's sum), its root corrected once by Newton's
+    // step on the exact residual `s − r²`, so the result is within an ulp of correctly rounded
+    let (px, ex) = two_prod64(sx, sx);
+    let (py, ey) = two_prod64(sy, sy);
+    let (sh, se) = two_sum64(px, py);
+    let sl = se + (ex + ey);
+    let r = sqrt64(sh);
+    let (rr, re) = two_prod64(r, r);
+    let d = ((sh - rr) - re) + sl;
+    (r + d / (2.0 * r)) * unscale
 }

@@ -502,11 +502,11 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "tanh64",
-        "a59594f18b05b8658d454dd73b930f089ace77448ebadd3dea64b33427bb01b4",
+        "cb5888ca0e34859ec7e05219632408fa4d8a81a65b9b48031c9f34b735295b09",
     ),
     (
         "hypot64",
-        "fb96d16e38377deee24e7553982d8464a381777957c1b006d6ac6b71ed6cdbb4",
+        "c4eeb44d9e444a5c798a8e7b17d492d09c26b1df812ebaf511c0294a574c3b85",
     ),
     (
         "ln64",
