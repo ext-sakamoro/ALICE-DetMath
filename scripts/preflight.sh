@@ -64,13 +64,12 @@ python3 scripts/test_id_move_check.py
 python3 scripts/id_move_check.py
 
 step "ci.yml / clippy: Version names its identifier (append-only table)"
+python3 scripts/test_ci_base.py
 python3 scripts/test_semantics_versions_check.py
 (
   set -euo pipefail
   git fetch --quiet origin main
-  base=$(git merge-base HEAD origin/main)
-  if [ "$base" = "$(git rev-parse HEAD)" ]; then base=$(git rev-parse HEAD~1); fi
-  python3 scripts/semantics_versions_check.py --base "$base"
+  python3 scripts/semantics_versions_check.py --ci
 )
 cargo test --test semantics_version
 

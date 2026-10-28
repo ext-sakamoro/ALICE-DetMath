@@ -8,6 +8,11 @@ a version. A base row removed or changed is a finding; new rows pass. Comparing 
 
     python3 scripts/semantics_versions_check.py --base <git ref>        (the base's table from git)
     python3 scripts/semantics_versions_check.py --base-file <path>      (a base table on disk)
+    python3 scripts/semantics_versions_check.py --ci --event E --ref R --before SHA
+
+`--ci` takes the base from scripts/ci_base.py (shared with the other ALICE crates): on a push to main the
+commit main stood at before the push (`github.event.before`), elsewhere the merge-base with origin/main; a
+base that cannot be named fails (exit 2). Every run prints the base and the rule that named it.
 """
 from __future__ import annotations
 
@@ -16,6 +21,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ci_base import ci_base, describe  # noqa: E402  (scripts/ci_base.py, a shared file)
 
 TABLE = Path(__file__).resolve().parent / "semantics_versions.toml"
 ROW = re.compile(r'^"([^"]+)"\s*=\s*"([0-9a-f]{64})"$')
@@ -52,9 +60,20 @@ def main(argv: list[str]) -> int:
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--base")
     g.add_argument("--base-file", type=Path)
+    g.add_argument("--ci", action="store_true")
+    ap.add_argument("--event", default="")
+    ap.add_argument("--ref", default="")
+    ap.add_argument("--before", default="")
     ap.add_argument("--table", type=Path, default=TABLE)
     a = ap.parse_args(argv)
     try:
+        if a.ci:
+            a.base, rule = ci_base(a.event, a.ref, a.before)
+            print(f"semantics_versions_check: {describe(a.base, rule, a.event, a.ref)}")
+        elif a.base is not None:
+            print(f"semantics_versions_check: base {a.base} (rule --base)")
+        else:
+            print(f"semantics_versions_check: base {a.base_file} (rule --base-file)")
         head = rows(a.table.read_text(encoding="utf-8"))
         if a.base_file is not None:
             base_text = a.base_file.read_text(encoding="utf-8")

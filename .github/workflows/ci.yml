@@ -230,15 +230,21 @@ jobs:
       # scripts/semantics_versions.toml records for this version (tests/semantics_version.rs, in the test
       # jobs), and that table is append-only against the base (a row changed or removed fails), so the
       # identifier cannot move under an unchanged version (0.5.2 carried two across git revisions)
+      - name: The base CI compares with (scripts/ci_base.py, shared; tests)
+        run: python3 scripts/test_ci_base.py
       - name: Version names its identifier (append-only table, tests)
         run: python3 scripts/test_semantics_versions_check.py
+      # on a push to main the base is main before the push (github.event.before; the checkout above has the
+      # whole history), elsewhere the merge-base with origin/main; a base that cannot be named fails
       - name: Version names its identifier (append-only table, against the base)
         shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
           git fetch --quiet origin main
-          base=$(git merge-base HEAD origin/main)
-          if [ "$base" = "$(git rev-parse HEAD)" ]; then base=$(git rev-parse HEAD~1); fi
-          python3 scripts/semantics_versions_check.py --base "$base"
+          python3 scripts/semantics_versions_check.py --ci --event "$EVENT" --ref "$REF" --before "$BEFORE"
       # G7 / G8: the public API is enumerated from rustdoc JSON; every item that takes or
       # returns bytes, text or a reader, every non-Rust ABI fn, serde / FromStr / Read impl
       # and outside re-export needs a decision in scripts/api_boundary.toml (shared with the
