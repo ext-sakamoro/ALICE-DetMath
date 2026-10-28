@@ -171,6 +171,16 @@ scripts/shared_files.sh
 scripts/g11_table.sh
 python3 scripts/changed_paths.py sync
 
+step "ci.yml / docs-lint: G11 self-check (ALICE-Law at the pinned revision)"
+(
+  rev=$(awk '$1 == "rev" { print $2 }' .github/shared-files-pin)
+  law=$(mktemp -d)
+  trap 'rm -rf "$law"' EXIT
+  git -c core.autocrlf=false clone --quiet https://github.com/ext-sakamoro/ALICE-Law "$law/alice-law"
+  git -C "$law/alice-law" checkout --quiet --detach "$rev"
+  python3 "$law/alice-law/scripts/g11_self_check.py" --repo . --name ALICE-DetMath
+)
+
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 
