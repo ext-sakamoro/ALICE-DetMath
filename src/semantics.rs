@@ -57,7 +57,14 @@ use crate::SEMANTICS_ID;
 /// identifier accepted here repeats this: freeze one more historical sweep.
 ///
 /// Writers always stamp [`SEMANTICS_ID`]. Readers use [`check_semantics`].
-pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[];
+pub const PREVIOUS_SEMANTICS_IDS: &[[u8; 32]] = &[
+    // 0.6.0: every function it pinned still returns its bits; 0.6.1 adds `tanh64` / `hypot64`
+    [
+        0xa2, 0xa1, 0x1b, 0x9b, 0x82, 0x62, 0x27, 0xfa, 0x7a, 0x9e, 0xd8, 0xab, 0x2c, 0x1c, 0xe6,
+        0x3d, 0xbb, 0x07, 0xad, 0x4c, 0x39, 0xaa, 0x2c, 0x46, 0xa3, 0x63, 0xdd, 0xea, 0x6b, 0x47,
+        0xdb, 0xe9,
+    ],
+];
 
 /// What a stored arithmetic identifier says about the data stamped with it.
 ///

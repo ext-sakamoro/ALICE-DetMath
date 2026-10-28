@@ -527,3 +527,79 @@ pub fn log10_64(x: f64) -> f64 {
 pub fn powf64(x: f64, y: f64) -> f64 {
     pow::pow(x, y)
 }
+
+/// Deterministic `tanh` for `f64`, within 2 ulp of the correctly rounded value (measured against
+/// mpmath references, `tests/tanh_hypot64_oracle.rs`).
+///
+/// Odd bit for bit (the result for `-x` is the negated result for `x`, `-0` included). Below
+/// `2^-27` the result is `x` (the `x³/3` term is under half an ulp); from `22` it is `±1` (`1 −
+/// tanh x` is below `2^-54` from `x ≈ 19.06`, so the formula rounds to 1 there already). Between,
+/// with `y = 2|x|` and `e^y` from [`exp64`]: from `|x| = 0.55` the result is `1 − 2/(e^y + 1)`,
+/// which does not cancel; below, `expm1 y` is formed as `(u − 1)·y / ln u` with `u = e^y`
+/// (Kahan's construction with [`ln64`], so no digits are lost to `u − 1`) and the result is
+/// `expm1 y / (expm1 y + 2)`. A NaN is the canonical NaN.
+#[inline]
+#[must_use]
+pub fn tanh64(x: f64) -> f64 {
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    let ax = x.abs();
+    let t = if ax < 7.450_580_596_923_828e-9 {
+        // 2^-27
+        ax
+    } else if ax >= 22.0 {
+        1.0
+    } else if ax >= 0.55 {
+        1.0 - 2.0 / (exp64(2.0 * ax) + 1.0)
+    } else {
+        let y = 2.0 * ax;
+        let u = exp64(y);
+        let em1 = if u == 1.0 { y } else { (u - 1.0) * y / ln64(u) };
+        em1 / (em1 + 2.0)
+    };
+    if x.is_sign_negative() {
+        -t
+    } else {
+        t
+    }
+}
+
+/// `2^k` for a normal exponent, built from its exponent bits (exact by construction): the
+/// `2^±500` thresholds and `2^±600` scales of [`hypot64`]
+const fn pow2(k: i64) -> f64 {
+    f64::from_bits(((1023 + k) as u64) << 52)
+}
+
+/// Deterministic `hypot` for `f64`: `sqrt(x² + y²)` within 1 ulp of the correctly rounded value,
+/// with no overflow or underflow in between.
+///
+/// An infinity wins over a NaN (IEEE 754 `hypot`); otherwise a NaN gives the canonical NaN. When
+/// the larger magnitude is above `2^500` or below `2^-500`, both are scaled by `2^∓600` first;
+/// a power of two scales exactly, so the result equals the unscaled formula wherever that one
+/// does not over- or underflow. The root is [`crate::ops::sqrt64`] (IEEE, correctly rounded).
+#[inline]
+#[must_use]
+pub fn hypot64(x: f64, y: f64) -> f64 {
+    let ax = x.abs();
+    let ay = y.abs();
+    if ax.is_infinite() || ay.is_infinite() {
+        return f64::INFINITY;
+    }
+    if ax.is_nan() || ay.is_nan() {
+        return f64::NAN;
+    }
+    let m = if ax > ay { ax } else { ay };
+    if m == 0.0 {
+        return 0.0;
+    }
+    let (scale, unscale) = if m > pow2(500) {
+        (pow2(-600), pow2(600))
+    } else if m < pow2(-500) {
+        (pow2(600), pow2(-600))
+    } else {
+        (1.0, 1.0)
+    };
+    let (sx, sy) = (ax * scale, ay * scale);
+    sqrt64(sx * sx + sy * sy) * unscale
+}

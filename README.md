@@ -119,6 +119,17 @@ for (i, xi) in x.to_array().into_iter().enumerate() {
   (measured against 6987 pairs from `mpmath` at 2400 bits). `powf` and
   `powf64` follow IEEE 754 `pow` for every special case, negative bases
   included (`pow(-2, 3) = -8`, a non-integer exponent gives NaN)
+- **`tanh64`**: `f64` hyperbolic tangent — `exp64` based, with `expm1` formed
+  as `(u − 1)·y / ln u` (Kahan) below `|x| = 0.55` so small arguments keep
+  every digit, `x` itself below `2^-27` and `±1` from 22; odd bit for bit;
+<!-- claim-test: tanh64_is_within_2_ulp_of_the_reference -->
+  ≤ 2 ulp of correctly rounded (measured max 1 over 33 points from `mpmath`
+  at 200 bits)
+- **`hypot64`**: `f64` `sqrt(x² + y²)` without overflow or underflow — both
+  arguments scaled by a power of two when the larger passes `2^±500`, so the
+<!-- claim-test: hypot64_is_exact_on_pythagorean_triples_at_every_scale -->
+  result is exact on Pythagorean triples at every scale; an infinity wins
+  over a NaN; ≤ 1 ulp of correctly rounded (measured max 1 over 19 pairs)
 - **`erf` / `erf64`**: the error function — musl `erf.c` (from fdlibm
   `s_erf.c`) with this crate's `exp64`; `erf64` ≤ 1 ulp of correctly rounded
 <!-- claim-test: erf64_within_1_ulp_of_correctly_rounded_reference -->
@@ -193,7 +204,9 @@ and every function 0.5.0 covered still returns the same bits. It moves again
 (unreleased) for both reasons: `clamp` now follows the G2 rule, `min(max(x, lo), hi)` with
 this crate's `max` / `min` (an equal pair of zeros in the G2 order, a NaN bound
 is no bound, the high bound wins over an inverted low one), and `clamp64`,
-`argmax` / `argmin` and `Select` joined the table.
+`argmax` / `argmin` and `Select` joined the table (0.6.0). It moved in 0.6.1
+for the second reason only: `tanh64` and `hypot64` were added, and every
+function 0.6.0 covered still returns the same bits.
 
 ### Reading an identifier back
 
@@ -202,7 +215,8 @@ Data written by an earlier release carries that release's identifier.
 `VerifiedPrevious(id)` for an entry of `PREVIOUS_SEMANTICS_IDS`, and
 `Mismatch` otherwise. An entry is listed only when this release returns that
 release's bits on every function the release pinned, and a test proves it from
-that release's pin table. The list is now empty (unreleased): `clamp` changed, so the
+that release's pin table. The list holds 0.6.0's identifier (`a2a11b9b…`): 0.6.1 returns
+0.6.0's bits on every function 0.6.0 pinned. `clamp` changed in 0.6.0, so the
 0.5.0 and 0.5.1 identifiers are not reproduced (a test shows that exactly
 `clamp` and the aggregate `specials` pin moved), and 0.4.0's was not before.
 <!-- claim-test: every_previous_identifier_is_backed_by_a_reproduced_pin_table -->

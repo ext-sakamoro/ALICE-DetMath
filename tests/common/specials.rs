@@ -230,6 +230,8 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     d1(s, "tan64", tan64);
     d1(s, "erf64", erf64);
     d2(s, "powf64", powf64);
+    d1(s, "tanh64", tanh64);
+    d2(s, "hypot64", hypot64);
     d1(s, "round64", round64);
     d1(s, "sqrt64", sqrt64);
     d2(s, "max64", max64);

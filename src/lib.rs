@@ -69,6 +69,8 @@
 //! | [`erf64`] | every finite `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6492 points of an independent 2400-bit reference covering every branch (musl `erf.c` from fdlibm `s_erf.c`, with [`exp64`]) |
 //! | [`exp64`] / [`ln64`] | `[-745, 710]` / `[1e-300, 1e300]` | ≤ 2 ulp, measured max 1 against an independent 2400-bit reference (fdlibm algorithms) |
 //! | [`log2_64`] / [`log10_64`] | `[1e-300, 1e300]` | ≤ 2 ulp of the platform libm, measured max 2 / 1 (`ln64` converted to the base; powers of two are exact for [`log2_64`]) |
+//! | [`tanh64`] | every `f64` | ≤ 2 ulp of correctly rounded, measured max 1 over 33 points of an independent mpmath reference at 200 bits (`exp64` based, `expm1` by Kahan's `(u − 1)·y / ln u` below 0.55, `x` below 2^-27, `±1` from 22) |
+//! | [`hypot64`] | every pair | ≤ 1 ulp of correctly rounded, measured max 1 over 19 pairs of an independent mpmath reference at 200 bits; exact on Pythagorean triples at every power-of-two scale, no overflow or underflow (scaled by `2^∓600`) |
 //! | [`powf64`] | every finite pair | ≤ 1 ulp of correctly rounded, measured max 1 over 6987 pairs of an independent 2400-bit reference covering `x` next to 1 with `\|y\|` up to 1e18, negative bases, the overflow edge and subnormal results (fdlibm `e_pow.c`, FreeBSD msun); IEEE 754 `pow` special cases |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
 //!
@@ -115,7 +117,7 @@
 /// otherwise only when the set of functions it covers grows.
 ///
 /// ```text
-/// a2a11b9b826227fa7a9ed8ab2c1ce63dbb07ad4c39aa2c46a363ddea6b47dbe9
+/// dd43c59f7775b230b11b0ddea29a6fbe2ca5f0338fe0deac56724e3fd8d486e8
 /// ```
 ///
 /// It is the SHA-256 of the per-function bit pins in `tests/golden.rs` —
@@ -149,8 +151,8 @@
 /// running the re-pin before the table is updated reproduces the old value and
 /// looks as though the identifier failed to notice the change.
 pub const SEMANTICS_ID: [u8; 32] = [
-    0xa2, 0xa1, 0x1b, 0x9b, 0x82, 0x62, 0x27, 0xfa, 0x7a, 0x9e, 0xd8, 0xab, 0x2c, 0x1c, 0xe6, 0x3d,
-    0xbb, 0x07, 0xad, 0x4c, 0x39, 0xaa, 0x2c, 0x46, 0xa3, 0x63, 0xdd, 0xea, 0x6b, 0x47, 0xdb, 0xe9,
+    0xdd, 0x43, 0xc5, 0x9f, 0x77, 0x75, 0xb2, 0x30, 0xb1, 0x1b, 0x0d, 0xde, 0xa2, 0x9a, 0x6f, 0xbe,
+    0x2c, 0xa5, 0xf0, 0x33, 0x8f, 0xe0, 0xde, 0xac, 0x56, 0x72, 0x4e, 0x3f, 0xd8, 0xd4, 0x86, 0xe8,
 ];
 
 pub mod semantics;
@@ -180,8 +182,8 @@ pub mod consts {
 }
 
 pub use double::{
-    acos64, asin64, atan2_64, atan64, cos64, exp64, ln64, log10_64, log2_64, powf64, sin64,
-    sin_cos64, tan64,
+    acos64, asin64, atan2_64, atan64, cos64, exp64, hypot64, ln64, log10_64, log2_64, powf64,
+    sin64, sin_cos64, tan64, tanh64,
 };
 pub use erf::{erf, erf64};
 pub use ops::{
