@@ -82,6 +82,17 @@ class CiBase(unittest.TestCase):
             self.assertEqual((rc, out), (2, ""), before)
             self.assertIn(why, err)
 
+    def test_a_short_prefix_of_a_real_ancestor_on_main_fails(self):
+        # the prefix names an existing ancestor, so only the full-SHA rule can refuse it (cat-file and
+        # merge-base --is-ancestor both accept a unique prefix)
+        before = self.commit()
+        self.commit()
+        short = before[:12]
+        self.assertEqual(self.git("rev-parse", short), before)
+        rc, out, err = self.run_cli("--event", "push", "--ref", "refs/heads/main", "--before", short)
+        self.assertEqual((rc, out), (2, ""), err)
+        self.assertIn(f"needs github.event.before as a full SHA, got {short!r}", err)
+
     def test_off_main_the_base_is_the_merge_base(self):
         base = self.commit()
         self.commit()
