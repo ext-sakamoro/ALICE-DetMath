@@ -234,8 +234,6 @@ jobs:
       # scripts/semantics_versions.toml records for this version (tests/semantics_version.rs, in the test
       # jobs), and that table is append-only against the base (a row changed or removed fails), so the
       # identifier cannot move under an unchanged version (0.5.2 carried two across git revisions)
-      - name: The base CI compares with (scripts/ci_base.py, shared; tests)
-        run: python3 scripts/test_ci_base.py
       - name: Version names its identifier (append-only table, tests)
         run: python3 scripts/test_semantics_versions_check.py
       # on a push to main the base is main before the push (github.event.before; the checkout above has the
@@ -343,6 +341,9 @@ jobs:
         run: python scripts/test_docs_lint.py
       - name: Docs lint (public documents, CHANGELOG structure)
         run: python scripts/docs_lint.py --check
+      # on every OS: git's output must be read as UTF-8 whatever the locale (cp1252 on Windows)
+      - name: The base CI compares with (scripts/ci_base.py, shared; tests)
+        run: python scripts/test_ci_base.py
       - name: tracked binaries oracle (検査器自身の試験)
         run: python scripts/test_tracked_binaries.py
       - name: tracked binaries (build した library を commit しない、走査 0 件で fail)
