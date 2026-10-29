@@ -43,18 +43,14 @@ step "ci.yml / wasm: Build tests (wasm32-wasip1)"
 rustup target list --installed | grep -q '^wasm32-wasip1$' || rustup target add wasm32-wasip1
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --no-run )
 
-step "ci.yml / wasm: Run golden + accuracy + simd_parity + NaN / signed-zero + metric + pow + unit tests via wasmtime"
+step "ci.yml / wasm: Every test target via wasmtime (lib + tests, checked against cargo metadata)"
 need wasmtime "brew install wasmtime"
-# cargo runs each binary it just built (no pick from target/, so a stale binary is never run)
-( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd" CARGO_TARGET_WASM32_WASIP1_RUNNER="wasmtime"
-  for t in golden accuracy accuracy_trig_zeros simd_parity nan_policy nan_in_nan_out signed_zero metric_degenerate pow_ieee_one analytic_metric; do
-    out=$(cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --test "$t" 2>&1) || { echo "$out"; exit 1; }
-    echo "$out" | grep -E 'Running|test result'
-    echo "$out" | sed 's/\x1b\[[0-9;]*m//g' | grep -qE 'test result: ok\. [1-9][0-9]* passed' || { echo "$t ran no test" >&2; exit 1; }
-  done
-  out=$(cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --lib 2>&1) || { echo "$out"; exit 1; }
-  echo "$out" | grep -E 'Running|test result'
-  echo "$out" | sed 's/\x1b\[[0-9;]*m//g' | grep -qE 'test result: ok\. [1-9][0-9]* passed' || { echo "the unit tests ran no test" >&2; exit 1; } )
+# every lib and test target, checked against cargo metadata and scripts/wasm_test_exclusions.toml
+( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd" CARGO_TARGET_WASM32_WASIP1_RUNNER="wasmtime --dir=$PWD::$PWD"
+  log="$(mktemp)"
+  cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --lib --tests --no-fail-fast 2>&1 | tee "$log"
+  python3 scripts/test_wasm_tests_check.py
+  python3 scripts/wasm_tests_check.py "$log" )
 
 step "ci.yml / clippy: Identifier moves (tests, then against the published release)"
 step "eol.yml / line endings (tests, then check)"

@@ -1,0 +1,27 @@
+# Test targets and tests that do not run on wasm32-wasip1, each with its reason (scripts/wasm_tests_check.py).
+# A target or a should_panic test missing from here and not run on wasm fails the check; an entry that
+# names nothing the run skipped fails too.
+
+# whole test targets not run on wasm (none: every target runs)
+[targets]
+
+# libtest skips a #[should_panic] test where a panic aborts the process (wasm32-wasip1); these assert
+# a panic by design and run on the native lanes
+[should_panic]
+"dense_golden::the_pin_refuses_a_non_canonical_f32_output" = "checks that the pin helper panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"dense_golden::the_pin_refuses_a_non_canonical_f64_output" = "checks that the pin helper panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"exhaustive_f32::the_fold_refuses_a_non_canonical_nan_output" = "checks that the fold panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::hash32_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::hash32x2_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::hash32x3_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::hash64_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_sin_cos64_fold_refuses_a_non_canonical_cosine" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_sin_cos64_fold_refuses_a_non_canonical_sine" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_sin_cos_fold_refuses_a_non_canonical_cosine" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_sin_cos_fold_refuses_a_non_canonical_sine" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_specials_sink_refuses_a_non_canonical_f32_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::the_specials_sink_refuses_a_non_canonical_f64_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"law_bits::a_payload_nan_is_refused_f32" = "checks that tests/support/digest_bits.rs panics on this NaN; panic=abort on wasm, and the refusal itself (law_bits::f32_bits / f64_bits returning Err) runs on wasm in law_bits::the_api_refuses_*"
+"law_bits::a_signalling_nan_is_refused_f64" = "checks that tests/support/digest_bits.rs panics on this NaN; panic=abort on wasm, and the refusal itself (law_bits::f32_bits / f64_bits returning Err) runs on wasm in law_bits::the_api_refuses_*"
+"law_bits::the_x86_default_nan_is_refused_f32" = "checks that tests/support/digest_bits.rs panics on this NaN; panic=abort on wasm, and the refusal itself (law_bits::f32_bits / f64_bits returning Err) runs on wasm in law_bits::the_api_refuses_*"
+"law_bits::the_x86_default_nan_is_refused_f64" = "checks that tests/support/digest_bits.rs panics on this NaN; panic=abort on wasm, and the refusal itself (law_bits::f32_bits / f64_bits returning Err) runs on wasm in law_bits::the_api_refuses_*"
