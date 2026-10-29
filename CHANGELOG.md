@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: 公開する文面の検査の pin を ALICE-Law 779fa44 (checker sha256 e439fdd7…) に進めた 新しい版で HEAD の全 file に指摘 0 件
 
 ### Fixed
+- `scripts/ci_base.py` (共有 file) と `scripts/test_ci_base.py`: git の出力を UTF-8 で読む (`encoding="utf-8"`) これまでは locale の code page で decode していたので、Windows (cp1252) では git の出力やエラー文に非 ASCII があると UnicodeDecodeError で止まるか別の文字になった 試験は UTF-8 mode を外し locale を cp1252 にした子 interpreter で非 ASCII の commit 件名を読む (encoding の無い対照が化けることも確かめる)
 
 - CI の wasm32-wasip1 の lane と preflight: 手書きの一覧 (10 file) をやめ、lib と全ての test target (27) を wasmtime で実行する `scripts/wasm_tests_check.py` が `cargo metadata` の test target と cargo の log を照合し、走って通らなかった target、`scripts/wasm_test_exclusions.toml` に理由の無い除外、wasm で skip された `#[should_panic]` の試験 (panic=abort) で一覧に無いもの、何も走らなかった run を失敗にする 除外は 0 target、should_panic は 17 件 (digest の helper が NaN で panic することを確かめる試験、拒否そのものは `law_bits` の試験が wasm で走る) repository の file を読む試験のため package の root を同じ path で wasmtime に渡す `tests/semantics_version.rs` の `rows()` は panic でなく `Err` を返し、wasm でも同じく確かめる
 - CI の wasm32-wasip1 の lane と preflight: test binary を `target/` から `find | head -1` で選ばず、`CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime` で cargo が今 build した binary を実行する (directory の順で選んでいたので、手元に古い version や toolchain の binary が残っていると、それを実行して通ることがあった) 各 test file と lib の unit test は 1 件以上 passed を報告しないと失敗する preflight はこれまで wasmtime が無いと skip していたが、必須にした
