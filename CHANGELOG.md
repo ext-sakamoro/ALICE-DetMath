@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (ALICE-Law G9 / G11): 識別子の移動の検査器 (`scripts/id_move_check.py` と試験) を共有の新しい bytes にし、新しく足した associated const を受けるようにした 他の共有の file も ALICE-Law 7f5f4cbd の表が計画した bytes にし、shared-files と G11 の表の pin を上げた
 
 - 版を 0.6.0 にした: 0.6.0 が `SEMANTICS_ID` `a2a11b9b826227fa7a9ed8ab2c1ce63dbb07ad4c39aa2c46a363ddea6b47dbe9` を名指す 0.5.2 は crates.io に公開されず、git の rev をまたいで 2 つの識別子 (`a2e46794…` の後 `a2a11b9b…`) を持っていた 版を変えずに識別子が動くと、版で識別子を引く表 (消費者の既知の識別子の一覧) が引けない
 - CI: 共有の写し 6 件を ALICE-Law 5f6679d6 の表が計画する bytes (ALICE-Analytics の main) にした: `.github/workflows/eol.yml` と `.github/workflows/public-text.yml` (`actions/checkout` v5.1.0 → v7.0.1、`actions/setup-python` v6.3.0 → v7.0.0、手順は不変)、`scripts/gen_clippy_canary_calls.py` と試験 (生成する `clippy_canary_calls.tsv` は不変)、`scripts/id_move_check.py` と試験 `scripts/preflight.sh` に CI の G11 self-check を足した
