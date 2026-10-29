@@ -509,6 +509,10 @@ const GOLDEN: &[(&str, &str)] = &[
         "c4eeb44d9e444a5c798a8e7b17d492d09c26b1df812ebaf511c0294a574c3b85",
     ),
     (
+        "powi64",
+        "63af9f58e31ac098d1183a1266dc550b2b0ef084ac0b7df9cf0ad814b8297961",
+    ),
+    (
         "ln64",
         "053aec9251fe146bb064b9a66a5f662ca59eb31b8507b9a50f27135f39dfc8c9",
     ),
@@ -566,7 +570,7 @@ const GOLDEN: &[(&str, &str)] = &[
     ),
     (
         "specials",
-        "232f5056899d4a8756249b8d212dcd401066c820691d0ef9a7dcfa998462cf5a",
+        "5647435cb9d32c85567bb6484c8fc9e6a76a0718ab7d74cbac031db72faf898f",
     ),
 ];
 
@@ -786,6 +790,11 @@ fn scalar_outputs_match_recorded_hashes() {
         "hypot64",
         &hash64(&g, |x| hypot64(x, x * 0.37 - 1.0)),
         want("hypot64"),
+    );
+    check(
+        "powi64",
+        &hash64(&g, |x| powi64(x, (x * 13.0) as i32 % 64 - 32)),
+        want("powi64"),
     );
     check("ln64", &hash64(&g, ln64), want("ln64"));
     check("log2_64", &hash64(&g, log2_64), want("log2_64"));

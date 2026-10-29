@@ -72,6 +72,7 @@
 //! | [`tanh64`] | every `f64` | ≤ 1 ulp of correctly rounded, measured max 1 over 6513 rows of an independent mpmath reference at 400 bits and 300513 of a larger sweep from the same generator, 0.775 ulp from the true value (0.669 on the committed rows); Taylor series (25 terms) to `|x| = 0.7`, above it `1 − 2/(t + 2)` on fdlibm `expm1`, rounded once |
 //! | [`hypot64`] | every pair | ≤ 1 ulp of correctly rounded, measured max 1 over 5251 rows of an independent mpmath reference at 400 bits and 262501 of a larger sweep, 0.750 ulp from the true value (0.735 on the committed rows); `x² + y²` as an exact double-double, the root corrected once by Newton; exact on Pythagorean triples at every power-of-two scale, no overflow or underflow |
 //! | [`powf64`] | every finite pair | ≤ 1 ulp of correctly rounded, measured max 1 over 6987 pairs of an independent 2400-bit reference covering `x` next to 1 with `\|y\|` up to 1e18, negative bases, the overflow edge and subnormal results (fdlibm `e_pow.c`, FreeBSD msun); IEEE 754 `pow` special cases |
+//! | [`powi64`] | every `f64`, every `i32` | a fixed order of IEEE products (binary exponentiation from the low bit, `1 / x^|n|` for a negative `n`), so the same bits on every target; exact while the partial products are; IEEE 754 `pown` special cases (`x^0 = 1`, signed zeros and infinities by the parity of `n`) |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
 //!
 //! The reduction subtracts `k·π/2` in four `f32` pieces, the third formed
@@ -183,7 +184,7 @@ pub mod consts {
 
 pub use double::{
     acos64, asin64, atan2_64, atan64, cos64, exp64, hypot64, ln64, log10_64, log2_64, powf64,
-    sin64, sin_cos64, tan64, tanh64,
+    powi64, sin64, sin_cos64, tan64, tanh64,
 };
 pub use erf::{erf, erf64};
 pub use ops::{

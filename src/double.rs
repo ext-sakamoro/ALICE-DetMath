@@ -528,6 +528,49 @@ pub fn powf64(x: f64, y: f64) -> f64 {
     pow::pow(x, y)
 }
 
+/// Deterministic `x^n` for an integer exponent: binary exponentiation in a fixed order.
+///
+/// For `n > 0` the result is the product of the squarings of `x` selected by the bits of `n`, from
+/// the low bit up: `r = 1`, `b = x`; for each bit, `r = r·b` when the bit is set, then `b = b·b`
+/// while bits remain. Every multiplication is one IEEE 754 product rounded to nearest, so the result
+/// is the same on every target (no fused multiply-add, no reordering); it is exact while every
+/// partial product is (small integers, powers of two). For `n < 0` it is `1 / x^|n|`: the power by
+/// the same steps for `|n|` (taken as `u32`, so `i32::MIN` is defined), then one division.
+///
+/// Special cases follow IEEE 754 `pown`: `x^0 = 1` for every `x` (NaN included); a NaN `x` with
+/// `n ≠ 0` is the canonical NaN; `±0` and `±inf` take the sign of `x` for an odd `n` (`(-0)^-1 =
+/// -inf`, `(-inf)^-1 = -0`) and `+` for an even one. Because the power is formed before the
+/// division, a negative `n` whose `x^|n|` overflows gives `±0` even where `x^n` would be a
+/// subnormal number, and one whose `x^|n|` is subnormal gives the reciprocal of that rounded value.
+#[inline]
+#[must_use]
+pub fn powi64(x: f64, n: i32) -> f64 {
+    if n == 0 {
+        return 1.0;
+    }
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    let mut m = n.unsigned_abs();
+    let mut r = 1.0;
+    let mut b = x;
+    loop {
+        if m & 1 == 1 {
+            r *= b;
+        }
+        m >>= 1;
+        if m == 0 {
+            break;
+        }
+        b *= b;
+    }
+    if n < 0 {
+        1.0 / r
+    } else {
+        r
+    }
+}
+
 /// Knuth's two-sum: `a + b = s + e` exactly, `s = fl(a + b)`
 #[inline(always)]
 fn two_sum64(a: f64, b: f64) -> (f64, f64) {

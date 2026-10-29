@@ -232,6 +232,12 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     d2(s, "powf64", powf64);
     d1(s, "tanh64", tanh64);
     d2(s, "hypot64", hypot64);
+    s.name("powi64");
+    for x in SPECIALS64 {
+        for n in [0, 1, -1, 2, -2, 3, -3, 31, -31, i32::MAX, i32::MIN] {
+            s.v64(powi64(x, n));
+        }
+    }
     d1(s, "round64", round64);
     d1(s, "sqrt64", sqrt64);
     d2(s, "max64", max64);
