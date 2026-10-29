@@ -260,10 +260,10 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 [ALICE-Zip](https://github.com/ext-sakamoro/ALICE-Zip) はこの crate に依存して
 いない 生成器は現在 `libm` を使っている
 
-<!-- law-integration:begin law=ba0cdcda7235d669400adfe3584a5cb21327f18a -->
+<!-- law-integration:begin law=7f5f4cbde8343a061051bb1addd30f1f0b3bea1e -->
 ## ALICE-Law との統合
 
-ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `ba0cdcda7235` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
+ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `7f5f4cbde834` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
 
 | | |
 |---|---|
@@ -289,6 +289,7 @@ ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `ba0cdcda7235` と
 | G12 public-repo-text-rules | 適合 | the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names … |
 | G13 no-unspecified-order | 適合 | two layers: clippy resolves paths, so a renamed import, a re-export or a macro expansion inside this crate that reaches std::thread::spawn / scope / Builder or … |
 | G14 float-environment-invariants | 適合 | the simd-paths job runs the tests under three codegen settings, one of them target-cpu=native, to show the results do not depend on the CPU; those are test … |
+| G15 surface-claims | 未申告 |  |
 
 ### feature と保証の範囲
 
