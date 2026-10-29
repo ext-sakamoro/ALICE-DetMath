@@ -57,7 +57,8 @@ class CiBase(unittest.TestCase):
         # a Windows runner's locale code page is cp1252: git's UTF-8 output (a ref, a message, a path)
         # must not be decoded with it. A child interpreter outside UTF-8 mode with the locale encoding
         # set to cp1252 reads a non-ASCII commit subject through ci_base.git(); the same call without an
-        # encoding (the control) must come back different, or the locale was not in effect
+        # encoding (the control) must come back different, or the locale was not in effect (it raises on
+        # POSIX; on Windows the reader thread dies and the result has no output)
         subject = "ブランチ — naïve"
         (self.d / "f").write_text("x", encoding="utf-8")
         self.git("add", "-A")
@@ -69,9 +70,10 @@ class CiBase(unittest.TestCase):
             "import ci_base\n"
             "cmd = ['git', 'log', '-1', '--format=%s']\n"
             "try:\n"
-            "    control = subprocess.run(cmd, capture_output=True, text=True).stdout.strip()\n"
+            "    out = subprocess.run(cmd, capture_output=True, text=True).stdout\n"
             "except UnicodeDecodeError:\n"
-            "    control = '<undecodable>'\n"
+            "    out = None\n"
+            "control = '<undecodable>' if out is None else out.strip()\n"
             "sys.stdout.buffer.write((control + '\\n' + ci_base.git(*cmd[1:]).stdout.strip()).encode('utf-8'))\n"
         )
         r = subprocess.run([sys.executable, "-X", "utf8=0", "-B", "-c", child], cwd=self.d, env=self.env,
