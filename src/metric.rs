@@ -381,7 +381,8 @@ pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
     crate::min(crate::max(x, low), high)
 }
 
-/// The cubic Hermite blend `3t² − 2t³` with `t = clamp((x − e0)/(e1 − e0), 0, 1)`.
+/// The cubic Hermite blend `3t² − 2t³` with `t = clamp((x − e0)/(e1 − e0), 0, 1)`: a rising
+/// ramp from `0` at `edge0` to `1` at `edge1`.
 ///
 /// Flat at both edges (`s'(e0) = s'(e1) = 0`) and symmetric about the
 /// midpoint. Its steepest slope is `1.5/(e1 − e0)` at the midpoint, so a
@@ -389,18 +390,70 @@ pub fn clamp(x: f32, low: f32, high: f32) -> f32 {
 /// whatever it blends — the number that decides whether a blended field stays
 /// within its Lipschitz budget.
 ///
-/// A degenerate or inverted interval (`e1 ≤ e0`) is treated as a step at
-/// `e0`: below it `0`, at or above it `1`, with no division. A NaN in any
-/// argument, and a NaN the division creates, give the canonical NaN.
+/// # Contract
+///
+/// The interval must rise: `edge0 < edge1`. GLSL leaves `edge0 >= edge1` undefined and GPUs
+/// return the reversed slope there, so a shader-style `smoothstep(h, h − e, x)` that means a
+/// falling ramp would silently disagree with a CPU port that reads it any other way. This
+/// function refuses it instead: write a falling ramp as [`smoothstep_rev`]. An interval whose
+/// edges are equal (`edge0 == edge1`) is a step at `edge0`: below it `0`, at or above it `1`,
+/// with no division. A NaN in any argument, and a NaN the division creates, give the
+/// canonical NaN, whatever the order of the other edges.
+///
+/// # Panics
+///
+/// If both edges are non-NaN and `edge1 < edge0`, in every build profile. The message names
+/// both edges.
 #[inline]
 #[must_use]
+#[track_caller]
 pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     if x.is_nan() || edge0.is_nan() || edge1.is_nan() {
         return f32::NAN;
     }
-    if edge1 <= edge0 {
+    if edge1 < edge0 {
+        inverted_edges("smoothstep", "edge0", edge0, "edge1", edge1);
+    }
+    if edge1 == edge0 {
         return if x < edge0 { 0.0 } else { 1.0 };
     }
     let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
     canonical(t * t * (3.0 - 2.0 * t))
+}
+
+/// The falling ramp: `1` at or below `edge_lo`, `0` at or above `edge_hi`, joined by the same
+/// cubic as [`smoothstep`]. Defined as exactly `1 − smoothstep(edge_lo, edge_hi, x)`, so it is
+/// the bits of that expression, with the canonical NaN for a NaN in any argument.
+///
+/// The argument order follows the shader idiom it replaces: `smoothstep(h, h − e, x)` in GLSL
+/// (a ramp falling from `h − e` to `h`, where GLSL is undefined) is `smoothstep_rev(h, h − e, x)`
+/// here.
+///
+/// # Panics
+///
+/// If both edges are non-NaN and `edge_hi < edge_lo`, in every build profile. The message
+/// names both edges.
+#[inline]
+#[must_use]
+#[track_caller]
+pub fn smoothstep_rev(edge_hi: f32, edge_lo: f32, x: f32) -> f32 {
+    if x.is_nan() || edge_hi.is_nan() || edge_lo.is_nan() {
+        return f32::NAN;
+    }
+    if edge_hi < edge_lo {
+        inverted_edges("smoothstep_rev", "edge_lo", edge_lo, "edge_hi", edge_hi);
+    }
+    canonical(1.0 - smoothstep(edge_lo, edge_hi, x))
+}
+
+/// The refusal of an interval that does not rise, shared by [`smoothstep`] and
+/// [`smoothstep_rev`] (and the SIMD kernel's message spells the same rule).
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn inverted_edges(func: &str, lo_name: &str, lo: f32, hi_name: &str, hi: f32) -> ! {
+    panic!(
+        "{func}: {lo_name} ({lo:?}) must be less than {hi_name} ({hi:?}); \
+         GLSL leaves this undefined, write a falling ramp as smoothstep_rev(hi, lo, x)"
+    )
 }

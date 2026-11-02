@@ -499,11 +499,21 @@ fn any_nan3(a: f32x8, b: f32x8, c: f32x8) -> f32x8 {
 }
 
 /// [`crate::metric::smoothstep`] per lane — `3t² − 2t³` over the clamped
-/// interval, a step where the interval is degenerate, a NaN in any argument
+/// interval, a step where the edges are equal, a NaN in any argument
 /// → the canonical NaN.
+///
+/// # Panics
+///
+/// If any lane has non-NaN edges with `edge1 < edge0`, in every build profile, as the scalar
+/// function does for that lane (one refused lane refuses the call).
 #[inline]
 #[must_use]
+#[track_caller]
 pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
+    // a NaN edge compares false, so a NaN lane is never an inverted lane
+    if edge1.cmp_lt(edge0).any() {
+        inverted_lanes();
+    }
     let degenerate = !edge1.cmp_gt(edge0);
     let step = x.cmp_lt(edge0).blend(C_0P0, C_1P0);
     // the division is garbage in degenerate lanes and blended away there
@@ -511,6 +521,17 @@ pub fn smoothstep(edge0: f32x8, edge1: f32x8, x: f32x8) -> f32x8 {
     let cubic = canonical_nan(t * t * (C_3P0 - C_2P0 * t));
     let r = degenerate.blend(step, cubic);
     any_nan3(edge0, edge1, x).blend(C_NAN, r)
+}
+
+/// The refusal of [`smoothstep`] lanes whose interval does not rise.
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn inverted_lanes() -> ! {
+    panic!(
+        "smoothstep: edge0 must be less than edge1 in every lane; \
+         write a falling ramp as metric::smoothstep_rev(hi, lo, x)"
+    )
 }
 
 /// [`crate::metric::MetricWeights`] broadcast to lanes.
