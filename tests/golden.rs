@@ -22,6 +22,7 @@ mod common;
 mod digest_bits;
 
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 
 fn grid32() -> Vec<f32> {
     let mut v = Vec::with_capacity(300_000);
@@ -1385,6 +1386,209 @@ fn a_lost_sign_of_zero_moves_only_the_sin_function_pin() {
         .map(|(a, _)| a.0)
         .collect();
     assert_eq!(moved, ["sin"]);
+}
+
+// ---------------------------------------------------------------------------
+// function-paths.toml: from a public Rust path to the pin that fixes its bits
+// ---------------------------------------------------------------------------
+
+/// The file a tool reads (it has no Rust to run) to turn a call it found in a caller's source into a
+/// [`alice_det_math::FUNCTION_PINS`] name. Checked against the sources both ways below, so a new public function
+/// without a row, and a row without a function, both fail.
+const FUNCTION_PATHS_TOML: &str = include_str!("../function-paths.toml");
+
+/// The functions that compute nothing a pin would fix, each with the reason. `tool`s accept them without a pin.
+const NO_ARITHMETIC: &[(&str, &str)] = &[
+    (
+        "law_bits::f32_bits",
+        "returns the bits as they are or refuses a NaN",
+    ),
+    (
+        "law_bits::f64_bits",
+        "returns the bits as they are or refuses a NaN",
+    ),
+    (
+        "simd::MetricWeightsX8::splat",
+        "copies weights already computed into eight lanes",
+    ),
+];
+
+/// The names a `pub use <module>::{ ... }` at the crate root re-exports, for the modules that define functions.
+fn root_reexports() -> Vec<String> {
+    let lib = SOURCES
+        .iter()
+        .find(|(m, _)| m.is_empty())
+        .expect("lib.rs")
+        .1;
+    let mut out = Vec::new();
+    for module in ["double", "erf", "ops", "single"] {
+        let start = format!("pub use {module}::{{");
+        let at = lib
+            .find(&start)
+            .unwrap_or_else(|| panic!("no `{start}` in lib.rs"));
+        let rest = &lib[at + start.len()..];
+        let list = &rest[..rest.find('}').expect("closing brace")];
+        out.extend(
+            list.split(',')
+                .map(|x| x.trim().to_owned())
+                .filter(|x| !x.is_empty()),
+        );
+    }
+    out
+}
+
+/// A function's public module path: a private submodule (`double::pow`) is re-exported by its parent.
+fn public_module(module: &str) -> &str {
+    module.split("::").next().unwrap_or(module)
+}
+
+/// The file's text, derived from the sources: `[paths]` (a public path and its pin), `[types]` (a type and the
+/// pins of its methods, since a method call `w.norm(..)` names no path, so using the type counts all of them) and
+/// `[no_arithmetic]`.
+fn function_paths_expected() -> String {
+    let mut paths: Vec<(String, String)> = Vec::new();
+    let mut types: Vec<(String, Vec<String>)> = Vec::new();
+    for s in public_numeric_surface() {
+        let module = public_module(s.module);
+        let pin = if module == "simd" {
+            s.name.clone()
+        } else {
+            s.pin()
+        };
+        let path = match &s.ty {
+            Some(t) => format!("{module}::{t}::{}", s.name),
+            None => format!("{module}::{}", s.name),
+        };
+        if NO_ARITHMETIC.iter().any(|(p, _)| *p == path) {
+            continue;
+        }
+        if let Some(t) = &s.ty {
+            let key = format!("{module}::{t}");
+            match types.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, pins)) => pins.push(pin.clone()),
+                None => types.push((key, vec![pin.clone()])),
+            }
+        }
+        paths.push((path, pin));
+    }
+    for name in root_reexports() {
+        if paths.iter().any(|(_, pin)| *pin == name) {
+            paths.push((name.clone(), name));
+        } else {
+            let (_, pins) = types
+                .iter()
+                .find(|(k, _)| k.ends_with(&format!("::{name}")))
+                .unwrap_or_else(|| {
+                    panic!("`{name}` re-exported at the root is neither a function nor a type")
+                });
+            types.push((name, pins.clone()));
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    types.sort();
+    let mut out = String::from(
+        "# Generated from the sources; tests/golden.rs requires this exact text \
+         (DET_MATH_PRINT_GOLDEN=1 prints it).\n\n[paths]\n",
+    );
+    for (path, pin) in &paths {
+        writeln!(out, "\"{path}\" = \"{pin}\"").unwrap();
+    }
+    out.push_str("\n[types]\n");
+    for (ty, pins) in &mut types {
+        pins.sort();
+        pins.dedup();
+        let list: Vec<String> = pins.iter().map(|p| format!("\"{p}\"")).collect();
+        writeln!(out, "\"{ty}\" = [{}]", list.join(", ")).unwrap();
+    }
+    out.push_str("\n[no_arithmetic]\n");
+    for (path, why) in NO_ARITHMETIC {
+        writeln!(out, "\"{path}\" = \"{why}\"").unwrap();
+    }
+    out
+}
+
+#[test]
+fn function_paths_toml_is_what_the_sources_say() {
+    let want = function_paths_expected();
+    if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
+        println!("// function-paths.toml\n{want}// end function-paths.toml");
+        return;
+    }
+    assert_eq!(
+        FUNCTION_PATHS_TOML, want,
+        "function-paths.toml differs from the sources"
+    );
+}
+
+/// Every row's pin is a real entry and every entry is reached by a path: a function with no way in would never
+/// be folded by anyone, and a row with no entry would stop the caller's compile.
+#[test]
+fn every_function_pin_is_reached_by_a_path_and_every_path_names_one() {
+    let names: Vec<&str> = alice_det_math::FUNCTION_PINS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    let rows: Vec<&str> = FUNCTION_PATHS_TOML
+        .lines()
+        .skip_while(|l| *l != "[paths]")
+        .skip(1)
+        .take_while(|l| !l.is_empty())
+        .collect();
+    assert!(rows.len() >= names.len(), "compared {} rows", rows.len());
+    let mut reached = Vec::new();
+    for row in rows {
+        let pin = row.rsplit('"').nth(1).expect("a quoted pin");
+        assert!(
+            names.contains(&pin),
+            "`{row}` names no entry of FUNCTION_PINS"
+        );
+        reached.push(pin);
+    }
+    for name in names {
+        assert!(reached.contains(&name), "no public path reaches `{name}`");
+    }
+}
+
+/// `function-paths.toml` maps `simd::X` to the scalar pin `X`, and a caller of a kernel folds that pin. That is only
+/// right while the kernel is bit-identical to the scalar function, which `tests/simd_parity.rs` asserts lane for
+/// lane: every kernel that computes has the scalar pin of its name and is exercised there.
+#[test]
+fn every_simd_kernel_is_covered_by_the_bit_parity_it_is_mapped_on() {
+    let parity = include_str!("simd_parity.rs");
+    assert!(
+        parity.contains("bit-identical"),
+        "tests/simd_parity.rs no longer states bit parity"
+    );
+    assert!(
+        parity.contains(concat!("to_", "bits()")),
+        "tests/simd_parity.rs no longer compares bits"
+    );
+    let names: Vec<&str> = alice_det_math::FUNCTION_PINS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    let mut compared = 0;
+    for s in public_numeric_surface()
+        .iter()
+        .filter(|s| public_module(s.module) == "simd")
+    {
+        if s.ty.is_some() {
+            continue;
+        }
+        assert!(
+            names.contains(&s.name.as_str()),
+            "simd::{} has no scalar pin of its name",
+            s.name
+        );
+        assert!(
+            mentions(parity, &format!("simd::{}", s.name)),
+            "simd::{} is not exercised by tests/simd_parity.rs",
+            s.name
+        );
+        compared += 1;
+    }
+    assert!(compared > 0, "compared no simd kernel");
 }
 
 // ---------------------------------------------------------------------------
