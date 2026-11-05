@@ -54,6 +54,12 @@ class Classify(unittest.TestCase):
         self.assertIsNone(fs.classify("a.rs", "// alice_det_math::SEMANTICS_ID in a comment\n"))
         self.assertIsNone(fs.classify("a.rs", "fn f() {}\n"))
 
+    def test_a_per_function_fold_is_a_breaker(self):
+        # function_pin panics at compile time on a name the candidate no longer has
+        self.assertEqual(fs.classify("a.rs", 'const A: [u8; 32] = alice_det_math::function_pin("sin");\n'), "breaks")
+        self.assertEqual(fs.classify("a.rs", 'use alice_det_math::function_pin;\nconst A: [u8; 32] = function_pin("sin");\n'), "breaks")
+        self.assertIsNone(fs.classify("a.rs", "// function_pin(\"sin\") in a comment\n"))
+
     def test_an_assert_far_from_the_identifier_is_a_use(self):
         far = "const _: () = assert!(true);\n\n\n\n\npub const A: [u8; 32] = alice_det_math::SEMANTICS_ID;\n"
         self.assertEqual(fs.classify("a.rs", far), "moves")
@@ -77,6 +83,15 @@ class ScanRepo(unittest.TestCase):
         self.assertEqual((b.depends, b.breaks, b.moves), (True, ["src/semantics.rs"], ["src/lib.rs"]))
         self.assertEqual((m.depends, m.breaks, m.moves), (True, [], ["src/lib.rs"]))
         self.assertEqual((n.depends, n.breaks, n.moves), (False, [], []))
+
+    def test_the_crate_that_defines_det_math_is_not_its_own_consumer(self):
+        # a tool in its repository depends on it, and its source defines function_pin
+        repo(self.d / "own", {
+            "Cargo.toml": '[package]\nname = "alice-det-math"\nversion = "0.6.1"\nedition = "2021"\n',
+            "src/semantics.rs": 'const A: [u8; 32] = function_pin("sin");\n',
+            "tools/t/Cargo.toml": DEP, "tools/t/src/lib.rs": USE})
+        f = self.scan(self.d / "own")
+        self.assertEqual((f.depends, f.breaks, f.moves), (False, [], []))
 
     def test_a_workspace_member_counts_and_tests_do_not(self):
         repo(self.d / "w", {"Cargo.toml": '[workspace]\nmembers = ["inner"]\n', "inner/Cargo.toml": DEP,

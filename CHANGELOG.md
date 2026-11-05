@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI: 関数ごとに fold する crate (`function_pin(..)`) も `fold_scan.py` は「落ちる」に数え、`fold_check.py` は自分が名指す関数がこの checkout に無い compile 失敗を crate の名前を出して報告する
 - `function-paths.toml`: 公開の Rust の path から `FUNCTION_PINS` の名前への表 (`[paths]`)、型からその method の pin への表 (`[types]`、`w.norm(..)` のような呼び出しは path を持たないので型を使えば全部を数える)、pin を持たない関数と理由 (`[no_arithmetic]`) 呼び出し元の source を読む道具が使う `tests/golden.rs` が source から同じ text を導いて完全一致を求めるので、行の無い公開の関数も関数の無い行も落ちる 全 pin に path があることも確かめる `simd::X` は scalar の pin `X` に対応する (前提は `tests/simd_parity.rs` の bit 一致で、kernel が scalar の pin を持ち parity で試されていることを試験で確かめる)
 - 関数ごとの識別子: `FUNCTION_PINS` (公開の数値関数ごとに名前と 32 byte) と const の検索 `function_pin(name)` を足した (無い名前は const 文脈では compile で止まる) 識別子は名前、grid の pin (`<name>_dense` があれば 2 つ)、その関数自身の IEEE 特殊値の hash の fold 呼ぶ関数の分だけを fold すれば、関数の追加や呼ばない関数の変更で自分の識別子が動かない `SEMANTICS_ID` は変わらない (特殊値の関数ごとの hash `tests/golden.rs` の `FUNCTION_SPECIALS` は fold しない) `tests/golden.rs` が記録した pin から表全体を計算し直して一致を求め、特殊値の走査が訪ねる関数と名前が一致することを確かめる `sin` の符号付きゼロだけを失うと `sin` の hash だけが動く
 - CI: 共有の `scripts/semver_gate.py`、`scripts/test_semver_gate.py`、`scripts/release_baseline.py`、`scripts/test_release_baseline.py` の subprocess に `encoding="utf-8"` を明示した (text mode は既定で locale の符号化で読むため)
