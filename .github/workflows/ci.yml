@@ -451,3 +451,8 @@ jobs:
         run: |
           python3 scripts/test_workflow_timeouts.py
           python3 scripts/workflow_timeouts.py
+      # every step that pipes runs with pipefail; the checker's own tests run first
+      - name: workflow-pipefail
+        run: |
+          python3 scripts/test_workflow_pipefail.py
+          python3 scripts/workflow_pipefail.py

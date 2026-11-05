@@ -151,6 +151,8 @@ python3 scripts/tracked_binaries.py
 step "ci.yml / docs-lint: Concurrency of every branch-push workflow"
 python3 scripts/test_workflow_concurrency.py
 python3 scripts/workflow_concurrency.py
+python3 scripts/test_workflow_pipefail.py
+python3 scripts/workflow_pipefail.py
 
 step "ci.yml / docs-lint: Licence check (tests)"
 python3 scripts/test_license_check.py
