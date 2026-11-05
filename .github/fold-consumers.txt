@@ -2,7 +2,7 @@
 # table with a row per det-math identifier (`*_SEMANTICS_BY_DET_MATH`), or that asserts at compile time
 # which det-math identifier it was recorded with (ALICE-Font's DET_MATH_GENERATION); scripts/fold_check.py
 # builds each against a commit that moves SEMANTICS_ID (.github/workflows/downstream-fold.yml)
-ALICE-Edge
+# scripts/fold_scan.py derives this list from every public repository's main and fails when it differs
 ALICE-Font
 ALICE-Kinematics
 ALICE-LLM

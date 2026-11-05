@@ -1,0 +1,12 @@
+# the paths that run .github/workflows/fold-scan.yml (scripts/changed_paths.py decide)
+# on.pull_request.paths of the workflow must list the same patterns in the same order
+# (scripts/changed_paths.py sync)
+# the two lists the scan compares with, and the scan
+.github/fold-consumers.txt
+.github/fold-movers.txt
+scripts/fold_scan.py
+scripts/test_fold_scan.py
+# the changes job
+scripts/changed_paths.py
+.github/workflows/fold-scan.yml
+.github/paths/fold-scan.txt

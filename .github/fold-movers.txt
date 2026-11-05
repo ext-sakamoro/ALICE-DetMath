@@ -1,0 +1,7 @@
+# the crates that use alice-det-math's SEMANTICS_ID without failing their compile when it moves:
+# an identifier they derive from it moves with it (a re-export, a hash input, a value handed to a
+# caller); scripts/fold_scan.py derives this list with .github/fold-consumers.txt and fails when it
+# differs. Not built by the fold check: a det-math generation wave moves their identifiers too.
+ALICE-Analytics
+ALICE-Edge
+ALICE-Ephemeris

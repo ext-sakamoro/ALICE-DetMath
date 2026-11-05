@@ -63,6 +63,8 @@ step "downstream-fold.yml / changes: the fold tool (tests, then the list against
 # the downstream fold check's tool (.github/workflows/downstream-fold.yml runs the same tests and `plan` when a listed path changes)
 python3 scripts/test_fold_check.py
 python3 scripts/fold_check.py plan
+# the scan's tests (the scan itself reads every public repository: .github/workflows/fold-scan.yml)
+python3 scripts/test_fold_scan.py
 
 step "ci.yml / clippy: Version names its identifier (append-only table)"
 python3 scripts/test_ci_base.py

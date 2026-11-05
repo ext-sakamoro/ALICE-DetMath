@@ -24,8 +24,10 @@ on:
       - 'rust-toolchain.toml'
       - '.github/fold-consumers.txt'
       - '.github/fold-wave.toml'
+      - '.github/fold-movers.txt'
       - 'scripts/fold_check.py'
       - 'scripts/test_fold_check.py'
+      - 'scripts/fold_scan.py'
       - 'scripts/changed_paths.py'
       - '.github/workflows/downstream-fold.yml'
       - '.github/paths/downstream-fold.txt'
@@ -115,6 +117,25 @@ jobs:
           echo "paths=$PATHS moved=${MOVED:-not read} force=$FORCE -> consumers run: $run"
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
+  # the list the builds below take is the one a scan of every public repository's main finds
+  scan:
+    name: SEMANTICS_ID users against the lists
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/fold-scan
+          key: fold-scan-${{ github.run_id }}
+          restore-keys: fold-scan-
+      - name: Scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/fold_scan.py check --cache ~/.cache/fold-scan/results.json
+
   fold:
     name: Fold — ${{ matrix.consumer }}
     needs: changes
@@ -165,7 +186,7 @@ jobs:
   gate:
     name: Gate
     if: always()
-    needs: [changes, fold, tally]
+    needs: [changes, scan, fold, tally]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -9,8 +9,10 @@ rust-toolchain.toml
 # the list, the wave file and the tool
 .github/fold-consumers.txt
 .github/fold-wave.toml
+.github/fold-movers.txt
 scripts/fold_check.py
 scripts/test_fold_check.py
+scripts/fold_scan.py
 # the changes job
 scripts/changed_paths.py
 .github/workflows/downstream-fold.yml

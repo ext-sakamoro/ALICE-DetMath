@@ -1,0 +1,96 @@
+name: Fold scan
+
+# Every public repository's main is scanned for uses of alice-det-math's SEMANTICS_ID
+# (scripts/fold_scan.py): the crates whose compile fails when it moves must be the ones in
+# .github/fold-consumers.txt, the others that use it the ones in .github/fold-movers.txt. A crate
+# can start folding the identifier in its own repository, so the scan runs every day as well as on a
+# change of the lists or the scan. Private repositories are not scanned (the log says so).
+# .github/workflows/downstream-fold.yml runs the same check before it builds the consumers.
+
+on:
+  push:
+    # no paths here: a branch created at a SHA another ref already has gets an empty
+    # diff from GitHub's filter and the run is skipped; the changes job below compares
+    # with merge-base(origin/main) instead (patterns: .github/paths/fold-scan.txt)
+    branches: [main, 'ci/**']
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/fold-consumers.txt'
+      - '.github/fold-movers.txt'
+      - 'scripts/fold_scan.py'
+      - 'scripts/test_fold_scan.py'
+      - 'scripts/changed_paths.py'
+      - '.github/workflows/fold-scan.yml'
+      - '.github/paths/fold-scan.txt'
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/fold-scan.txt
+
+  scan:
+    name: SEMANTICS_ID users against the lists
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tests of scripts/fold_scan.py
+        run: python3 scripts/test_fold_scan.py
+      # results by repository and main's SHA: an unchanged repository is not fetched again
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/fold-scan
+          key: fold-scan-${{ github.run_id }}
+          restore-keys: fold-scan-
+      - name: Scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/fold_scan.py check --cache ~/.cache/fold-scan/results.json
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"
