@@ -129,6 +129,8 @@ class Consumer(unittest.TestCase):
         r = self.w.check("ALICE-Fake", fc.Entry("main", None))
         self.assertEqual(r["result"], "patch-ignored", r)
         self.assertIn("Other-DetMath", r["detail"])
+        # who pulls the other copy, with its requirement: the package to move in the wave
+        self.assertIn("via helper 0.1.0 (alice-det-math ^0.6.1)", r["detail"])
 
     def test_siblings_pinned_by_the_consumer_are_fetched_beside_it(self):
         sib = repo(self.w.dir / "ALICE-Sib", {

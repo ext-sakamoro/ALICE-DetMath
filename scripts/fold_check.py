@@ -286,15 +286,30 @@ def patch_config(sources: set[str], candidate: Path) -> list[str]:
     return out
 
 
-def resolved_det_maths(manifest: Path, config: list[str], cwd: Path) -> list[str]:
+def resolved_det_maths(manifest: Path, config: list[str], cwd: Path) -> list[tuple[str, list[str]]]:
+    """each alice-det-math in the resolve: its directory, and who pulls it (`<package> <version>
+    (alice-det-math <requirement>)` for each package of the resolve that depends on it)"""
     p = run(["cargo", "metadata", "-q", "--format-version", "1", "--manifest-path", str(manifest), *config],
             cwd=cwd, check=False)
     if p.returncode != 0:
         raise CheckFailed("build-failed", f"cargo metadata failed: {p.stderr.strip()[-1500:]}")
     meta = json.loads(p.stdout)
-    in_resolve = {n["id"] for n in (meta.get("resolve") or {}).get("nodes", [])}
-    return [os.path.dirname(pk["manifest_path"]) for pk in meta["packages"]
-            if pk["name"] == PACKAGE and pk["id"] in in_resolve]
+    nodes = (meta.get("resolve") or {}).get("nodes", [])
+    in_resolve = {n["id"] for n in nodes}
+    packages = {pk["id"]: pk for pk in meta["packages"]}
+    out = []
+    for pid, pk in packages.items():
+        if pk["name"] != PACKAGE or pid not in in_resolve:
+            continue
+        via = []
+        for n in nodes:
+            if any(d.get("pkg") == pid for d in n.get("deps", [])):
+                parent = packages[n["id"]]
+                reqs = sorted({d["req"] for d in parent.get("dependencies", [])
+                               if (d.get("rename") or d["name"]) == PACKAGE or d["name"] == PACKAGE})
+                via.append(f"{parent['name']} {parent['version']} ({PACKAGE} {' / '.join(reqs) or '?'})")
+        out.append((os.path.dirname(pk["manifest_path"]), sorted(via)))
+    return out
 
 
 def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_base: str, owner: str,
@@ -313,12 +328,14 @@ def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_bas
             raise CheckFailed("no-dependency", f"{name}: no requirement on {PACKAGE} found (0 compared)")
         config = patch_config(sources, candidate)
         manifest = layout / name / "Cargo.toml"
-        paths = resolved_det_maths(manifest, config, candidate)
+        resolved = resolved_det_maths(manifest, config, candidate)
+        paths = [d for d, _ in resolved]
         want = os.path.realpath(candidate)
-        others = sorted({p for p in paths if os.path.realpath(p) != want})
-        if not paths or others:
+        others = sorted((d, via) for d, via in resolved if os.path.realpath(d) != want)
+        if not resolved or others:
+            where = "; ".join(f"{d} via {', '.join(via) or 'no dependent in the resolve'}" for d, via in others)
             raise CheckFailed("patch-ignored", f"{name}: alice-det-math in the resolve is not this checkout "
-                              f"({len(paths)} resolved; elsewhere: {', '.join(others) or 'none resolved'})")
+                              f"({len(resolved)} resolved; elsewhere: {where or 'none resolved'})")
         p = run(["cargo", "check", "-q", "--lib", "--manifest-path", str(manifest), *config], cwd=candidate, check=False)
         if p.returncode != 0:
             m = MISSING_ROW_RE.search(p.stderr)
