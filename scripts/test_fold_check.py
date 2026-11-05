@@ -115,6 +115,21 @@ class Consumer(unittest.TestCase):
         self.assertEqual(r["result"], "missing-row", r)
         self.assertIn("FAKE_SEMANTICS_BY_DET_MATH has no row", r["detail"])
 
+    def test_a_recorded_generation_that_does_not_match_is_red(self):
+        # the other compile-time form: a const assert of the det-math identifier the crate recorded
+        for recorded, want in ((CAND_ID, "ok"), (OLD_ID, "missing-row")):
+            with self.subTest(recorded=hex(recorded)):
+                name = f"ALICE-Gen{recorded:02x}"
+                self.w.consumer(name, [OLD_ID, CAND_ID], files={"src/stamp.rs": "", "src/lib.rs": consumer_lib([OLD_ID, CAND_ID])
+                    + f"const GENERATION: [u8; 32] = [{recorded:#04x}; 32];\n"
+                    "const fn same(a: &[u8; 32], b: &[u8; 32]) -> bool { let mut i = 0; while i < 32 { if a[i] != b[i] { return false; } i += 1; } true }\n"
+                    "const _: () = assert!(same(&alice_det_math::SEMANTICS_ID, &GENERATION),\n"
+                    "    \"alice-det-math generation changed: re-record FAKE_SEMANTICS_ID and GENERATION\");\n"})
+                r = self.w.check(name, fc.Entry("main", None))
+                self.assertEqual(r["result"], want, r)
+                if want != "ok":
+                    self.assertIn("recorded det-math generation", r["detail"])
+
     def test_a_det_math_the_patch_does_not_reach_is_red(self):
         # the consumer reaches det-math also through a git dependency outside the fetched tree,
         # by another URL: that copy is not patched, the resolve holds the published det-math too,

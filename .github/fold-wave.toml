@@ -5,8 +5,10 @@
 # Every listed crate needs an entry. After the wave branches land, the entries go back to "main".
 [consumers]
 ALICE-Edge = "main"
+ALICE-Font = "main"
 ALICE-Kinematics = "main"
 ALICE-LLM = "main"
+ALICE-LOL = "main"
 ALICE-ML = "main"
 ALICE-Physics = "main"
 ALICE-SDF = "main"

@@ -54,7 +54,9 @@ CONSUMERS = ".github/fold-consumers.txt"
 WAVE = ".github/fold-wave.toml"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 NAME_RE = re.compile(r"ALICE-[A-Za-z0-9-]+")
-MISSING_ROW_RE = re.compile(r"has no row in ([A-Z0-9_]+)")
+# a fold table without the row (`... has no row in <TABLE>: add its fold`), or a compile-time assert of the
+# det-math identifier a crate recorded (ALICE-Font: `alice-det-math generation changed: re-record ...`)
+MISSING_ROW_RE = re.compile(r"has no row in ([A-Z0-9_]+)|alice-det-math (generation) changed")
 OK_CONCLUSIONS = {"success", "skipped", "neutral"}
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 
@@ -339,9 +341,12 @@ def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_bas
         p = run(["cargo", "check", "-q", "--lib", "--manifest-path", str(manifest), *config], cwd=candidate, check=False)
         if p.returncode != 0:
             m = MISSING_ROW_RE.search(p.stderr)
-            if m:
+            if m and m.group(1):
                 raise CheckFailed("missing-row", f"{name}: {m.group(1)} has no row for this SEMANTICS_ID: "
                                   f"add its fold (on main, or on the wave branch named in {WAVE})")
+            if m:
+                raise CheckFailed("missing-row", f"{name}: its recorded det-math generation is not this SEMANTICS_ID: "
+                                  f"re-record it (on main, or on the wave branch named in {WAVE})")
             raise CheckFailed("build-failed", f"{name}: cargo check failed:\n{p.stderr.strip()[-2000:]}")
         res.update(result="ok", detail=f"{n} requirement(s) on {PACKAGE}, {len(paths)} resolved to this checkout, "
                                         f"sources: {', '.join(sorted(sources))}")

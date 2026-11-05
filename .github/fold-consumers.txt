@@ -1,9 +1,12 @@
 # the crates that fold alice-det-math's SEMANTICS_ID into an identifier of their own through a
-# table with a row per det-math identifier (`*_SEMANTICS_BY_DET_MATH`); scripts/fold_check.py
+# table with a row per det-math identifier (`*_SEMANTICS_BY_DET_MATH`), or that asserts at compile time
+# which det-math identifier it was recorded with (ALICE-Font's DET_MATH_GENERATION); scripts/fold_check.py
 # builds each against a commit that moves SEMANTICS_ID (.github/workflows/downstream-fold.yml)
 ALICE-Edge
+ALICE-Font
 ALICE-Kinematics
 ALICE-LLM
+ALICE-LOL
 ALICE-ML
 ALICE-Physics
 ALICE-SDF
