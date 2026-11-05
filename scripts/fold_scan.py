@@ -12,7 +12,8 @@ which can be another one; a repository without main is named on its own line):
        breaks  a fold table that panics when it has no row for the identifier
                (`has no row in <NAME>_BY_DET_MATH`), or a compile-time assert that names
                `alice_det_math::SEMANTICS_ID` (`const _: () = assert!(` within 3 lines): a move
-               fails the crate's compile
+               fails the crate's compile; or a fold by function (`function_pin(..)`): a function
+               it names that this checkout no longer has fails the crate's compile
        moves   another use of `alice_det_math::SEMANTICS_ID`: a move changes an identifier the
                crate derives from it, without failing its compile
 
@@ -53,6 +54,7 @@ SKIP_DIRS = {"tests", "examples", "benches", "fuzz", "target"}
 TABLE_PANIC_RE = re.compile(r"has no row in [A-Z0-9_]*_BY_DET_MATH")
 ASSERT_RE = re.compile(r"const\s+_\s*:\s*\(\)\s*=\s*assert!\(")
 USE_RE = re.compile(r"alice_det_math::SEMANTICS_ID\b")
+FUNCTION_PIN_RE = re.compile(r"\bfunction_pin\s*\(")
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 # the scan's rules: this file's bytes. A cached result found under other rules is scanned again, so a
 # change of the classification reaches repositories whose main did not move
@@ -131,6 +133,8 @@ def classify(path: str, text: str) -> str | None:
         if ASSERT_RE.search(ln) and any(USE_RE.search(x) for x in lines[i:i + 4]):
             return "breaks"
     code = "\n".join(ln for ln in lines if not ln.lstrip().startswith("//"))
+    if FUNCTION_PIN_RE.search(code):
+        return "breaks"
     return "moves" if USE_RE.search(code) else None
 
 
@@ -144,10 +148,13 @@ def scan_repo(url: str, sha: str, work: Path) -> Found:
         if SKIP_DIRS & set(m.relative_to(d).parts):
             continue
         try:
-            if depends_on_det_math(tomllib.loads(m.read_text(encoding="utf-8"))):
-                found.depends = True
+            doc = tomllib.loads(m.read_text(encoding="utf-8"))
         except (tomllib.TOMLDecodeError, UnicodeDecodeError):
             continue
+        if (doc.get("package") or {}).get("name") == PACKAGE:
+            return Found()   # the crate itself: its source defines what the others use
+        if depends_on_det_math(doc):
+            found.depends = True
     if not found.depends:
         return found
     git(["sparse-checkout", "set", "--no-cone", "/**/Cargo.toml", "/Cargo.toml", "/**/*.rs", "/*.rs"], cwd=d)

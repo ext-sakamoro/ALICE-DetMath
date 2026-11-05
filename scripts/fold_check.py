@@ -58,7 +58,9 @@ SHA_RE = re.compile(r"[0-9a-f]{40}")
 NAME_RE = re.compile(r"ALICE-[A-Za-z0-9-]+")
 # a fold table without the row (`... has no row in <TABLE>: add its fold`), or a compile-time assert of the
 # det-math identifier a crate recorded (ALICE-Font: `alice-det-math generation changed: re-record ...`)
+# and a fold by function naming one this checkout does not have (`function_pin`)
 MISSING_ROW_RE = re.compile(r"has no row in ([A-Z0-9_]+)|alice-det-math (generation) changed")
+MISSING_FUNCTION = "not a function of alice-det-math"
 OK_CONCLUSIONS = {"success", "skipped", "neutral"}
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 
@@ -367,6 +369,9 @@ def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_bas
                               f"({len(resolved)} resolved; elsewhere: {where or 'none resolved'})")
         p = run(["cargo", "check", "-q", "--lib", "--manifest-path", str(manifest), *config], cwd=candidate, check=False)
         if p.returncode != 0:
+            if MISSING_FUNCTION in p.stderr:
+                raise CheckFailed("missing-row", f"{name}: its fold names a function this checkout does not have "
+                                  f"(on main, or on the wave branch named in {WAVE})")
             m = MISSING_ROW_RE.search(p.stderr)
             if m and m.group(1):
                 raise CheckFailed("missing-row", f"{name}: {m.group(1)} has no row for this SEMANTICS_ID: "
