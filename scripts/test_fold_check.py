@@ -297,9 +297,59 @@ class Inputs(unittest.TestCase):
         self.assertEqual(got, {"ALICE-A": fc.Entry("main", None), "ALICE-B": fc.Entry("ci/wave", sha)})
         self.assertEqual(fc.apply_override(wave, ""), wave)
         for bad in (f"ALICE-C=ci/wave@{sha}", f"ALICE-B=feature/x@{sha}", "ALICE-B=ci/wave@abc123",
-                    f"ALICE-B=ci/wave{sha}", f"ci/wave@{sha}"):
+                    f"ALICE-B=ci/wave{sha}", f"ci/wave@{sha}", f"ALICE-B=ci/@{sha}",
+                    f"ALICE-B=ci/a@{sha},ALICE-B=ci/b@{sha}"):
             with self.subTest(override=bad), self.assertRaises(fc.InputError):
                 fc.apply_override(wave, bad)
+
+    def lists(self) -> Path:
+        root = self.d / "root"
+        (root / ".github").mkdir(parents=True, exist_ok=True)
+        (root / fc.CONSUMERS).write_text("ALICE-A\nALICE-B\n", encoding="utf-8")
+        (root / fc.WAVE).write_text('[consumers]\nALICE-A = "main"\nALICE-B = "main"\n', encoding="utf-8")
+        return root
+
+    def test_plan_through_main_takes_the_override_from_the_flag_and_the_environment(self):
+        root, sha = self.lists(), "b" * 40
+        for argv, env in ((["--override", f"ALICE-B=ci/wave@{sha}"], {}), ([], {"FOLD_OVERRIDE": f"ALICE-B=ci/wave@{sha}"})):
+            with self.subTest(argv=argv, env=env):
+                old = os.environ.get("FOLD_OVERRIDE")
+                os.environ.update(env)
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()) as o:
+                        self.assertEqual(fc.main(["--candidate", str(root), "plan", *argv]), 0)
+                finally:
+                    os.environ.pop("FOLD_OVERRIDE", None)
+                    if old is not None:
+                        os.environ["FOLD_OVERRIDE"] = old
+                self.assertIn(f"fold: ALICE-B: ci/wave @ {sha}", o.getvalue())
+                self.assertIn("fold: ALICE-A: main", o.getvalue())
+
+    def test_consumer_through_main_builds_the_overridden_entry(self):
+        root, sha = self.lists(), "c" * 40
+        seen = {}
+        real = fc.check_consumer
+
+        def fake(name, entry, candidate, work, url_base, owner, check_runs=None):
+            seen[name] = entry
+            return {"name": name, "ref": entry.ref, "sha": entry.sha, "result": "ok", "detail": ""}
+        fc.check_consumer = fake
+        self.addCleanup(setattr, fc, "check_consumer", real)
+        res = self.d / "r.json"
+        for argv, env in ((["--override", f"ALICE-B=ci/wave@{sha}"], {}), ([], {"FOLD_OVERRIDE": f"ALICE-B=ci/wave@{sha}"})):
+            with self.subTest(argv=argv, env=env):
+                seen.clear()
+                old = os.environ.get("FOLD_OVERRIDE")
+                os.environ.update(env)
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(fc.main(["--candidate", str(root), "consumer", "--name", "ALICE-B",
+                                                  "--result", str(res), *argv]), 0)
+                finally:
+                    os.environ.pop("FOLD_OVERRIDE", None)
+                    if old is not None:
+                        os.environ["FOLD_OVERRIDE"] = old
+                self.assertEqual(seen["ALICE-B"], fc.Entry("ci/wave", sha))
 
     def tally(self, consumers: str, results: dict[str, str]) -> int:
         root = self.d / "root"

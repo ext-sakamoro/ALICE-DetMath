@@ -131,13 +131,17 @@ def apply_override(wave: dict[str, Entry], text: str) -> dict[str, Entry]:
     SHA must be the branch tip with green CI), so an override can point a run at a wave branch but cannot
     make a crate pass that does not"""
     out = dict(wave)
+    seen: set[str] = set()
     for part in [p.strip() for p in text.split(",") if p.strip()]:
         name, sep, rest = part.partition("=")
         branch, at, sha = rest.rpartition("@")
         if not sep or not at or name not in wave:
             raise InputError(f"override {part!r}: needs <listed crate>=ci/<branch>@<40 hex>")
-        if not branch.startswith("ci/") or not SHA_RE.fullmatch(sha):
-            raise InputError(f"override {part!r}: only a ci/ branch pinned by its full SHA")
+        if not branch.startswith("ci/") or branch == "ci/" or not SHA_RE.fullmatch(sha):
+            raise InputError(f"override {part!r}: only a ci/<name> branch pinned by its full SHA")
+        if name in seen:
+            raise InputError(f"override {part!r}: {name} is named twice")
+        seen.add(name)
         out[name] = Entry(branch, sha)
     return out
 
