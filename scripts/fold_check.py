@@ -334,7 +334,11 @@ def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_bas
         paths = [d for d, _ in resolved]
         want = os.path.realpath(candidate)
         others = sorted((d, via) for d, via in resolved if os.path.realpath(d) != want)
-        if not resolved or others:
+        if not resolved:
+            raise CheckFailed("nothing-resolved", f"{name}: {n} requirement(s) on {PACKAGE} but none in the resolve "
+                              "(an optional or target-only dependency the default build does not enable): "
+                              "nothing would be compared")
+        if others:
             where = "; ".join(f"{d} via {', '.join(via) or 'no dependent in the resolve'}" for d, via in others)
             raise CheckFailed("patch-ignored", f"{name}: alice-det-math in the resolve is not this checkout "
                               f"({len(resolved)} resolved; elsewhere: {where or 'none resolved'})")

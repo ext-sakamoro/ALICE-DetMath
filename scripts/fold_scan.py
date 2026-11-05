@@ -21,8 +21,8 @@ which can be another one; a repository without main is named on its own line):
 scanned. A repository the token cannot list (a private one, with the workflow's token) is not
 scanned: the scan says so on its own line, it never counts as "no use".
 
-Results are cached by repository and main's SHA (`--cache FILE`), so an unchanged
-repository is not fetched again. A crate reaching the identifier through another crate's
+Results are cached by repository, main's SHA and the scan's rules (this file's hash, `--cache
+FILE`), so an unchanged repository is not fetched again until the rules change. A crate reaching the identifier through another crate's
 re-export (`pub use alice_det_math::SEMANTICS_ID` in a dependency) is not followed; the
 re-exporting crate is listed as moving.
 
@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -53,6 +54,9 @@ TABLE_PANIC_RE = re.compile(r"has no row in [A-Z0-9_]*_BY_DET_MATH")
 ASSERT_RE = re.compile(r"const\s+_\s*:\s*\(\)\s*=\s*assert!\(")
 USE_RE = re.compile(r"alice_det_math::SEMANTICS_ID\b")
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
+# the scan's rules: this file's bytes. A cached result found under other rules is scanned again, so a
+# change of the classification reaches repositories whose main did not move
+RULES = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
 class InputError(Exception):
@@ -177,7 +181,7 @@ def scan(repos: list[Repo], cache_path: Path | None,
         if sha is None:
             return r.name, None, None, False
         c = cache.get(r.name)
-        if c and c.get("sha") == sha:
+        if c and c.get("sha") == sha and c.get("rules") == RULES:
             return r.name, sha, Found(c["depends"], c["breaks"], c["moves"]), False
         with tempfile.TemporaryDirectory(prefix="fold-scan-") as t:
             return r.name, sha, scanner(r.url, sha, Path(t)), True
@@ -190,7 +194,7 @@ def scan(repos: list[Repo], cache_path: Path | None,
                 continue
             results[name] = f
             fetched += new
-            cache[name] = {"sha": sha, "depends": f.depends, "breaks": f.breaks, "moves": f.moves}
+            cache[name] = {"sha": sha, "rules": RULES, "depends": f.depends, "breaks": f.breaks, "moves": f.moves}
     if cache_path:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache, indent=0, sort_keys=True), encoding="utf-8")

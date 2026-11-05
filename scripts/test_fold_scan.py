@@ -121,6 +121,60 @@ class Cache(unittest.TestCase):
         self.assertEqual(res["R1"].breaks, ["src/s.rs"])   # from the cache
 
 
+class Rules(unittest.TestCase):
+    def test_a_change_of_the_scan_rules_rescans_an_unchanged_repository(self):
+        d = Path(tempfile.mkdtemp(prefix="fold-rules-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        calls: list[str] = []
+
+        def scanner(url, sha, work):
+            calls.append(url)
+            return fs.Found(True, [], [])
+        repos = [fs.Repo("R1", "u1")]
+        cache = d / "c.json"
+        fs.scan(repos, cache, sha_of=lambda u: "a" * 40, scanner=scanner)
+        fs.scan(repos, cache, sha_of=lambda u: "a" * 40, scanner=scanner)
+        self.assertEqual(calls, ["u1"])          # the second run reads the cache
+        real = fs.RULES
+        fs.RULES = "another rule set"
+        self.addCleanup(setattr, fs, "RULES", real)
+        fs.scan(repos, cache, sha_of=lambda u: "a" * 40, scanner=scanner)
+        self.assertEqual(calls, ["u1", "u1"])    # the same main, new rules: scanned again
+
+    def test_the_rules_are_the_scan_source(self):
+        self.assertEqual(fs.RULES, fs.hashlib.sha256(Path(fs.__file__).read_bytes()).hexdigest())
+
+    def test_private_repositories_are_excluded_whatever_the_token_lists(self):
+        out = "ALICE-A\thttps://x/A\tpublic\nALICE-P\thttps://x/P\tprivate\nALICE-I\thttps://x/I\tinternal\n"
+        real = fs.subprocess.run
+
+        def fake(argv, **kw):
+            if argv[:2] == ["gh", "api"]:
+                return subprocess.CompletedProcess(argv, 0, out, "")
+            return real(argv, **kw)
+        fs.subprocess.run = fake
+        self.addCleanup(setattr, fs.subprocess, "run", real)
+        self.assertEqual([r.name for r in fs.list_repos("o")], ["ALICE-A"])
+
+    def test_a_breaker_is_not_listed_as_a_mover_and_no_main_is_printed(self):
+        results = {"B": fs.Found(True, ["s.rs"], ["l.rs"]), "M": fs.Found(True, [], ["l.rs"])}
+        with contextlib.redirect_stdout(io.StringIO()) as o:
+            breaks, moves = fs.report(results, 2, 0, "o", ["N"])
+        self.assertEqual((breaks, moves), (["B"], ["M"]))
+        self.assertIn("1 public repositories have no main branch, not scanned: N", o.getvalue())
+        self.assertIn("private repositories of o are not scanned", o.getvalue())
+
+    def test_nothing_scanned_fails_on_its_own(self):
+        # repositories listed, none with a main: an input error, not an empty comparison
+        real = (fs.list_repos, fs.scan)
+        self.addCleanup(lambda: (setattr(fs, "list_repos", real[0]), setattr(fs, "scan", real[1])))
+        fs.list_repos = lambda owner: [fs.Repo("A", "a")]
+        fs.scan = lambda repos, cache: ({}, 0, 0, ["A"])
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as e:
+            self.assertEqual(fs.main(["check"]), 2)
+        self.assertIn("0 repositories scanned", e.getvalue())
+
+
 class Compare(unittest.TestCase):
     def test_differences_both_ways_and_none(self):
         self.assertEqual(fs.compare(["A"], ["M"], ["A"], ["M"]), [])

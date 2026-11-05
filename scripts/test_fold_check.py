@@ -186,12 +186,62 @@ class Consumer(unittest.TestCase):
                 r = self.w.check("ALICE-Fake", fc.Entry("ci/wave", tip), runs=runs)
                 self.assertEqual(r["result"], "ci-not-green", r)
 
+    def test_a_requirement_that_resolves_to_nothing_is_red(self):
+        # an optional dependency that no default feature enables: the requirement is rewritten, but
+        # the resolve has no alice-det-math, so the build would compare nothing
+        repo(self.w.dir / "ALICE-Fake", {
+            "Cargo.toml": '[package]\nname = "f"\nversion = "0.1.0"\nedition = "2021"\n[workspace]\n'
+                          '[features]\nlaw = ["dep:alice-det-math"]\n[dependencies]\n'
+                          + self.w.dep_line().replace("default-features = false }", "default-features = false, optional = true }"),
+            "src/lib.rs": ""})
+        r = self.w.check("ALICE-Fake", fc.Entry("main", None))
+        self.assertEqual(r["result"], "nothing-resolved", r)
+
     def test_a_consumer_without_a_det_math_requirement_is_red(self):
         repo(self.w.dir / "ALICE-Fake", {
             "Cargo.toml": '[package]\nname = "f"\nversion = "0.1.0"\nedition = "2021"\n[workspace]\n',
             "src/lib.rs": ""})
         r = self.w.check("ALICE-Fake", fc.Entry("main", None))
         self.assertEqual(r["result"], "no-dependency", r)
+
+
+class Rewrite(unittest.TestCase):
+    """the requirement forms rewrite_versions handles, the ones it refuses, and the sources it patches"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="fold-rw-"))
+        self.addCleanup(shutil.rmtree, self.d, True)
+
+    def manifest(self, deps: str, rel: str = "Cargo.toml") -> Path:
+        p = self.d / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('[package]\nname = "x"\nversion = "0.1.0"\n' + deps, encoding="utf-8")
+        return p
+
+    def test_each_requirement_form_is_set_to_the_candidate(self):
+        self.manifest('[dependencies]\nalice-det-math = "0.5.1"\n')
+        self.manifest('[dependencies]\nalice-det-math = { git = "https://e/x", rev = "abc", version = "0.5.2", default-features = false }\n', "a/Cargo.toml")
+        self.manifest('[dependencies]\nalice-det-math = { git = "https://e/y", rev = "abc" }\n', "b/Cargo.toml")
+        self.manifest('[dependencies]\nalice-det-math = { workspace = true }\n', "c/Cargo.toml")
+        n, sources = fc.rewrite_versions(self.d, "0.7.0")
+        self.assertEqual(n, 3)   # the workspace = true entry is not a requirement of its own
+        self.assertEqual(sources, {"crates-io", "https://e/x", "https://e/y"})
+        self.assertIn('alice-det-math = "=0.7.0"', (self.d / "Cargo.toml").read_text(encoding="utf-8"))
+        self.assertIn('version = "=0.7.0"', (self.d / "a/Cargo.toml").read_text(encoding="utf-8"))
+
+    def test_a_path_dependency_and_an_unhandled_form_are_input_errors(self):
+        self.manifest('[dependencies]\nalice-det-math = { path = "../d", version = "0.6" }\n')
+        with self.assertRaisesRegex(fc.InputError, "by path"):
+            fc.rewrite_versions(self.d, "0.7.0")
+        self.manifest('[dependencies.alice-det-math]\nversion = "0.6"\n')
+        with self.assertRaisesRegex(fc.InputError, "does not handle"):
+            fc.rewrite_versions(self.d, "0.7.0")
+
+    def test_crates_io_is_always_patched_with_each_git_source(self):
+        cfg = fc.patch_config({"https://e/x"}, Path("/c"))
+        keys = [c.split(".alice-det-math.path=")[0] for c in cfg if c != "--config"]
+        self.assertEqual(sorted(keys), ['patch."https://e/x"', "patch.crates-io"])
+        self.assertEqual(len([c for c in fc.patch_config(set(), Path("/c")) if c != "--config"]), 1)
 
 
 class Inputs(unittest.TestCase):
