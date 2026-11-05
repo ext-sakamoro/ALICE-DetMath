@@ -17,7 +17,7 @@ step() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 # touching the crate roots invalidates only this repo's fingerprints.
 relint() { git ls-files | grep -E '(^|/)src/(lib|main)\.rs$' | xargs -r touch; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1 ($2)" >&2; exit 1; }; }
-has_toolchain() { rustup toolchain list | grep -q "^$1"; }
+has_toolchain() { grep -q "^$1" <<<"$(rustup toolchain list)"; }
 
 # Steps CI runs that this file cannot reproduce locally (they can only fail remotely):
 #   - ci.yml:wasm:Ensure wasm32-wasip1 rust-std is installed (no cargo / grep)
@@ -40,7 +40,7 @@ need cargo-semver-checks "cargo install cargo-semver-checks --version 0.50.0 --l
 has_toolchain 1.85 || { echo "missing toolchain 1.85 (rustup toolchain install 1.85)" >&2; exit 1; }
 
 step "ci.yml / wasm: Build tests (wasm32-wasip1)"
-rustup target list --installed | grep -q '^wasm32-wasip1$' || rustup target add wasm32-wasip1
+grep -q '^wasm32-wasip1$' <<<"$(rustup target list --installed)" || rustup target add wasm32-wasip1
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo test --features "$ALL_FEATURES" --target wasm32-wasip1 --no-run )
 
 step "ci.yml / wasm: Every test target via wasmtime (lib + tests, checked against cargo metadata)"
@@ -109,11 +109,11 @@ python3 scripts/test_api_boundary.py
 python3 scripts/api_boundary.py
 
 step "ci.yml / no_std: Build rlib for a target without std"
-rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
+grep -q '^thumbv7em-none-eabihf$' <<<"$(rustup target list --installed)" || rustup target add thumbv7em-none-eabihf
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo rustc --lib --no-default-features --crate-type rlib --target thumbv7em-none-eabihf )
 
 step "ci.yml / no_std: Build rlib for a target without std (simd)"
-rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
+grep -q '^thumbv7em-none-eabihf$' <<<"$(rustup target list --installed)" || rustup target add thumbv7em-none-eabihf
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo rustc --lib --no-default-features --features simd --crate-type rlib --target thumbv7em-none-eabihf )
 
 step "ci.yml / msrv: cargo check on MSRV (lib, default features)"
@@ -123,7 +123,7 @@ step "ci.yml / msrv: cargo check on MSRV (lib, docs.rs feature set)"
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo +1.85 check --lib --locked --features "$ALL_FEATURES" )
 
 step "ci.yml / msrv: cargo build on MSRV (no_std rlib, bare-metal target)"
-rustup target list --installed --toolchain 1.85 | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf --toolchain 1.85
+grep -q '^thumbv7em-none-eabihf$' <<<"$(rustup target list --installed --toolchain 1.85)" || rustup target add thumbv7em-none-eabihf --toolchain 1.85
 ( export CARGO_TERM_COLOR="always" ALL_FEATURES="std,simd"; cargo +1.85 rustc --lib --locked --no-default-features --crate-type rlib --target thumbv7em-none-eabihf )
 
 step "ci.yml / feature-powerset: Powerset (all depths)"
@@ -153,6 +153,8 @@ python3 scripts/test_workflow_concurrency.py
 python3 scripts/workflow_concurrency.py
 python3 scripts/test_workflow_pipefail.py
 python3 scripts/workflow_pipefail.py
+python3 scripts/test_check_pipe_grep_q.py
+python3 scripts/check_pipe_grep_q.py
 
 step "ci.yml / docs-lint: Licence check (tests)"
 python3 scripts/test_license_check.py
