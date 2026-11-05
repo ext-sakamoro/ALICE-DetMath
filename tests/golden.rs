@@ -921,6 +921,473 @@ fn a_lost_sign_of_zero_moves_the_specials_pin() {
 }
 
 // ---------------------------------------------------------------------------
+// Per-function identifiers: alice_det_math::FUNCTION_PINS
+// ---------------------------------------------------------------------------
+
+/// Hashes what [`common::specials::visit`] reports one function at a time: for each pin name, the
+/// same bytes [`HashSink`] feeds the aggregate (the name length-prefixed, then its outputs' bits),
+/// in a hasher of its own. A function's behaviour at the IEEE specials is then in its own
+/// identifier, not only in the aggregate `specials` pin.
+struct PerFunctionSink {
+    current: Option<(&'static str, Sha256)>,
+    done: Vec<(&'static str, String)>,
+}
+
+impl PerFunctionSink {
+    fn finish(&mut self) {
+        if let Some((name, h)) = self.current.take() {
+            self.done.push((name, format!("{:x}", h.finalize())));
+        }
+    }
+}
+
+impl common::specials::Sink for PerFunctionSink {
+    fn name(&mut self, name: &'static str) {
+        self.finish();
+        let mut h = Sha256::new();
+        h.update(u32::try_from(name.len()).unwrap().to_le_bytes());
+        h.update(name.as_bytes());
+        self.current = Some((name, h));
+    }
+    fn v32(&mut self, v: f32) {
+        self.current
+            .as_mut()
+            .expect("a value before a name")
+            .1
+            .update(digest_bits::out32(v));
+    }
+    fn v64(&mut self, v: f64) {
+        self.current
+            .as_mut()
+            .expect("a value before a name")
+            .1
+            .update(digest_bits::out64(v));
+    }
+}
+
+/// Each function's own hash at the IEEE specials, sorted by name.
+fn per_function_specials(sin: fn(f32) -> f32) -> Vec<(&'static str, String)> {
+    let mut s = PerFunctionSink {
+        current: None,
+        done: Vec::new(),
+    };
+    common::specials::visit(&mut s, sin);
+    s.finish();
+    s.done.sort_unstable_by_key(|(n, _)| *n);
+    s.done
+}
+
+/// Each function's hash at the IEEE specials, recorded like [`GOLDEN`] (re-pinned the same way,
+/// `DET_MATH_PRINT_GOLDEN=1`). Not folded into [`alice_det_math::SEMANTICS_ID`]: the aggregate
+/// `specials` pin already covers the same outputs there.
+const FUNCTION_SPECIALS: &[(&str, &str)] = &[
+    (
+        "acos",
+        "621500f1f1004f39489d7d0100bdb864da482a49b72f57037870a39f7804d0aa",
+    ),
+    (
+        "acos64",
+        "3db2c6fa50c8c5da7d49f271567e985dcd8ecf4c743f19be26b0eeded435c495",
+    ),
+    (
+        "argmax",
+        "4ba1a0a2b6215923b6e33ddf7e7f7fd67d1bcc5a015b64da8089b9b457fffc20",
+    ),
+    (
+        "argmin",
+        "21fd61cfd48a01741f6c05d02b442be1034c6595c4a35bfb77381175bac3b353",
+    ),
+    (
+        "asin",
+        "e2b19858ea592f2dd15778d4adf3b3946440a361df10816e54c214ac513b001f",
+    ),
+    (
+        "asin64",
+        "05fa06bd58f948f8534e22fb3a9793b1abdf838d4abbf1d6cd7cf36999d4e12e",
+    ),
+    (
+        "atan",
+        "5e1e25b268c709282336242f58e903a23006a9aa7fe054dc5d6979e34fb6fdb2",
+    ),
+    (
+        "atan2",
+        "c2189a58c6e50b249a7bd0c06c1e1b1acda1aa7cda0cb7a174e86fefa2d8746d",
+    ),
+    (
+        "atan2_64",
+        "748c26245c06447d92e7f25d37ab1d5987e2195f78457da5a2f2367e8a60ef05",
+    ),
+    (
+        "atan64",
+        "46546a01904a59f96fbce4d2b450bc36768b0ffaab7150547cad60c565a7dc2f",
+    ),
+    (
+        "cbrt",
+        "dd844bc59159b959adec80034069695a5f10656b44b08d44ff30c1559e96439d",
+    ),
+    (
+        "clamp",
+        "7f1179fcda7ed99919cb7e707465806dec98522150d6b194b16b7a9fa9f38747",
+    ),
+    (
+        "clamp64",
+        "2ecd319c5a7bab51c614d2b02f1ee93cecb07434e5a5054a7bba6d0a09355ac0",
+    ),
+    (
+        "cos",
+        "efc8106a4447c02af37db62cadf7dc171c0d17a3345b3b9547f28c6f9625c079",
+    ),
+    (
+        "cos64",
+        "2f27bd6bfd72fb7b80848a5281b296d6c33fa0c3897937c729ea9df638e19d9d",
+    ),
+    (
+        "erf",
+        "ebf8061c4f261bf8d889634b4b5a63da8eccb828a2f49e51096ead08dd358a3a",
+    ),
+    (
+        "erf64",
+        "1f4b3c20058829734b1205f948d6a2cb2f0987447d7d93f458508d08a72d7c38",
+    ),
+    (
+        "exp",
+        "943095ed4a31ae7500b8232387780c01348bd3c5174f3085dfdf9a5177506f2d",
+    ),
+    (
+        "exp64",
+        "ed123bb7e886bc779b1aa1f581c2eed8c74e679ba5c561669ab39f2f52ba75fc",
+    ),
+    (
+        "hypot",
+        "34374f1d4a553a4c02d080464a814528cc86ef25942e8400ab308a96875a1a5d",
+    ),
+    (
+        "hypot64",
+        "b4e44bd89f8f0ea05d9b3cb4530b0d333715e4c758d23dcf10e947e4222325cc",
+    ),
+    (
+        "lerp",
+        "fe001ceb9de20e86d8f60fb043fb7dba00eaab3ce00d60958214ad50a4ada247",
+    ),
+    (
+        "ln",
+        "fe8332acca13a24f4b58b13f53c2b92986f982b155fca114b2552730611b0b67",
+    ),
+    (
+        "ln64",
+        "f6ca6f73fe89b461d95be09ee270d1c59e6301478c02edb47725aac120ccf44e",
+    ),
+    (
+        "log10",
+        "6ed8952aa96fecc9e14c7e8d0caec4660822d9d8785dc99f1644415dcf44929c",
+    ),
+    (
+        "log10_64",
+        "676e51dc4f2465bb9409091b577cf970ab5ded19115908daad93a4d30dbf0041",
+    ),
+    (
+        "log2",
+        "add785c8fdae9e98f8b191eb17d41975da2b0d0e6aa53781201fc7a32ccff69c",
+    ),
+    (
+        "log2_64",
+        "2d898911ffc60b09ba2fc6104cba15fc30a0f51f75344979174fa529e3867fd6",
+    ),
+    (
+        "max",
+        "884a7e2a01c624d95e964df303077395116f1cfb25dc644157365e55e05bd86e",
+    ),
+    (
+        "max64",
+        "1a9823137f1b25838daca36dd769438435c435abfdd00f661a388c2dd6752224",
+    ),
+    (
+        "metric_axis_extent",
+        "f28abc226f8fd3c5c7fc537586f3f6e88955b79fd9a95a9bc926c198aa9906a1",
+    ),
+    (
+        "metric_euclidean_radius",
+        "cffabc0036aba4aeeb85d58b723a8c52dcc674f492eff5202aceb59f06cdcfe1",
+    ),
+    (
+        "metric_lipschitz",
+        "027c0418bed122f732ca6942050b84b16d5a686d82c75f92753771be5749ff65",
+    ),
+    (
+        "metric_minimum",
+        "4ce8a299e0b07bd7e6ec19f9131f1ba3b840f7a99b3bb21788c78029196519eb",
+    ),
+    (
+        "metric_new",
+        "4eabcbad50aacb12df29eeedd0a8ca5b2924b521db15a288b632b4eacc0249f3",
+    ),
+    (
+        "metric_norm",
+        "120d10114537f59446133551d57555f0249705a77d0e3566b7413e190380ff5f",
+    ),
+    (
+        "metric_normalised",
+        "ad76a91de398aec798eeae4dd522aea6e7b7e728e852feff805281ae8b88a2d3",
+    ),
+    (
+        "metric_weights",
+        "c57ad6868c67a740e7345ef28308adf10971e49c7549cb6b93dc97e940c7a412",
+    ),
+    (
+        "min",
+        "edff680baf757a6b9c9b032052d4eb9c0038fb7190023541c4384df848193813",
+    ),
+    (
+        "min64",
+        "0d6862ab42e835574355839d4d0db344378966423ba41ed32a02ef7e99f66d90",
+    ),
+    (
+        "norm_l1",
+        "f3561057d4b0544589c6efb7fd00359bc5935fed8b156ba09699e8bfca2478b5",
+    ),
+    (
+        "norm_l2",
+        "3713b6661aa4038d8193305fee471aa822ea8c778d4e6b89133a94231598e80c",
+    ),
+    (
+        "norm_linf",
+        "b2e41685dcb2b281e154a66a1a6f244824994efcb9efc22f47ba6d1935236d09",
+    ),
+    (
+        "ops_greatest",
+        "be9196a22efdd1218ebf697616dc4747159bb3f743810441c6cdfde5e0d84865",
+    ),
+    (
+        "ops_into_inner",
+        "e65931fe62eae104aee1940d46a4125a6aca32ed1c76839385d39b1d8b335cc2",
+    ),
+    (
+        "ops_least",
+        "b9d951e94d8eee125194bcbfbc5c04ca3d6106e2983cd824b776df39a21d01c8",
+    ),
+    (
+        "ops_offer",
+        "6bf2a35130aeb07fe0e70bdc33a505edf33633d29439973a69fda4dce8e12cb7",
+    ),
+    (
+        "powf",
+        "f2ebbce88f0244e822116c4d3602fb69dca390f3bbbc4f7b96ffa4e4a58b761f",
+    ),
+    (
+        "powf64",
+        "9ea148df9f09e8428ddff1f158e00962ccd262b72694288db5d283fcac4d3d34",
+    ),
+    (
+        "powi",
+        "3e6d8d7b0bb4c3bf8544806a3887314039741545c0efb7da1255debf40c63a44",
+    ),
+    (
+        "round",
+        "cf302f52634a7ee5d3aa647d524d7da966c4c34c47c373da14b8f621cf3e7851",
+    ),
+    (
+        "round64",
+        "94b0523d38e5568f72c4cecc08b6f972f28b820f21b61041c3348c6646cf6346",
+    ),
+    (
+        "sin",
+        "a9449226f2e09f1723a6fc1053df2bcb36183d8a6023664cf17eff851c8b7bee",
+    ),
+    (
+        "sin64",
+        "130f04da05f447778209368bc0258ae6e624527822bf2b502417af65168bb112",
+    ),
+    (
+        "sin_cos",
+        "9b7b14c08ac8d747a1e89e32ffe1fb8fa95532c0a40a862b9d61d1dd47f89fc6",
+    ),
+    (
+        "sin_cos64",
+        "75d2beef3176b7f1787766b699071d54f754fe01116286183e7c3202ae9dcf22",
+    ),
+    (
+        "smoothstep",
+        "8eb548059546f4eb964560ca7ae94efe7ca11b11714c64d0835e7b1563a8fd58",
+    ),
+    (
+        "sqrt",
+        "86893b7e3fd8a3377bcb3f8b7bc86daa00c1ca1a8c8dc2ea61c026cf963ec26c",
+    ),
+    (
+        "sqrt64",
+        "19da242fce135a139223b1c7dd3728a7811d1e3789c9c41d4d9840dffe90f2e7",
+    ),
+    (
+        "tan",
+        "7ca15bcd4891aa6960244c078db528cc066207be2d00d85738dd18c50f2913cd",
+    ),
+    (
+        "tan64",
+        "f7cc38da7b23295e246613b3a14aa6d3c8c064b589c21dfcf11736a737ddade8",
+    ),
+    (
+        "tanh",
+        "af68ee2bd179177f6271fd8154aab9c20a46f9d7ff56c501841fa2010eb668d1",
+    ),
+    (
+        "tanh64",
+        "5e0bb9eb8bb8b62820d0f0349d3eca9856946ef68ae8f3f5785ec7b9fbb33285",
+    ),
+];
+
+/// A function's identifier: `SHA256` over its name (four big-endian length bytes, then the name),
+/// the number of its grid pins as one byte, those pins (its [`GOLDEN`] entry, then the
+/// `<name>_dense` entry where it has one), then its own specials hash.
+fn function_pin_of(name: &str, specials: &str) -> [u8; 32] {
+    let mut grids = vec![want(name)];
+    let dense = format!("{name}_dense");
+    if let Some((_, h)) = GOLDEN.iter().find(|(n, _)| *n == dense) {
+        grids.push(h);
+    }
+    let mut h = Sha256::new();
+    h.update(u32::try_from(name.len()).unwrap().to_be_bytes());
+    h.update(name.as_bytes());
+    h.update([u8::try_from(grids.len()).unwrap()]);
+    for g in grids {
+        h.update(hex32(g).expect("a recorded pin"));
+    }
+    h.update(hex32(specials).expect("a recorded specials hash"));
+    h.finalize().into()
+}
+
+#[test]
+fn every_function_at_the_specials_matches_its_own_recorded_hash() {
+    let got = per_function_specials(alice_det_math::sin);
+    assert_eq!(
+        got.len(),
+        63,
+        "functions hashed at the specials, one by one"
+    );
+    if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
+        println!("// FUNCTION_SPECIALS");
+        for (name, hash) in &got {
+            println!("    (\"{name}\", \"{hash}\"),");
+        }
+        return;
+    }
+    let names: Vec<&str> = got.iter().map(|(n, _)| *n).collect();
+    let recorded: Vec<&str> = FUNCTION_SPECIALS.iter().map(|(n, _)| *n).collect();
+    assert_eq!(
+        names, recorded,
+        "FUNCTION_SPECIALS names, sorted, one per function"
+    );
+    for ((name, hash), (_, want)) in got.iter().zip(FUNCTION_SPECIALS) {
+        check(name, hash, want);
+    }
+}
+
+/// [`alice_det_math::FUNCTION_PINS`] is exactly the recorded pins folded per function, both ways:
+/// the same names in the same order, every value, and [`alice_det_math::function_pin`] agrees.
+#[test]
+fn the_function_pins_are_the_recorded_pins_folded() {
+    let want: Vec<(&str, [u8; 32])> = FUNCTION_SPECIALS
+        .iter()
+        .map(|(name, spec)| (*name, function_pin_of(name, spec)))
+        .collect();
+    if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
+        println!("// FUNCTION_PINS (src/semantics.rs)");
+        for (name, pin) in &want {
+            let bytes: Vec<String> = pin.iter().map(|b| format!("0x{b:02x}")).collect();
+            println!("    (\"{name}\", [{}]),", bytes.join(", "));
+        }
+        return;
+    }
+    assert_eq!(want.len(), 63, "compared nothing");
+    let src: Vec<(&str, [u8; 32])> = alice_det_math::FUNCTION_PINS.to_vec();
+    assert_eq!(
+        src, want,
+        "FUNCTION_PINS differs from the recorded pins folded per function"
+    );
+    for (name, pin) in &want {
+        assert_eq!(
+            &alice_det_math::function_pin(name),
+            pin,
+            "function_pin({name})"
+        );
+    }
+}
+
+/// A name that is no function of the crate stops the caller (in a const context, its compile).
+#[test]
+#[should_panic(expected = "not a function of alice-det-math")]
+fn function_pin_refuses_an_unknown_name() {
+    let _ = alice_det_math::function_pin("sinn");
+}
+
+/// A name that only starts like one, and one that only ends like one, is not that function.
+#[test]
+fn function_pin_compares_the_whole_name() {
+    const IN_A_CONST: [u8; 32] = alice_det_math::function_pin("sin");
+    assert_ne!(
+        alice_det_math::function_pin("sin"),
+        alice_det_math::function_pin("sin64")
+    );
+    assert_ne!(
+        alice_det_math::function_pin("sin"),
+        alice_det_math::function_pin("asin")
+    );
+    assert_eq!(
+        IN_A_CONST,
+        alice_det_math::FUNCTION_PINS[alice_det_math::FUNCTION_PINS
+            .iter()
+            .position(|(n, _)| *n == "sin")
+            .unwrap()]
+        .1
+    );
+}
+
+/// The per-function table names exactly the functions the specials sweep visits; every other
+/// [`GOLDEN`] entry is the aggregate `specials` or a `<function>_dense` grid of one of them.
+#[test]
+fn the_function_pins_cover_exactly_the_swept_functions() {
+    let swept: Vec<&str> = per_function_specials(alice_det_math::sin)
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    let pins: Vec<&str> = alice_det_math::FUNCTION_PINS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    assert!(!swept.is_empty(), "compared nothing");
+    assert_eq!(pins, swept);
+    for (name, _) in GOLDEN {
+        let base = name.strip_suffix("_dense").unwrap_or(name);
+        assert!(
+            *name == "specials" || swept.contains(&base),
+            "GOLDEN entry `{name}` is in no function's identifier"
+        );
+    }
+}
+
+/// A `sin` that loses the sign of zero moves `sin`'s own specials hash and no other function's,
+/// so a consumer that does not call `sin` keeps its identifier.
+#[test]
+fn a_lost_sign_of_zero_moves_only_the_sin_function_pin() {
+    fn sin_without_signed_zero(x: f32) -> f32 {
+        let y = alice_det_math::sin(x);
+        if y == 0.0 {
+            0.0
+        } else {
+            y
+        }
+    }
+    let good = per_function_specials(alice_det_math::sin);
+    let bad = per_function_specials(sin_without_signed_zero);
+    let moved: Vec<&str> = good
+        .iter()
+        .zip(&bad)
+        .filter(|(a, b)| a.1 != b.1)
+        .map(|(a, _)| a.0)
+        .collect();
+    assert_eq!(moved, ["sin"]);
+}
+
+// ---------------------------------------------------------------------------
 // SEMANTICS_ID: the table above, folded into one identifier
 // ---------------------------------------------------------------------------
 
@@ -1258,9 +1725,18 @@ fn identifier_modules_compute_no_float() {
                 ty.map(|t| t + "::").unwrap_or_default()
             ));
         }
+        // as a word on both sides: a function name in FUNCTION_PINS (`erf64`, `powf64`) is not
+        // the type
+        let as_word = |word: &str| {
+            src.match_indices(word).any(|(i, _)| {
+                let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+                !src[..i].chars().next_back().is_some_and(ident)
+                    && !src[i + word.len()..].chars().next().is_some_and(ident)
+            })
+        };
         for word in ["f32", "f64"] {
             assert!(
-                !src.contains(word),
+                !as_word(word),
                 "`{module}` mentions `{word}`: a float in an identifier module escapes the pins"
             );
         }
@@ -1273,6 +1749,7 @@ fn identifier_modules_compute_no_float() {
             "semantics::SemanticsCheck::is_reproducible",
             "semantics::check_semantics",
             "semantics::check_semantics_against",
+            "semantics::function_pin",
             "semantics::verify_semantics_against",
         ],
         "identifier module surface changed"

@@ -11,6 +11,7 @@
 "dense_golden::the_pin_refuses_a_non_canonical_f32_output" = "checks that the pin helper panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
 "dense_golden::the_pin_refuses_a_non_canonical_f64_output" = "checks that the pin helper panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
 "exhaustive_f32::the_fold_refuses_a_non_canonical_nan_output" = "checks that the fold panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
+"golden::function_pin_refuses_an_unknown_name" = "checks that the lookup panics on a name it does not have; panic=abort on wasm"
 "golden::hash32_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
 "golden::hash32x2_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
 "golden::hash32x3_refuses_a_non_canonical_nan_output" = "checks that a digest helper of this file panics on a leaked NaN; panic=abort on wasm, and the refusal it relies on runs on wasm in law_bits::the_api_refuses_*"
