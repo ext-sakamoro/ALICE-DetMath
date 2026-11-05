@@ -59,6 +59,10 @@ python3 scripts/test_check_eol.py
 python3 scripts/check_eol.py
 CARGO_TERM_COLOR=always python3 scripts/test_id_move_check.py
 python3 scripts/id_move_check.py
+step "downstream-fold.yml / changes: the fold tool (tests, then the list against the wave file)"
+# the downstream fold check's tool (.github/workflows/downstream-fold.yml runs the same tests and `plan` when a listed path changes)
+python3 scripts/test_fold_check.py
+python3 scripts/fold_check.py plan
 
 step "ci.yml / clippy: Version names its identifier (append-only table)"
 python3 scripts/test_ci_base.py

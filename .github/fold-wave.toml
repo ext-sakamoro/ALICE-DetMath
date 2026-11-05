@@ -1,0 +1,13 @@
+# what scripts/fold_check.py builds for each crate of .github/fold-consumers.txt when this
+# commit moves SEMANTICS_ID: "main" (its main must already have the row for the new
+# identifier) or its wave branch, pinned by full SHA (the SHA must be the branch tip and
+# its CI green):  ALICE-Zip = { branch = "ci/<id>", sha = "<40 hex>" }
+# Every listed crate needs an entry. After the wave branches land, the entries go back to "main".
+[consumers]
+ALICE-Edge = "main"
+ALICE-Kinematics = "main"
+ALICE-LLM = "main"
+ALICE-ML = "main"
+ALICE-Physics = "main"
+ALICE-SDF = "main"
+ALICE-Zip = "main"

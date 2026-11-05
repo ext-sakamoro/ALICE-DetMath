@@ -1,0 +1,17 @@
+# the paths that run .github/workflows/downstream-fold.yml (scripts/changed_paths.py decide)
+# on.pull_request.paths of the workflow must list the same patterns in the same order
+# (scripts/changed_paths.py sync)
+# the crate (SEMANTICS_ID is computed from src/, the version from Cargo.toml)
+src/**
+Cargo.toml
+# the toolchain every build of the check uses
+rust-toolchain.toml
+# the list, the wave file and the tool
+.github/fold-consumers.txt
+.github/fold-wave.toml
+scripts/fold_check.py
+scripts/test_fold_check.py
+# the changes job
+scripts/changed_paths.py
+.github/workflows/downstream-fold.yml
+.github/paths/downstream-fold.txt

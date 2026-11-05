@@ -1,0 +1,176 @@
+name: Downstream fold
+
+# The crates that fold alice-det-math's SEMANTICS_ID into an identifier of their own
+# (.github/fold-consumers.txt) panic at compile time when the det-math they are built with has
+# no row in their table. When this commit moves SEMANTICS_ID, each of them is built against it
+# (its main, or the wave branch .github/fold-wave.toml pins), and a missing row fails here
+# instead of in the crate after the landing. scripts/fold_check.py does the work.
+#
+# Cost: the consumer builds run only when the identifier moves (or on a manual run); otherwise
+# the run stops after the identifiers are read. Two consumers at a time, Linux only.
+
+on:
+  push:
+    # no paths here: a branch created at a SHA another ref already has gets an empty
+    # diff from GitHub's filter and the run is skipped; the changes job below compares
+    # with merge-base(origin/main) instead (patterns: .github/paths/downstream-fold.txt)
+    # ci/**: the same checks on a branch before it is fast-forwarded to main
+    branches: [main, 'ci/**']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'rust-toolchain.toml'
+      - '.github/fold-consumers.txt'
+      - '.github/fold-wave.toml'
+      - 'scripts/fold_check.py'
+      - 'scripts/test_fold_check.py'
+      - 'scripts/changed_paths.py'
+      - '.github/workflows/downstream-fold.yml'
+      - '.github/paths/downstream-fold.txt'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Build the consumers even when SEMANTICS_ID does not move'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # which files changed (scripts/changed_paths.py decide); when a listed path changed, the
+  # tool's tests, the list against the wave file, and the identifiers here and at the base.
+  # `run` is true only when SEMANTICS_ID moves (or on a manual run with force), so the gate
+  # below sees every other job skipped on a commit that does not move it
+  changes:
+    name: Changed paths and SEMANTICS_ID
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: paths
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/downstream-fold.txt
+      - name: Install Rust toolchain
+        if: steps.paths.outputs.run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Tests of scripts/fold_check.py
+        if: steps.paths.outputs.run == 'true'
+        run: python3 scripts/test_fold_check.py
+      - name: Wave file
+        id: plan
+        if: steps.paths.outputs.run == 'true'
+        run: python3 scripts/fold_check.py plan
+      # the base: the previous main for a push to main, merge-base(origin/main) otherwise
+      - name: Identifiers
+        id: ids
+        if: steps.paths.outputs.run == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base HEAD origin/main)"
+          fi
+          echo "base: $base"
+          python3 scripts/fold_check.py ids --base "$base"
+      - name: decide
+        id: decide
+        env:
+          PATHS: ${{ steps.paths.outputs.run }}
+          MOVED: ${{ steps.ids.outputs.moved }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+        run: |
+          if [ "$PATHS" = true ] && { [ "$MOVED" = true ] || [ "$FORCE" = true ]; }; then run=true; else run=false; fi
+          echo "paths=$PATHS moved=${MOVED:-not read} force=$FORCE -> consumers run: $run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  fold:
+    name: Fold — ${{ matrix.consumer }}
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        consumer: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build against this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONSUMER: ${{ matrix.consumer }}
+        run: python3 scripts/fold_check.py consumer --name "$CONSUMER" --result "fold-$CONSUMER.json"
+      - name: Result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fold-${{ matrix.consumer }}
+          path: fold-${{ matrix.consumer }}.json
+          if-no-files-found: ignore
+
+  # one passing result per listed crate, and more than 0
+  tally:
+    name: Fold — all consumers
+    needs: [changes, fold]
+    if: always() && needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fold-*
+          path: results
+          merge-multiple: true
+      - name: Tally
+        run: python3 scripts/fold_check.py tally --results results
+
+  # one required check: red when a needed job failed or was cancelled, green when the path
+  # filter skipped the run (scripts/changed_paths.py gate)
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, fold, tally]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"
