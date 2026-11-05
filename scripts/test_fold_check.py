@@ -166,6 +166,16 @@ class Consumer(unittest.TestCase):
         r = self.w.check("ALICE-Fake", fc.Entry("ci/wave", tip), runs=[("test", "completed", "success")])
         self.assertEqual((r["result"], r["sha"]), ("ok", tip), r)
 
+    def test_an_override_to_a_branch_whose_ci_is_red_stays_red(self):
+        # the override goes through the same checks as a wave entry: it cannot make a crate pass
+        self.w.consumer("ALICE-Fake", [OLD_ID])
+        d = self.w.dir / "ALICE-Fake"
+        git(d, "checkout", "-q", "-b", "ci/wave")
+        tip = repo(d, {"src/lib.rs": consumer_lib([OLD_ID, CAND_ID])})
+        entry = fc.apply_override({"ALICE-Fake": fc.Entry("main", None)}, f"ALICE-Fake=ci/wave@{tip}")["ALICE-Fake"]
+        self.assertEqual(self.w.check("ALICE-Fake", entry, runs=[("test", "completed", "failure")])["result"], "ci-not-green")
+        self.assertEqual(self.w.check("ALICE-Fake", entry, runs=[("test", "completed", "success")])["result"], "ok")
+
     def test_a_stale_wave_sha_is_red(self):
         self.w.consumer("ALICE-Fake", [OLD_ID])
         d = self.w.dir / "ALICE-Fake"
@@ -279,6 +289,17 @@ class Inputs(unittest.TestCase):
                     fc.read_wave(w, ["ALICE-A"])
         w = self.write("w.toml", '[consumers]\nALICE-A = { branch = "ci/x", sha = "' + "a" * 40 + '" }\n')
         self.assertEqual(fc.read_wave(w, ["ALICE-A"])["ALICE-A"], fc.Entry("ci/x", "a" * 40))
+
+    def test_an_override_names_a_listed_crate_and_a_ci_branch_at_a_full_sha(self):
+        wave = {"ALICE-A": fc.Entry("main", None), "ALICE-B": fc.Entry("main", None)}
+        sha = "a" * 40
+        got = fc.apply_override(wave, f"ALICE-B=ci/wave@{sha}")
+        self.assertEqual(got, {"ALICE-A": fc.Entry("main", None), "ALICE-B": fc.Entry("ci/wave", sha)})
+        self.assertEqual(fc.apply_override(wave, ""), wave)
+        for bad in (f"ALICE-C=ci/wave@{sha}", f"ALICE-B=feature/x@{sha}", "ALICE-B=ci/wave@abc123",
+                    f"ALICE-B=ci/wave{sha}", f"ci/wave@{sha}"):
+            with self.subTest(override=bad), self.assertRaises(fc.InputError):
+                fc.apply_override(wave, bad)
 
     def tally(self, consumers: str, results: dict[str, str]) -> int:
         root = self.d / "root"

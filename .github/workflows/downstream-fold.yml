@@ -38,6 +38,11 @@ on:
         required: false
         default: false
         type: boolean
+      override:
+        description: 'Wave branches in place of listed crates: ALICE-X=ci/<branch>@<40 hex>[,...] (checked like a wave entry)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -89,6 +94,8 @@ jobs:
       - name: Wave file
         id: plan
         if: steps.paths.outputs.run == 'true'
+        env:
+          FOLD_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.override || '' }}
         run: python3 scripts/fold_check.py plan
       # the base: the previous main for a push to main, merge-base(origin/main) otherwise
       - name: Identifiers
@@ -155,6 +162,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CONSUMER: ${{ matrix.consumer }}
+          FOLD_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.override || '' }}
         run: python3 scripts/fold_check.py consumer --name "$CONSUMER" --result "fold-$CONSUMER.json"
       - name: Result
         if: always()

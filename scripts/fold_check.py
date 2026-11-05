@@ -21,6 +21,8 @@ fail. Subcommands:
   ids --base <ref>         SEMANTICS_ID of this checkout and of <ref> (a probe crate prints each);
                            writes moved=true|false to $GITHUB_OUTPUT; both must be read
   plan                     checks the list against the wave file; writes the matrix
+  --override ALICE-X=ci/<branch>@<sha>[,...]   (or $FOLD_OVERRIDE, a manual run's input) puts a wave
+                           branch in place of listed crates' entries, checked like a wave entry
   consumer --name <repo> --result <file>
                            fetches the crate at its entry's SHA (and the siblings its
                            .github/alice-siblings pins), points every requirement on
@@ -120,6 +122,23 @@ def read_wave(path: Path, consumers: list[str]) -> dict[str, Entry]:
             out[name] = Entry(v["branch"], v["sha"])
         else:
             raise InputError(f"{path}: {name} = {v!r}: needs \"main\" or {{ branch = \"ci/...\", sha = \"<40 hex>\" }}")
+    return out
+
+
+def apply_override(wave: dict[str, Entry], text: str) -> dict[str, Entry]:
+    """`ALICE-X=ci/<branch>@<40 hex>[,ALICE-Y=...]` (a manual run's input) put in place of those crates'
+    entries. Only a ci/ branch pinned by full SHA can be named, and it is checked like a wave entry (the
+    SHA must be the branch tip with green CI), so an override can point a run at a wave branch but cannot
+    make a crate pass that does not"""
+    out = dict(wave)
+    for part in [p.strip() for p in text.split(",") if p.strip()]:
+        name, sep, rest = part.partition("=")
+        branch, at, sha = rest.rpartition("@")
+        if not sep or not at or name not in wave:
+            raise InputError(f"override {part!r}: needs <listed crate>=ci/<branch>@<40 hex>")
+        if not branch.startswith("ci/") or not SHA_RE.fullmatch(sha):
+            raise InputError(f"override {part!r}: only a ci/ branch pinned by its full SHA")
+        out[name] = Entry(branch, sha)
     return out
 
 
@@ -364,7 +383,11 @@ def cmd_consumer(a: argparse.Namespace) -> int:
     consumers = read_consumers(root / CONSUMERS)
     if a.name not in consumers:
         raise InputError(f"{a.name} is not listed in {CONSUMERS}")
-    entry = read_wave(root / WAVE, consumers)[a.name]
+    wave = read_wave(root / WAVE, consumers)
+    if a.override:
+        wave = apply_override(wave, a.override)
+        print(f"fold: override from the run's input: {a.override}")
+    entry = wave[a.name]
     with tempfile.TemporaryDirectory(prefix="fold-") as t:
         res = check_consumer(a.name, entry, root, Path(t), a.url_base, a.owner)
     at = f" at {res['sha'][:12]}" if res["sha"] else ""
@@ -377,6 +400,9 @@ def cmd_plan(a: argparse.Namespace) -> int:
     root = Path(a.candidate).resolve()
     consumers = read_consumers(root / CONSUMERS)
     wave = read_wave(root / WAVE, consumers)
+    if a.override:
+        wave = apply_override(wave, a.override)
+        print(f"fold: override from the run's input: {a.override}")
     for n in consumers:
         e = wave[n]
         print(f"fold: {n}: {e.ref}" + (f" @ {e.sha}" if e.sha else ""))
@@ -409,11 +435,13 @@ def main(argv: list[str]) -> int:
     s.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     s = sub.add_parser("plan")
     s.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
+    s.add_argument("--override", default=os.environ.get("FOLD_OVERRIDE", ""))
     s = sub.add_parser("consumer")
     s.add_argument("--name", required=True)
     s.add_argument("--result", required=True)
     s.add_argument("--owner", default="ext-sakamoro")
     s.add_argument("--url-base", default="https://github.com/ext-sakamoro")
+    s.add_argument("--override", default=os.environ.get("FOLD_OVERRIDE", ""))
     s = sub.add_parser("tally")
     s.add_argument("--results", required=True)
     a = ap.parse_args(argv)
