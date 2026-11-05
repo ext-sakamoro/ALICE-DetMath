@@ -12,8 +12,8 @@ which can be another one; a repository without main is named on its own line):
        breaks  a fold table that panics when it has no row for the identifier
                (`has no row in <NAME>_BY_DET_MATH`), or a compile-time assert that names
                `alice_det_math::SEMANTICS_ID` (`const _: () = assert!(` within 3 lines): a move
-               fails the crate's compile; or a fold by function (`function_pin(..)`): a function
-               it names that this checkout no longer has fails the crate's compile
+               fails the crate's compile; or a fold by function (any mention of `function_pin` or
+               `FUNCTION_PINS`): a function it names that this checkout no longer has fails its compile
        moves   another use of `alice_det_math::SEMANTICS_ID`: a move changes an identifier the
                crate derives from it, without failing its compile
 
@@ -54,7 +54,7 @@ SKIP_DIRS = {"tests", "examples", "benches", "fuzz", "target"}
 TABLE_PANIC_RE = re.compile(r"has no row in [A-Z0-9_]*_BY_DET_MATH")
 ASSERT_RE = re.compile(r"const\s+_\s*:\s*\(\)\s*=\s*assert!\(")
 USE_RE = re.compile(r"alice_det_math::SEMANTICS_ID\b")
-FUNCTION_PIN_RE = re.compile(r"\bfunction_pin\s*\(")
+FUNCTION_PIN_RE = re.compile(r"\b(?:function_pin|FUNCTION_PINS)\b")
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 # the scan's rules: this file's bytes. A cached result found under other rules is scanned again, so a
 # change of the classification reaches repositories whose main did not move
@@ -76,6 +76,7 @@ class Found:
     depends: bool = False
     breaks: list[str] = field(default_factory=list)   # files
     moves: list[str] = field(default_factory=list)
+    defines_det_math: bool = False
 
 
 def git(args: list[str], cwd: Path | None = None) -> str:
@@ -152,7 +153,7 @@ def scan_repo(url: str, sha: str, work: Path) -> Found:
         except (tomllib.TOMLDecodeError, UnicodeDecodeError):
             continue
         if (doc.get("package") or {}).get("name") == PACKAGE:
-            return Found()   # the crate itself: its source defines what the others use
+            return Found(defines_det_math=True)   # the crate itself: its source defines what the others use
         if depends_on_det_math(doc):
             found.depends = True
     if not found.depends:
@@ -189,7 +190,7 @@ def scan(repos: list[Repo], cache_path: Path | None,
             return r.name, None, None, False
         c = cache.get(r.name)
         if c and c.get("sha") == sha and c.get("rules") == RULES:
-            return r.name, sha, Found(c["depends"], c["breaks"], c["moves"]), False
+            return r.name, sha, Found(c["depends"], c["breaks"], c["moves"], c.get("defines_det_math", False)), False
         with tempfile.TemporaryDirectory(prefix="fold-scan-") as t:
             return r.name, sha, scanner(r.url, sha, Path(t)), True
 
@@ -201,7 +202,8 @@ def scan(repos: list[Repo], cache_path: Path | None,
                 continue
             results[name] = f
             fetched += new
-            cache[name] = {"sha": sha, "rules": RULES, "depends": f.depends, "breaks": f.breaks, "moves": f.moves}
+            cache[name] = {"sha": sha, "rules": RULES, "depends": f.depends, "breaks": f.breaks, "moves": f.moves,
+                           "defines_det_math": f.defines_det_math}
     if cache_path:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache, indent=0, sort_keys=True), encoding="utf-8")
@@ -224,6 +226,8 @@ def report(results: dict[str, Found], scanned: int, fetched: int, owner: str, no
           f"({fetched} fetched, {scanned - fetched} from the cache); {users} depend on {PACKAGE}")
     if no_main:
         print(f"fold scan: {len(no_main)} public repositories have no main branch, not scanned: {', '.join(no_main)}")
+    for n in sorted(n for n, f in results.items() if f.defines_det_math):
+        print(f"fold scan: {n} defines {PACKAGE}: not counted as a user of it")
     for n in breaks:
         print(f"fold scan: breaks {n}: {', '.join(results[n].breaks)}")
     for n in moves:

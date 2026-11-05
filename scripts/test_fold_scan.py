@@ -60,6 +60,13 @@ class Classify(unittest.TestCase):
         self.assertEqual(fs.classify("a.rs", 'use alice_det_math::function_pin;\nconst A: [u8; 32] = function_pin("sin");\n'), "breaks")
         self.assertIsNone(fs.classify("a.rs", "// function_pin(\"sin\") in a comment\n"))
 
+    def test_every_way_of_reaching_the_function_table_is_a_breaker(self):
+        for text in ("use alice_det_math::function_pin as fp;\nconst A: [u8; 32] = fp(\"sin\");\n",
+                     "const F: fn(&str) -> [u8; 32] = alice_det_math::function_pin;\n",
+                     "const T: &[(&str, [u8; 32])] = alice_det_math::FUNCTION_PINS;\n"):
+            with self.subTest(text):
+                self.assertEqual(fs.classify("a.rs", text), "breaks")
+
     def test_an_assert_far_from_the_identifier_is_a_use(self):
         far = "const _: () = assert!(true);\n\n\n\n\npub const A: [u8; 32] = alice_det_math::SEMANTICS_ID;\n"
         self.assertEqual(fs.classify("a.rs", far), "moves")
@@ -92,6 +99,22 @@ class ScanRepo(unittest.TestCase):
             "tools/t/Cargo.toml": DEP, "tools/t/src/lib.rs": USE})
         f = self.scan(self.d / "own")
         self.assertEqual((f.depends, f.breaks, f.moves), (False, [], []))
+        self.assertTrue(f.defines_det_math)
+
+    def test_the_excluded_repository_is_named(self):
+        results = {"ALICE-DetMath": fs.Found(defines_det_math=True), "M": fs.Found(True, [], ["l.rs"])}
+        with contextlib.redirect_stdout(io.StringIO()) as o:
+            fs.report(results, 2, 0, "o", [])
+        self.assertIn("ALICE-DetMath defines alice-det-math: not counted as a user of it", o.getvalue())
+
+    def test_the_exclusion_survives_the_cache(self):
+        d = Path(tempfile.mkdtemp(prefix="fold-cache-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        cache = d / "c.json"
+        scanner = lambda url, sha, work: fs.Found(defines_det_math=True)
+        fs.scan([fs.Repo("R", "u")], cache, sha_of=lambda u: "a" * 40, scanner=scanner)
+        res, *_ = fs.scan([fs.Repo("R", "u")], cache, sha_of=lambda u: "a" * 40, scanner=None)
+        self.assertTrue(res["R"].defines_det_math)
 
     def test_a_workspace_member_counts_and_tests_do_not(self):
         repo(self.d / "w", {"Cargo.toml": '[workspace]\nmembers = ["inner"]\n', "inner/Cargo.toml": DEP,
