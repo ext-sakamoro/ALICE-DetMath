@@ -61,6 +61,7 @@ NAME_RE = re.compile(r"ALICE-[A-Za-z0-9-]+")
 # and a fold by function naming one this checkout does not have (`function_pin`)
 MISSING_ROW_RE = re.compile(r"has no row in ([A-Z0-9_]+)|alice-det-math (generation) changed")
 MISSING_FUNCTION = "not a function of alice-det-math"
+MOVED_FUNCTION = "a function this crate calls moved in alice-det-math"
 OK_CONCLUSIONS = {"success", "skipped", "neutral"}
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 
@@ -372,6 +373,9 @@ def check_consumer(name: str, entry: Entry, candidate: Path, work: Path, url_bas
             if MISSING_FUNCTION in p.stderr:
                 raise CheckFailed("missing-row", f"{name}: its fold names a function this checkout does not have "
                                   f"(on main, or on the wave branch named in {WAVE})")
+            if MOVED_FUNCTION in p.stderr:
+                raise CheckFailed("missing-row", f"{name}: this checkout moves a function its fold records: "
+                                  f"re-record it (on main, or on the wave branch named in {WAVE})")
             m = MISSING_ROW_RE.search(p.stderr)
             if m and m.group(1):
                 raise CheckFailed("missing-row", f"{name}: {m.group(1)} has no row for this SEMANTICS_ID: "

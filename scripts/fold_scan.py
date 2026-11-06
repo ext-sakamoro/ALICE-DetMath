@@ -12,7 +12,7 @@ which can be another one; a repository without main is named on its own line):
        breaks  a fold table that panics when it has no row for the identifier
                (`has no row in <NAME>_BY_DET_MATH`), or a compile-time assert that names
                `alice_det_math::SEMANTICS_ID` (`const _: () = assert!(` within 3 lines): a move
-               fails the crate's compile; or a fold by function (any mention of `function_pin` or
+               fails the crate's compile; or a fold by function (any mention of `function_pin`, `assert_function_pins` or
                `FUNCTION_PINS`): a function it names that this checkout no longer has fails its compile
        moves   another use of `alice_det_math::SEMANTICS_ID`: a move changes an identifier the
                crate derives from it, without failing its compile
@@ -54,7 +54,7 @@ SKIP_DIRS = {"tests", "examples", "benches", "fuzz", "target"}
 TABLE_PANIC_RE = re.compile(r"has no row in [A-Z0-9_]*_BY_DET_MATH")
 ASSERT_RE = re.compile(r"const\s+_\s*:\s*\(\)\s*=\s*assert!\(")
 USE_RE = re.compile(r"alice_det_math::SEMANTICS_ID\b")
-FUNCTION_PIN_RE = re.compile(r"\b(?:function_pin|FUNCTION_PINS)\b")
+FUNCTION_PIN_RE = re.compile(r"\b(?:function_pin|FUNCTION_PINS|assert_function_pins)\b")
 DEP_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 # the scan's rules: this file's bytes. A cached result found under other rules is scanned again, so a
 # change of the classification reaches repositories whose main did not move

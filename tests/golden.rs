@@ -1951,6 +1951,7 @@ fn identifier_modules_compute_no_float() {
         [
             "semantics::SemanticsCheck::is_current",
             "semantics::SemanticsCheck::is_reproducible",
+            "semantics::assert_function_pins",
             "semantics::check_semantics",
             "semantics::check_semantics_against",
             "semantics::function_pin",

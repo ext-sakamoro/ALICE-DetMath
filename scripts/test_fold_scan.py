@@ -58,6 +58,7 @@ class Classify(unittest.TestCase):
         # function_pin panics at compile time on a name the candidate no longer has
         self.assertEqual(fs.classify("a.rs", 'const A: [u8; 32] = alice_det_math::function_pin("sin");\n'), "breaks")
         self.assertEqual(fs.classify("a.rs", 'use alice_det_math::function_pin;\nconst A: [u8; 32] = function_pin("sin");\n'), "breaks")
+        self.assertEqual(fs.classify("a.rs", "const _: () = alice_det_math::assert_function_pins(PINS);\n"), "breaks")
         self.assertIsNone(fs.classify("a.rs", "// function_pin(\"sin\") in a comment\n"))
 
     def test_every_way_of_reaching_the_function_table_is_a_breaker(self):

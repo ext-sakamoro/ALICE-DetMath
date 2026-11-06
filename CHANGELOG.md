@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `assert_function_pins(pins)`: crate が記録した関数ごとの識別子の表を今の `function_pin` と比べる const fn `const _: () = alice_det_math::assert_function_pins(PINS);` で、呼ぶ関数が動くと compile が止まる 空の表も止まる
 - CI: `scripts/workflow_pipefail.py` (試験 `scripts/test_workflow_pipefail.py`、他の repo と同じ中身) が pipe する `run` step が pipefail で走るかを全 workflow で確かめる `law-readme-block.yml` の該当 step は `shell: bash` にした
 - CI: `scripts/check_pipe_grep_q.py` を CI と `scripts/preflight.sh` で走らせる `scripts/preflight.sh` の該当 5 行は pipe をやめて here-string で読む
 - CI: 関数ごとに fold する crate (`function_pin` / `FUNCTION_PINS` への言及) も `fold_scan.py` は「落ちる」に数え、`fold_check.py` は自分が名指す関数がこの checkout に無い compile 失敗を crate の名前を出して報告する alice-det-math を定義する repository は利用者に数えず、その旨を log に出す

@@ -152,6 +152,27 @@ class Consumer(unittest.TestCase):
                 if want != "ok":
                     self.assertIn("names a function this checkout does not have", r["detail"])
 
+    def test_a_per_function_fold_of_a_moved_function_is_red(self):
+        # the crate's pin of a function differs from the candidate's: its guard stops the compile
+        msg = "a function this crate calls moved in alice-det-math: re-record its pin and the identifier that folds it"
+        fn = ('pub const fn assert_function_pins(pins: &[(&str, [u8; 32])]) {\n'
+              f'    if pins[0].1[0] != 1 {{ panic!("{msg}"); }}\n}}\n')
+        cand = det_math("0.7.0", CAND_ID)
+        repo(self.w.candidate, {"src/lib.rs": cand["src/lib.rs"] + fn})
+        old = det_math("0.6.1", OLD_ID)
+        self.w.published = repo(self.w.dir / "ALICE-DetMath", {"src/lib.rs": old["src/lib.rs"] + fn})
+        for first, want in ((1, "ok"), (2, "missing-row")):
+            with self.subTest(first=first):
+                crate = f"ALICE-Moved{first}"
+                repo(self.w.dir / crate, {
+                    "Cargo.toml": f'[package]\nname = "{crate.lower()}"\nversion = "0.1.0"\nedition = "2021"\n[workspace]\n'
+                                  f'[dependencies]\n{self.w.dep_line()}',
+                    "src/lib.rs": f'const _: () = alice_det_math::assert_function_pins(&[("sin", [{first}; 32])]);\n'})
+                r = self.w.check(crate, fc.Entry("main", None))
+                self.assertEqual(r["result"], want, r)
+                if want != "ok":
+                    self.assertIn("moves a function its fold records", r["detail"])
+
     def test_a_det_math_the_patch_does_not_reach_is_red(self):
         # the consumer reaches det-math also through a git dependency outside the fetched tree,
         # by another URL: that copy is not patched, the resolve holds the published det-math too,

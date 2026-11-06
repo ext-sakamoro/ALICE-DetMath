@@ -157,8 +157,9 @@ pub const SEMANTICS_ID: [u8; 32] = [
 
 pub mod semantics;
 pub use semantics::{
-    check_semantics, check_semantics_against, function_pin, verify_semantics_against,
-    SemanticsCheck, SemanticsMismatch, FUNCTION_PINS, PREVIOUS_SEMANTICS_IDS,
+    assert_function_pins, check_semantics, check_semantics_against, function_pin,
+    verify_semantics_against, SemanticsCheck, SemanticsMismatch, FUNCTION_PINS,
+    PREVIOUS_SEMANTICS_IDS,
 };
 
 pub mod double;

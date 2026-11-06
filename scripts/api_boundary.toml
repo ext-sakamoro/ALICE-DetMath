@@ -6,5 +6,6 @@ features = "std,simd"
 [boundary]
 "fn::semantics::check_semantics" = "local: classifies a 32-byte identifier the caller passes against this crate's own SEMANTICS_ID and PREVIOUS_SEMANTICS_IDS; it reads no Law-bearing value and decodes no bytes"
 "fn::semantics::check_semantics_against" = "local: classifies a 32-byte identifier against the current and earlier identifiers the caller passes (another crate's own); it compares bytes for equality only, reads no Law-bearing value and decodes no bytes"
+"fn::semantics::assert_function_pins" = "local: compares a table the caller passes with this crate's own FUNCTION_PINS, nothing crosses a process or file boundary"
 "fn::semantics::function_pin" = "local: looks up a function name the caller passes in this crate's own FUNCTION_PINS and returns that 32-byte identifier; it reads no stored value and writes none"
 "fn::semantics::verify_semantics_against" = "local: check_semantics_against as a Result, the mismatch carrying the two identifiers it was given; it reads no Law-bearing value and decodes no bytes"

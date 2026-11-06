@@ -206,6 +206,39 @@ pub const fn verify_semantics_against(
     }
 }
 
+/// Stops the compile when a function identifier a crate recorded is not the one this build resolves.
+///
+/// For use in a `const` item. `pins` is what the crate folded: each function's name and its
+/// [`function_pin`]. A table with no entry stops it too, since it would compare nothing. Called at run
+/// time it panics in the same cases.
+///
+/// ```
+/// use alice_det_math::{assert_function_pins, function_pin};
+/// const PINS: &[(&str, [u8; 32])] = &[("sin", function_pin("sin"))];
+/// const _: () = assert_function_pins(PINS);
+/// ```
+///
+/// ```compile_fail,E0080
+/// use alice_det_math::assert_function_pins;
+/// const PINS: &[(&str, [u8; 32])] = &[("sin", [0; 32])];
+/// const _: () = assert_function_pins(PINS);
+/// ```
+///
+/// # Panics
+///
+/// When an entry differs from [`function_pin`], names no function, or `pins` is empty.
+pub const fn assert_function_pins(pins: &[(&str, [u8; 32])]) {
+    assert!(!pins.is_empty(), "no function pins: this compares nothing");
+    let mut i = 0;
+    while i < pins.len() {
+        assert!(
+            bytes_eq(&pins[i].1, &function_pin(pins[i].0)),
+            "a function this crate calls moved in alice-det-math: re-record its pin and the identifier that folds it",
+        );
+        i += 1;
+    }
+}
+
 const fn bytes_eq(a: &[u8; 32], b: &[u8; 32]) -> bool {
     let mut i = 0;
     while i < 32 {
