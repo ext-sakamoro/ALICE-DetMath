@@ -208,9 +208,10 @@ pub const fn verify_semantics_against(
 
 /// Stops the compile when a function identifier a crate recorded is not the one this build resolves.
 ///
-/// For use in a `const` item. `pins` is what the crate folded: each function's name and its
-/// [`function_pin`]. A table with no entry stops it too, since it would compare nothing. Called at run
-/// time it panics in the same cases.
+/// For use in a top-level `const _`: `cargo check` does not evaluate a `const { .. }` inside a function
+/// or an unused associated const, so a wrong pin would pass there. `pins` is what the crate folded:
+/// each function's name and its [`function_pin`]. A table with no entry stops it too, since it would
+/// compare nothing. Called at run time it panics in the same cases.
 ///
 /// ```
 /// use alice_det_math::{assert_function_pins, function_pin};

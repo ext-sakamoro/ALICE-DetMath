@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- `assert_function_pins` の doc: 置き場を top-level の `const _` と書いた `cargo check` は fn 内の `const { .. }` と未使用の関連 const を評価しない
 - CI (ALICE-Law G9 / G11): 識別子の移動の検査器 (`scripts/id_move_check.py` と試験) を共有の新しい bytes にし、新しく足した associated const を受けるようにした 他の共有の file も ALICE-Law 40973a8a の表が計画した bytes にし、shared-files と G11 の表の pin を上げた
 
 - 版を 0.6.0 にした: 0.6.0 が `SEMANTICS_ID` `a2a11b9b826227fa7a9ed8ab2c1ce63dbb07ad4c39aa2c46a363ddea6b47dbe9` を名指す 0.5.2 は crates.io に公開されず、git の rev をまたいで 2 つの識別子 (`a2e46794…` の後 `a2a11b9b…`) を持っていた 版を変えずに識別子が動くと、版で識別子を引く表 (消費者の既知の識別子の一覧) が引けない
