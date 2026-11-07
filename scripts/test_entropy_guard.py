@@ -5,6 +5,7 @@ allowed counts are exact."""
 import contextlib
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,8 +17,16 @@ import entropy_guard as eg  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# every tree of this file is made under one directory, removed when the module's tests end
+_TREES = tempfile.TemporaryDirectory(prefix="entropy-guard-")
+
+
+def tearDownModule():
+    _TREES.cleanup()
+
+
 def tree(files: dict[str, str]) -> Path:
-    root = Path(tempfile.mkdtemp(prefix="entropy-guard-"))
+    root = Path(tempfile.mkdtemp(dir=_TREES.name))
     for rel, text in files.items():
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -221,6 +230,19 @@ class EntropyGuard(unittest.TestCase):
     def test_no_source_file_compares_nothing(self):
         _, files, _ = eg.check(tree({"README.md": "x\n"}))
         self.assertEqual(files, 0)
+
+
+
+class LeavesNothing(unittest.TestCase):
+    def test_the_guard_tests_leave_no_temporary_directory(self):
+        # the tests of EntropyGuard, run with a temporary directory of their own: it must be empty after them
+        with tempfile.TemporaryDirectory(prefix="entropy-guard-check-") as tmp:
+            env = {**os.environ, "TMPDIR": tmp, "TEMP": tmp, "TMP": tmp}
+            r = subprocess.run([sys.executable, os.path.abspath(__file__), "EntropyGuard"], env=env,
+                               capture_output=True, text=True, timeout=300)
+            self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+            self.assertRegex(r.stderr, r"Ran [1-9]\d* tests")  # compared something
+            self.assertEqual(sorted(os.listdir(tmp)), [])
 
 
 if __name__ == "__main__":
