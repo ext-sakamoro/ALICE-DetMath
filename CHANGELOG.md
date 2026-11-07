@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (ALICE-Law G11): `.github/shared-files-pin` と `.github/g11-table-pin` を ALICE-Law 1ee24039 (`scripts/test_libm_dependency_guard.py` の新しい bytes を計画した表) に上げる
 - CI: `scripts/test_libm_dependency_guard.py` と `scripts/test_entropy_guard.py` は試験用の tree を 1 つの一時 dir の下に作り、試験の終わりに消す 以前は tree ごとに作った一時 dir が残っていた 子 process で試験を専用の一時 dir で走らせ、何も残らないことを確かめる試験を足した
 - `assert_function_pins` の doc: 置き場を top-level の `const _` と書いた `cargo check` は fn 内の `const { .. }` と未使用の関連 const を評価しない
 - CI (ALICE-Law G9 / G11): 識別子の移動の検査器 (`scripts/id_move_check.py` と試験) を共有の新しい bytes にし、新しく足した associated const を受けるようにした 他の共有の file も ALICE-Law 40973a8a の表が計画した bytes にし、shared-files と G11 の表の pin を上げた
