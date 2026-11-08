@@ -1566,7 +1566,7 @@ fn top_level_fns(src: &str) -> Vec<(String, bool, String)> {
 /// For each name of `consts` (in `single`), the public functions of `src` whose law reads it: the function's
 /// body names it, or the body of a function of `src` it calls (transitively) does. A constant that no public
 /// function reads is an error: a generator emitting it would emit no law a pin fixes.
-fn const_readers(src: &str, consts: &[String]) -> Vec<(String, Vec<String>)> {
+fn const_readers(src: &str, consts: &[String]) -> Result<Vec<(String, Vec<String>)>, String> {
     let fns = top_level_fns(src);
     let reads = |root: usize, name: &str| {
         let mut seen = vec![root];
@@ -1594,14 +1594,13 @@ fn const_readers(src: &str, consts: &[String]) -> Vec<(String, Vec<String>)> {
             .map(|(_, (f, _, _))| f.clone())
             .collect();
         pins.sort();
-        assert!(
-            !pins.is_empty(),
-            "no public function reads `consts::{name}`"
-        );
+        if pins.is_empty() {
+            return Err(format!("no public function reads `consts::{name}`"));
+        }
         out.push((name.clone(), pins));
     }
     out.sort();
-    out
+    Ok(out)
 }
 
 /// The `[consts]` rows: each constant `consts` re-exports and the pins of the `single` functions whose law reads it.
@@ -1613,7 +1612,7 @@ fn consts_rows() -> Vec<(String, Vec<String>)> {
         .find(|(m, _)| *m == "single")
         .expect("single.rs")
         .1;
-    const_readers(single, &consts_reexported())
+    const_readers(single, &consts_reexported()).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[test]
@@ -1636,7 +1635,7 @@ pub fn alone(x: f32) -> f32 {
     x
 }
 ";
-    let got = const_readers(src, &["J".to_owned(), "K".to_owned()]);
+    let got = const_readers(src, &["J".to_owned(), "K".to_owned()]).expect("J and K are read");
     assert_eq!(
         got,
         vec![
@@ -1645,9 +1644,10 @@ pub fn alone(x: f32) -> f32 {
         ],
         "a read through a private helper is a read; a comment, a string and a method of that name are not"
     );
-    let none = std::panic::catch_unwind(|| const_readers(src, &["Q".to_owned()]));
-    assert!(
-        none.is_err(),
+    // an Err, not a panic: the wasm32-wasip1 lane aborts on panic, so catch_unwind cannot hold it
+    assert_eq!(
+        const_readers(src, &["Q".to_owned()]),
+        Err("no public function reads `consts::Q`".to_owned()),
         "a constant no public function reads must fail"
     );
 }
