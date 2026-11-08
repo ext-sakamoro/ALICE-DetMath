@@ -1442,8 +1442,243 @@ fn public_module(module: &str) -> &str {
     module.split("::").next().unwrap_or(module)
 }
 
+/// The names `pub mod consts` re-exports from `single`, in source order.
+fn consts_reexported() -> Vec<String> {
+    let lib = SOURCES
+        .iter()
+        .find(|(m, _)| m.is_empty())
+        .expect("lib.rs")
+        .1;
+    let module = &lib[lib
+        .find("pub mod consts {")
+        .expect("no `pub mod consts` in lib.rs")..];
+    let start = "pub use crate::single::{";
+    let at = module
+        .find(start)
+        .expect("`consts` no longer re-exports from `single`");
+    let rest = &module[at + start.len()..];
+    let list = &rest[..rest.find('}').expect("closing brace")];
+    list.split(',')
+        .map(|x| x.trim().to_owned())
+        .filter(|x| !x.is_empty())
+        .collect()
+}
+
+/// The source with its comments blanked and its string literals emptied, so that a name in a comment or a
+/// message is not read as a use.
+fn code_only(src: &str) -> String {
+    let b = src.as_bytes();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i..].starts_with(b"//") {
+            while i < b.len() && b[i] != b'\n' {
+                i += 1;
+            }
+        } else if b[i..].starts_with(b"/*") {
+            let end = src[i + 2..].find("*/").map_or(b.len(), |e| i + 2 + e + 2);
+            out.extend(
+                src[i..end]
+                    .chars()
+                    .map(|c| if c == '\n' { '\n' } else { ' ' }),
+            );
+            i = end;
+        } else if b[i] == b'"' {
+            out.push('"');
+            i += 1;
+            while i < b.len() && b[i] != b'"' {
+                i += if b[i] == b'\\' { 2 } else { 1 };
+            }
+            out.push('"');
+            i += 1;
+        } else {
+            let c = src[i..].chars().next().expect("a char");
+            out.push(c);
+            i += c.len_utf8();
+        }
+    }
+    out
+}
+
+/// Whether `hay` names the identifier `id` as a whole token (neither neighbour continues an identifier).
+fn names_ident(hay: &str, id: &str) -> bool {
+    let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    hay.match_indices(id).any(|(i, _)| {
+        !hay[..i].chars().next_back().is_some_and(ident)
+            && !hay[i + id.len()..].chars().next().is_some_and(ident)
+    })
+}
+
+/// Whether `hay` calls the function `name`: the name as a whole token, not after `.` (a method), followed by `(`.
+fn calls_fn(hay: &str, name: &str) -> bool {
+    let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    hay.match_indices(name).any(|(i, _)| {
+        let before = hay[..i].chars().next_back();
+        !before.is_some_and(|c| ident(c) || c == '.')
+            && hay[i + name.len()..].trim_start().starts_with('(')
+    })
+}
+
+/// The functions defined at column zero of a source (`fn`, `pub fn`, `pub(crate) fn`, with `const` or not), each
+/// with whether it is public and its body (the brace-matched block after the signature). Indented functions (a
+/// test module's) are not the module's law and are left out.
+fn top_level_fns(src: &str) -> Vec<(String, bool, String)> {
+    let code = code_only(src);
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    for raw in code.split_inclusive('\n') {
+        let start = at;
+        at += raw.len();
+        let mut rest = raw;
+        let public = rest.starts_with("pub fn ") || rest.starts_with("pub const fn ");
+        for prefix in ["pub(crate) ", "pub ", "const "] {
+            rest = rest.strip_prefix(prefix).unwrap_or(rest);
+        }
+        let Some(sig) = rest.strip_prefix("fn ") else {
+            continue;
+        };
+        let name: String = sig
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        let open = start + code[start..].find('{').expect("a function body");
+        let mut depth = 0usize;
+        let mut end = open;
+        for (k, c) in code[open..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = open + k + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(end > open, "the body of `{name}` does not close");
+        out.push((name, public, code[open..end].to_owned()));
+    }
+    out
+}
+
+/// For each name of `consts` (in `single`), the public functions of `src` whose law reads it: the function's
+/// body names it, or the body of a function of `src` it calls (transitively) does. A constant that no public
+/// function reads is an error: a generator emitting it would emit no law a pin fixes.
+fn const_readers(src: &str, consts: &[String]) -> Vec<(String, Vec<String>)> {
+    let fns = top_level_fns(src);
+    let reads = |root: usize, name: &str| {
+        let mut seen = vec![root];
+        let mut i = 0;
+        while i < seen.len() {
+            let body = &fns[seen[i]].2;
+            if names_ident(body, name) {
+                return true;
+            }
+            for (j, (callee, _, _)) in fns.iter().enumerate() {
+                if !seen.contains(&j) && calls_fn(body, callee) {
+                    seen.push(j);
+                }
+            }
+            i += 1;
+        }
+        false
+    };
+    let mut out = Vec::new();
+    for name in consts {
+        let mut pins: Vec<String> = fns
+            .iter()
+            .enumerate()
+            .filter(|(k, (_, public, _))| *public && reads(*k, name))
+            .map(|(_, (f, _, _))| f.clone())
+            .collect();
+        pins.sort();
+        assert!(
+            !pins.is_empty(),
+            "no public function reads `consts::{name}`"
+        );
+        out.push((name.clone(), pins));
+    }
+    out.sort();
+    out
+}
+
+/// The `[consts]` rows: each constant `consts` re-exports and the pins of the `single` functions whose law reads it.
+/// A JIT or a shader that emits the law from these constants emits those functions, so a caller naming a constant
+/// folds their pins.
+fn consts_rows() -> Vec<(String, Vec<String>)> {
+    let single = SOURCES
+        .iter()
+        .find(|(m, _)| *m == "single")
+        .expect("single.rs")
+        .1;
+    const_readers(single, &consts_reexported())
+}
+
+#[test]
+fn a_constant_is_read_through_a_helper_and_not_through_a_comment_or_a_method() {
+    let src = "\
+const K: f32 = 1.0;
+const J: f32 = 2.0;
+fn poly(x: f32) -> f32 {
+    x * K
+}
+pub fn outer(x: f32) -> f32 {
+    poly(x) + 1.0
+}
+pub fn other(x: f32) -> f32 {
+    // K is not used here
+    let s = \"K\";
+    x.poly() + J
+}
+pub fn alone(x: f32) -> f32 {
+    x
+}
+";
+    let got = const_readers(src, &["J".to_owned(), "K".to_owned()]);
+    assert_eq!(
+        got,
+        vec![
+            ("J".to_owned(), vec!["other".to_owned()]),
+            ("K".to_owned(), vec!["outer".to_owned()]),
+        ],
+        "a read through a private helper is a read; a comment, a string and a method of that name are not"
+    );
+    let none = std::panic::catch_unwind(|| const_readers(src, &["Q".to_owned()]));
+    assert!(
+        none.is_err(),
+        "a constant no public function reads must fail"
+    );
+}
+
+#[test]
+fn every_constant_has_a_row_and_its_pins_are_entries() {
+    let names: Vec<&str> = alice_det_math::FUNCTION_PINS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    let consts = consts_reexported();
+    let rows = consts_rows();
+    assert_eq!(rows.len(), consts.len(), "compared {} rows", rows.len());
+    assert!(!rows.is_empty(), "compared no constant");
+    for (name, pins) in &rows {
+        assert!(
+            consts.contains(name),
+            "`{name}` is not a constant of `consts`"
+        );
+        for pin in pins {
+            assert!(
+                names.contains(&pin.as_str()),
+                "`consts::{name}` maps to `{pin}`, no entry of FUNCTION_PINS"
+            );
+        }
+    }
+}
+
 /// The file's text, derived from the sources: `[paths]` (a public path and its pin), `[types]` (a type and the
-/// pins of its methods, since a method call `w.norm(..)` names no path, so using the type counts all of them) and
+/// pins of its methods, since a method call `w.norm(..)` names no path, so using the type counts all of them),
+/// `[consts]` (a kernel constant and the pins of the functions whose law reads it, see [`consts_rows`]) and
 /// `[no_arithmetic]`.
 fn function_paths_expected() -> String {
     let mut paths: Vec<(String, String)> = Vec::new();
@@ -1500,6 +1735,11 @@ fn function_paths_expected() -> String {
         pins.dedup();
         let list: Vec<String> = pins.iter().map(|p| format!("\"{p}\"")).collect();
         writeln!(out, "\"{ty}\" = [{}]", list.join(", ")).unwrap();
+    }
+    out.push_str("\n[consts]\n");
+    for (name, pins) in consts_rows() {
+        let list: Vec<String> = pins.iter().map(|p| format!("\"{p}\"")).collect();
+        writeln!(out, "\"consts::{name}\" = [{}]", list.join(", ")).unwrap();
     }
     out.push_str("\n[no_arithmetic]\n");
     for (path, why) in NO_ARITHMETIC {
