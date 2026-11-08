@@ -137,6 +137,27 @@
 "metric::MetricWeights" = ["metric_axis_extent", "metric_euclidean_radius", "metric_lipschitz", "metric_minimum", "metric_new", "metric_norm", "metric_normalised", "metric_weights"]
 "ops::Select" = ["ops_greatest", "ops_into_inner", "ops_least", "ops_offer"]
 
+[consts]
+"consts::COS_P" = ["cos", "sin", "sin_cos"]
+"consts::EXP_HI" = ["exp"]
+"consts::EXP_LO" = ["exp"]
+"consts::EXP_P" = ["exp"]
+"consts::FRAC_2_PI" = ["cos", "sin", "sin_cos"]
+"consts::LG1" = ["ln"]
+"consts::LG2" = ["ln"]
+"consts::LG3" = ["ln"]
+"consts::LG4" = ["ln"]
+"consts::LN2_HI" = ["exp", "ln"]
+"consts::LN2_LO" = ["exp", "ln"]
+"consts::LOG2E" = ["exp"]
+"consts::PIO2_1" = ["cos", "sin", "sin_cos"]
+"consts::PIO2_2" = ["cos", "sin", "sin_cos"]
+"consts::PIO2_3" = ["cos", "sin", "sin_cos"]
+"consts::PIO2_4" = ["cos", "sin", "sin_cos"]
+"consts::SIN_P" = ["cos", "sin", "sin_cos"]
+"consts::SPLIT_MASK" = ["cos", "sin", "sin_cos"]
+"consts::SQRT2_BITS" = ["ln"]
+
 [no_arithmetic]
 "law_bits::f32_bits" = "returns the bits as they are or refuses a NaN"
 "law_bits::f64_bits" = "returns the bits as they are or refuses a NaN"
