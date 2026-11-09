@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (共有の写し): `scripts/id_move_check.py` と試験、`scripts/entropy_guard.py` と試験を ALICE-Law 99dd3df4 が計画した ALICE-Analytics の bytes にした (entropy_guard の許可は repo ごとの `scripts/entropy_guard.toml`、この repo は許可 0 件なので file を置かない)
 - CI (ALICE-Law G11 (c)): `.github/shared-files-pin` と `.github/g11-table-pin` を ALICE-Law 99dd3df4 (release_baseline / test_id_move_check / entropy_guard の目標をこの版の bytes に付け替えた表) に上げ、README の ALICE-Law の節をその版で生成し直した
 - CI (共有 `scripts/release_baseline.py`): `bump_baseline` は push した commit (merge-base..HEAD の first-parent) を main にあるものとして先に読む そこで版が変わる最新の commit の親が base で、早送りで着地した後に main が出す base と同じになる (ci/** の版上げは main にまだ無いので、main の線だけを読むと着地の前と後で base が違った) 版の変化が無ければ従来どおり merge-base から main の線を読む `scripts/id_move_check.py` と `scripts/semver_gate.py` が使う
 - CI: wasm32-wasip1 の job の wasmtime を v49.0.2 に固定し、配布物を SHA-256 (a4d6e9e3…、release の digest と手元の再計算で一致) で照合して retry 付きで取り、binary を cache する 配布元が落ち続けた時は同じ版の wasmtime-cli を crates.io から `cargo install --locked` で作る `wasmtime --version` が動かなければ fail (setup action は latest を選び、配布元の HTTP 504 で job が落ちていた)
