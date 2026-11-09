@@ -260,10 +260,10 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 [ALICE-Zip](https://github.com/ext-sakamoro/ALICE-Zip) はこの crate に依存して
 いない 生成器は現在 `libm` を使っている
 
-<!-- law-integration:begin law=1ee24039cbef1b00b1c38772b6666ac3873d12b3 -->
+<!-- law-integration:begin law=99dd3df4cf88a400c6b15810b0af37ce0b31200d -->
 ## ALICE-Law との統合
 
-ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `1ee24039cbef` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
+ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `99dd3df4cf88` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
 
 | | |
 |---|---|
