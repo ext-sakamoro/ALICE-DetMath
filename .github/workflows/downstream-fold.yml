@@ -6,8 +6,9 @@ name: Downstream fold
 # (its main, or the wave branch .github/fold-wave.toml pins), and a missing row fails here
 # instead of in the crate after the landing. scripts/fold_check.py does the work.
 #
-# Cost: the consumer builds run only when the identifier moves (or on a manual run); otherwise
-# the run stops after the identifiers are read. Two consumers at a time, Linux only.
+# Cost: every consumer builds only when the identifier moves (or on a manual run with force); a
+# list edit builds the crates it adds or changes; otherwise the run stops after the identifiers
+# are read. Two consumers at a time, Linux only.
 
 on:
   push:
@@ -57,15 +58,16 @@ env:
 jobs:
   # which files changed (scripts/changed_paths.py decide); when a listed path changed, the
   # tool's tests, the list against the wave file, and the identifiers here and at the base.
-  # `run` is true only when SEMANTICS_ID moves (or on a manual run with force), so the gate
-  # below sees every other job skipped on a commit that does not move it
+  # `run` is true when SEMANTICS_ID moves (or on a manual run with force): every listed crate;
+  # or when a list edit adds or changes entries: those crates only. Otherwise the gate below
+  # sees every other job skipped
   changes:
     name: Changed paths and SEMANTICS_ID
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       run: ${{ steps.decide.outputs.run }}
-      matrix: ${{ steps.plan.outputs.matrix }}
+      matrix: ${{ steps.decide.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -91,15 +93,9 @@ jobs:
       - name: Tests of scripts/fold_check.py
         if: steps.paths.outputs.run == 'true'
         run: python3 scripts/test_fold_check.py
-      - name: Wave file
-        id: plan
-        if: steps.paths.outputs.run == 'true'
-        env:
-          FOLD_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.override || '' }}
-        run: python3 scripts/fold_check.py plan
       # the base: the previous main for a push to main, merge-base(origin/main) otherwise
-      - name: Identifiers
-        id: ids
+      - name: Base
+        id: base
         if: steps.paths.outputs.run == 'true'
         env:
           EVENT: ${{ github.event_name }}
@@ -112,17 +108,40 @@ jobs:
             base="$(git merge-base HEAD origin/main)"
           fi
           echo "base: $base"
-          python3 scripts/fold_check.py ids --base "$base"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - name: Wave file
+        id: plan
+        if: steps.paths.outputs.run == 'true'
+        env:
+          FOLD_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.override || '' }}
+          BASE: ${{ steps.base.outputs.base }}
+        run: python3 scripts/fold_check.py plan --base "$BASE"
+      - name: Identifiers
+        id: ids
+        if: steps.paths.outputs.run == 'true'
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: python3 scripts/fold_check.py ids --base "$BASE"
+      # every listed crate when SEMANTICS_ID moves (or on a manual run with force); otherwise the
+      # crates a list edit adds or changes, which nothing built yet; otherwise none
       - name: decide
         id: decide
         env:
           PATHS: ${{ steps.paths.outputs.run }}
           MOVED: ${{ steps.ids.outputs.moved }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+          ALL: ${{ steps.plan.outputs.matrix }}
+          CHANGED: ${{ steps.plan.outputs.changed }}
         run: |
-          if [ "$PATHS" = true ] && { [ "$MOVED" = true ] || [ "$FORCE" = true ]; }; then run=true; else run=false; fi
-          echo "paths=$PATHS moved=${MOVED:-not read} force=$FORCE -> consumers run: $run"
+          run=false; matrix='[]'
+          if [ "$PATHS" = true ]; then
+            if [ "$MOVED" = true ] || [ "$FORCE" = true ]; then run=true; matrix="$ALL"
+            elif [ -n "$CHANGED" ] && [ "$CHANGED" != '[]' ]; then run=true; matrix="$CHANGED"
+            fi
+          fi
+          echo "paths=$PATHS moved=${MOVED:-not read} force=$FORCE changed=${CHANGED:-not read} -> consumers run: $run $matrix"
           echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   # the list the builds below take is the one a scan of every public repository's main finds
   scan:
@@ -187,7 +206,9 @@ jobs:
           path: results
           merge-multiple: true
       - name: Tally
-        run: python3 scripts/fold_check.py tally --results results
+        env:
+          EXPECT: ${{ needs.changes.outputs.matrix }}
+        run: python3 scripts/fold_check.py tally --results results --expect "$EXPECT"
 
   # one required check: red when a needed job failed or was cancelled, green when the path
   # filter skipped the run (scripts/changed_paths.py gate)

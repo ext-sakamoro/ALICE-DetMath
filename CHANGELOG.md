@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (`downstream-fold.yml`): `SEMANTICS_ID` が動かない push でも、`.github/fold-consumers.txt` / `.github/fold-wave.toml` の変更で加わった crate と entry が変わった crate を build する (これまでは識別子が動くか手動の force の時だけ build し、一覧の変更で加えた crate は 1 度も build されなかった) `fold_check.py plan --base <ref>` がその crate を `changed` に書き、`tally --expect` は対象が 0 件か、どれかが通らないと fail 試験 `scripts/test_fold_check.py` (一覧の追加・wave branch への変更・削除だけ・override・base に一覧が無い・base の一覧が読めない、と `--expect` の 0 件・一覧に無い名前)
 - CI: `.github/fold-consumers.txt` に ALICE-Analytics、ALICE-DB、ALICE-Ephemeris を足し、`.github/fold-movers.txt` から ALICE-Analytics と ALICE-Ephemeris を外した 3 crate の main は det-math の識別子ごとの行を持つ fold の表を持つようになり、知らない識別子で compile が止まる (`scripts/fold_scan.py check` が 5 件の違いを出していた、今は 0 件)
 - CI (ALICE-Law G11): `.github/shared-files-pin` と `.github/g11-table-pin` を ALICE-Law 1ee24039 (`scripts/test_libm_dependency_guard.py` の新しい bytes を計画した表) に上げる
 - CI: `scripts/test_libm_dependency_guard.py` と `scripts/test_entropy_guard.py` は試験用の tree を 1 つの一時 dir の下に作り、試験の終わりに消す 以前は tree ごとに作った一時 dir が残っていた 子 process で試験を専用の一時 dir で走らせ、何も残らないことを確かめる試験を足した

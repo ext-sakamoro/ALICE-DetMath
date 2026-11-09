@@ -20,7 +20,9 @@ fail. Subcommands:
 
   ids --base <ref>         SEMANTICS_ID of this checkout and of <ref> (a probe crate prints each);
                            writes moved=true|false to $GITHUB_OUTPUT; both must be read
-  plan                     checks the list against the wave file; writes the matrix
+  plan [--base <ref>]      checks the list against the wave file; writes the matrix and, with
+                           --base, `changed`: the crates the lists add or whose entry differs from
+                           <ref> (every crate when the lists at <ref> are absent or do not read)
   --override ALICE-X=ci/<branch>@<sha>[,...]   (or $FOLD_OVERRIDE, a manual run's input) puts a wave
                            branch in place of listed crates' entries, checked like a wave entry
   consumer --name <repo> --result <file>
@@ -31,7 +33,9 @@ fail. Subcommands:
                            that every alice-det-math in the resolve is this checkout (a patch
                            cargo ignored would build the old det-math and pass: red), and runs
                            `cargo check --lib`; a missing fold row is reported as such
-  tally --results <dir>    one passing result per listed crate, and more than 0, or it fails
+  tally --results <dir> [--expect <json list>]
+                           one passing result per listed crate (or per crate in --expect, which
+                           must name more than 0 listed crates), or it fails
 
 Exit 0 when the check holds, 1 when it does not, 2 on an input error.
 """
@@ -409,6 +413,24 @@ def cmd_consumer(a: argparse.Namespace) -> int:
     return 0 if res["result"] == "ok" else 1
 
 
+def base_entries(root: Path, base: str) -> dict[str, Entry] | None:
+    """the entries the lists had at <base>, or None when they are absent there or do not read"""
+    texts = []
+    for rel in (CONSUMERS, WAVE):
+        p = subprocess.run(["git", "-C", str(root), "show", f"{base}:{rel}"], capture_output=True)
+        if p.returncode != 0:
+            return None
+        texts.append(p.stdout.decode("utf-8", errors="replace"))
+    with tempfile.TemporaryDirectory(prefix="fold-base-") as t:
+        c, w = Path(t) / "c.txt", Path(t) / "w.toml"
+        c.write_text(texts[0], encoding="utf-8")
+        w.write_text(texts[1], encoding="utf-8")
+        try:
+            return read_wave(w, read_consumers(c))
+        except InputError:
+            return None
+
+
 def cmd_plan(a: argparse.Namespace) -> int:
     root = Path(a.candidate).resolve()
     consumers = read_consumers(root / CONSUMERS)
@@ -420,23 +442,48 @@ def cmd_plan(a: argparse.Namespace) -> int:
         e = wave[n]
         print(f"fold: {n}: {e.ref}" + (f" @ {e.sha}" if e.sha else ""))
     print(f"fold: {len(consumers)} consumer(s) to check")
-    write_output(a.github_output, {"matrix": json.dumps(consumers, separators=(",", ":"))})
+    out = {"matrix": json.dumps(consumers, separators=(",", ":"))}
+    if a.base:
+        # a list edit that does not move SEMANTICS_ID still adds crates nothing has built: name them
+        before = base_entries(root, a.base)
+        if before is None:
+            print(f"fold: the lists at {a.base} are absent or do not read: every crate counts as changed")
+            changed = list(consumers)
+        else:
+            changed = [n for n in consumers if before.get(n) != wave[n]]
+        print(f"fold: {len(changed)} entr(y/ies) added or changed since {a.base}: {', '.join(changed) or '-'}")
+        out["changed"] = json.dumps(changed, separators=(",", ":"))
+    write_output(a.github_output, out)
     return 0
 
 
 def cmd_tally(a: argparse.Namespace) -> int:
     root = Path(a.candidate).resolve()
     consumers = read_consumers(root / CONSUMERS)
+    if a.expect is None:
+        expect = consumers
+    else:
+        try:
+            expect = json.loads(a.expect)
+        except json.JSONDecodeError as e:
+            raise InputError(f"--expect: {e}") from None
+        if not isinstance(expect, list) or not all(isinstance(n, str) for n in expect):
+            raise InputError(f"--expect: {a.expect!r} is not a list of names")
+        if not expect:
+            raise InputError("--expect: no crate (0 consumers would be checked)")
+        stray = [n for n in expect if n not in consumers]
+        if stray:
+            raise InputError(f"--expect: not in {CONSUMERS}: {', '.join(stray)}")
     got: dict[str, dict] = {}
     for f in sorted(Path(a.results).rglob("*.json")):
         r = json.loads(f.read_text(encoding="utf-8"))
         got[r["name"]] = r
-    ok = [n for n in consumers if got.get(n, {}).get("result") == "ok"]
-    for n in consumers:
+    ok = [n for n in expect if got.get(n, {}).get("result") == "ok"]
+    for n in expect:
         r = got.get(n)
         print(f"fold: {n}: {r['result'] if r else 'no result'}")
-    print(f"fold: {len(ok)} of {len(consumers)} consumer(s) checked and passing")
-    return 0 if ok and len(ok) == len(consumers) else 1
+    print(f"fold: {len(ok)} of {len(expect)} consumer(s) checked and passing")
+    return 0 if ok and len(ok) == len(expect) else 1
 
 
 def main(argv: list[str]) -> int:
@@ -447,6 +494,7 @@ def main(argv: list[str]) -> int:
     s.add_argument("--base", required=True)
     s.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     s = sub.add_parser("plan")
+    s.add_argument("--base", default=None)
     s.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     s.add_argument("--override", default=os.environ.get("FOLD_OVERRIDE", ""))
     s = sub.add_parser("consumer")
@@ -457,6 +505,7 @@ def main(argv: list[str]) -> int:
     s.add_argument("--override", default=os.environ.get("FOLD_OVERRIDE", ""))
     s = sub.add_parser("tally")
     s.add_argument("--results", required=True)
+    s.add_argument("--expect", default=None)
     a = ap.parse_args(argv)
     try:
         return {"ids": cmd_ids, "plan": cmd_plan, "consumer": cmd_consumer, "tally": cmd_tally}[a.cmd](a)
