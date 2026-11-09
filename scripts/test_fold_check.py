@@ -394,7 +394,7 @@ class Inputs(unittest.TestCase):
                         os.environ["FOLD_OVERRIDE"] = old
                 self.assertEqual(seen["ALICE-B"], fc.Entry("ci/wave", sha))
 
-    def tally(self, consumers: str, results: dict[str, str]) -> int:
+    def tally(self, consumers: str, results: dict[str, str], expect: list[str] | None = None) -> int:
         root = self.d / "root"
         (root / ".github").mkdir(parents=True, exist_ok=True)
         (root / fc.CONSUMERS).write_text(consumers, encoding="utf-8")
@@ -404,7 +404,8 @@ class Inputs(unittest.TestCase):
         for n, r in results.items():
             (res / f"{n}.json").write_text(json.dumps({"name": n, "result": r}), encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return fc.main(["--candidate", str(root), "tally", "--results", str(res)])
+            extra = [] if expect is None else ["--expect", json.dumps(expect)]
+            return fc.main(["--candidate", str(root), "tally", "--results", str(res), *extra])
 
     def test_tally_needs_one_passing_result_per_listed_crate(self):
         self.assertEqual(self.tally("ALICE-A\nALICE-B\n", {"ALICE-A": "ok", "ALICE-B": "ok"}), 0)
@@ -412,6 +413,62 @@ class Inputs(unittest.TestCase):
         self.assertEqual(self.tally("ALICE-A\nALICE-B\n", {"ALICE-A": "ok", "ALICE-B": "missing-row"}), 1)
         self.assertEqual(self.tally("ALICE-A\n", {}), 1)
         self.assertEqual(self.tally("# none\n", {}), 2)   # 0 consumers: an input error
+
+    def test_tally_with_expect_needs_each_expected_crate_and_more_than_0(self):
+        both = "ALICE-A\nALICE-B\n"
+        self.assertEqual(self.tally(both, {"ALICE-B": "ok"}, expect=["ALICE-B"]), 0)
+        self.assertEqual(self.tally(both, {"ALICE-A": "ok"}, expect=["ALICE-B"]), 1)
+        self.assertEqual(self.tally(both, {"ALICE-B": "missing-row"}, expect=["ALICE-B"]), 1)
+        self.assertEqual(self.tally(both, {}, expect=[]), 2)              # 0 expected: nothing would be checked
+        self.assertEqual(self.tally(both, {"ALICE-C": "ok"}, expect=["ALICE-C"]), 2)   # not a listed crate
+
+    def plan_against(self, before: dict[str, str] | None, after: dict[str, str], override: str = "") -> dict[str, str]:
+        """plan --base <the commit before>; the outputs it writes"""
+        root = self.d / "plan-repo"
+        shutil.rmtree(root, True)
+        files0 = {"README": "x\n", **(before or {})}
+        repo(root, files0)
+        base = git(root, "rev-parse", "HEAD")
+        for k in before or {}:
+            if k not in after:
+                (root / k).unlink()
+        repo(root, {"README": "y\n", **after})   # the push: a commit even when the lists are as they were
+        out = self.d / "gh-out"
+        out.write_text("", encoding="utf-8")
+        argv = ["--candidate", str(root), "plan", "--base", base, "--github-output", str(out)]
+        if override:
+            argv += ["--override", override]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(fc.main(argv), 0)
+        return dict(ln.split("=", 1) for ln in out.read_text(encoding="utf-8").splitlines())
+
+    def test_plan_names_the_entries_a_list_edit_adds_or_changes(self):
+        sha = "d" * 40
+        two = {fc.CONSUMERS: "ALICE-A\nALICE-B\n", fc.WAVE: '[consumers]\nALICE-A = "main"\nALICE-B = "main"\n'}
+        added = {fc.CONSUMERS: "ALICE-A\nALICE-B\nALICE-C\n",
+                 fc.WAVE: '[consumers]\nALICE-A = "main"\nALICE-B = "main"\nALICE-C = "main"\n'}
+        moved = {fc.CONSUMERS: "ALICE-A\nALICE-B\n",
+                 fc.WAVE: f'[consumers]\nALICE-A = "main"\nALICE-B = {{ branch = "ci/w", sha = "{sha}" }}\n'}
+        removed = {fc.CONSUMERS: "ALICE-A\n", fc.WAVE: '[consumers]\nALICE-A = "main"\n'}
+        cases = [
+            ("no list edit", two, two, "", []),
+            ("a crate added", two, added, "", ["ALICE-C"]),
+            ("an entry moved to a wave branch", two, moved, "", ["ALICE-B"]),
+            ("a crate removed only", two, removed, "", []),
+            ("an override of one entry", two, two, f"ALICE-A=ci/o@{sha}", ["ALICE-A"]),
+            ("lists absent at the base", None, two, "", ["ALICE-A", "ALICE-B"]),
+        ]
+        for label, before, after, override, want in cases:
+            with self.subTest(label):
+                got = self.plan_against(before, after, override)
+                self.assertEqual(json.loads(got["matrix"]), [n for n in ("ALICE-A", "ALICE-B", "ALICE-C")
+                                                             if n in after[fc.CONSUMERS].split()])
+                self.assertEqual(json.loads(got["changed"]), want)
+
+    def test_an_unreadable_list_at_the_base_counts_every_crate_as_changed(self):
+        two = {fc.CONSUMERS: "ALICE-A\nALICE-B\n", fc.WAVE: '[consumers]\nALICE-A = "main"\nALICE-B = "main"\n'}
+        broken = {fc.CONSUMERS: "ALICE-A\nALICE-B\n", fc.WAVE: "[consumers\n"}
+        self.assertEqual(json.loads(self.plan_against(broken, two)["changed"]), ["ALICE-A", "ALICE-B"])
 
 
 class Ids(unittest.TestCase):
