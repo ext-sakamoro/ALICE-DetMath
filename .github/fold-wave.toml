@@ -4,6 +4,9 @@
 # its CI green):  ALICE-Zip = { branch = "ci/<id>", sha = "<40 hex>" }
 # Every listed crate needs an entry. After the wave branches land, the entries go back to "main".
 [consumers]
+ALICE-Analytics = "main"
+ALICE-DB = "main"
+ALICE-Ephemeris = "main"
 ALICE-Font = "main"
 ALICE-Kinematics = "main"
 ALICE-LLM = "main"
