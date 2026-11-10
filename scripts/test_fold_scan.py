@@ -112,6 +112,14 @@ class ScanRepo(unittest.TestCase):
         p = self.scan(self.d / "p")
         self.assertEqual((p.moves, p.frozen), ([], ["g/src/main.rs"]))
 
+    def test_a_nested_crate_without_the_pin_under_a_pinned_one_still_moves(self):
+        """the nearest manifest decides: a crate inside the frozen generator's directory that takes det-math by
+        caret is not frozen"""
+        repo(self.d / "n", {"Cargo.toml": DEP, "g/Cargo.toml": FROZEN_DEP, "g/src/main.rs": FROZEN_MAIN,
+                            "g/inner/Cargo.toml": DEP, "g/inner/src/lib.rs": USE})
+        n = self.scan(self.d / "n")
+        self.assertEqual((n.moves, n.frozen), (["g/inner/src/lib.rs"], ["g/src/main.rs"]))
+
     def test_a_caret_or_a_mixed_requirement_still_moves(self):
         mixed = FROZEN_DEP + '[dev-dependencies]\nalice-det-math = "0.6"\n'
         repo(self.d / "q", {"Cargo.toml": DEP, "g/Cargo.toml": DEP, "g/src/main.rs": FROZEN_MAIN})
