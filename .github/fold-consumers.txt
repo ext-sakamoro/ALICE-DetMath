@@ -5,6 +5,7 @@
 # scripts/fold_scan.py derives this list from every public repository's main and fails when it differs
 ALICE-Analytics
 ALICE-DB
+ALICE-Edge
 ALICE-Ephemeris
 ALICE-Font
 ALICE-Kinematics

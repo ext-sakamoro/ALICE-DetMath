@@ -26,6 +26,11 @@ NO_DEP = '[package]\nname = "x"\nversion = "0.1.0"\nedition = "2021"\n[dependenc
 TABLE = 'pub const X_SEMANTICS_BY_DET_MATH: &[u8] = &[];\nconst fn f() { panic!("alice-det-math SEMANTICS_ID has no row in X_SEMANTICS_BY_DET_MATH: add its fold"); }\n'
 ASSERT = "const _: () = assert!(\n    same32(&alice_det_math::SEMANTICS_ID, &GEN),\n    \"changed\",\n);\n"
 USE = "pub fn id() -> [u8; 32] { alice_det_math::SEMANTICS_ID }\n"
+# a frozen generator: its own crate pins one det-math release exactly and asserts the identifier that
+# release had, as a literal (it writes fixtures for that release, so a det-math move cannot reach it)
+FROZEN_DEP = '[package]\nname = "gen"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\nalice-det-math = "=0.4.0"\n'
+LIT = "a" * 64
+FROZEN_MAIN = ('fn main() { assert_eq!(hex(&alice_det_math::SEMANTICS_ID), "' + LIT + '"); }\n')
 
 
 def git(d: Path, *args: str) -> str:
@@ -91,6 +96,29 @@ class ScanRepo(unittest.TestCase):
         self.assertEqual((b.depends, b.breaks, b.moves), (True, ["src/semantics.rs"], ["src/lib.rs"]))
         self.assertEqual((m.depends, m.breaks, m.moves), (True, [], ["src/lib.rs"]))
         self.assertEqual((n.depends, n.breaks, n.moves), (False, [], []))
+
+    def test_a_frozen_generator_is_found_apart_from_the_movers(self):
+        """exact `=x.y.z` pin in its own manifest and a 64-hex literal of the identifier: frozen, not a
+        mover; the repository's other use still moves"""
+        repo(self.d / "e", {"Cargo.toml": DEP, "src/lib.rs": USE,
+                            "scripts/gen/Cargo.toml": FROZEN_DEP, "scripts/gen/src/main.rs": FROZEN_MAIN})
+        f = self.scan(self.d / "e")
+        self.assertEqual((f.breaks, f.moves, f.frozen), ([], ["src/lib.rs"], ["scripts/gen/src/main.rs"]))
+
+    def test_a_frozen_generator_that_only_prints_the_identifier_is_frozen(self):
+        """the exact pin decides (ALICE-Edge's fixture generator prints the identifier, asserts nothing)"""
+        prints = "fn main() { println!(\"{:?}\", alice_det_math::SEMANTICS_ID); }\n"
+        repo(self.d / "p", {"Cargo.toml": DEP, "g/Cargo.toml": FROZEN_DEP, "g/src/main.rs": prints})
+        p = self.scan(self.d / "p")
+        self.assertEqual((p.moves, p.frozen), ([], ["g/src/main.rs"]))
+
+    def test_a_caret_or_a_mixed_requirement_still_moves(self):
+        mixed = FROZEN_DEP + '[dev-dependencies]\nalice-det-math = "0.6"\n'
+        repo(self.d / "q", {"Cargo.toml": DEP, "g/Cargo.toml": DEP, "g/src/main.rs": FROZEN_MAIN})
+        repo(self.d / "r", {"Cargo.toml": DEP, "g/Cargo.toml": mixed, "g/src/main.rs": FROZEN_MAIN})
+        q, r = self.scan(self.d / "q"), self.scan(self.d / "r")
+        self.assertEqual((q.moves, q.frozen), (["g/src/main.rs"], []))
+        self.assertEqual((r.moves, r.frozen), (["g/src/main.rs"], []))
 
     def test_the_crate_that_defines_det_math_is_not_its_own_consumer(self):
         # a tool in its repository depends on it, and its source defines function_pin
@@ -212,6 +240,57 @@ class Rules(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as e:
             self.assertEqual(fs.main(["check"]), 2)
         self.assertIn("0 repositories scanned", e.getvalue())
+
+
+class Frozen(unittest.TestCase):
+    """.github/fold-frozen.txt declares each frozen generator (`<repository> <path>`): a declared one is
+    reported and not counted as a mover; an undeclared one counts as a mover; a declared one the scan
+    does not find is a difference"""
+
+    def test_declared_frozen_is_not_a_mover(self):
+        results = {"E": fs.Found(True, [], [], frozen=["g/main.rs"])}
+        with contextlib.redirect_stdout(io.StringIO()) as o:
+            breaks, moves = fs.report(results, 1, 0, "o", [], frozen_declared={("E", "g/main.rs")})
+        self.assertEqual((breaks, moves), ([], []))
+        self.assertIn("fold scan: frozen E: g/main.rs", o.getvalue())
+
+    def test_an_undeclared_frozen_counts_as_a_mover(self):
+        results = {"E": fs.Found(True, [], [], frozen=["g/main.rs"])}
+        with contextlib.redirect_stdout(io.StringIO()):
+            breaks, moves = fs.report(results, 1, 0, "o", [], frozen_declared=set())
+        self.assertEqual(moves, ["E"])
+
+    def test_a_declared_frozen_that_is_not_found_is_a_difference(self):
+        results = {"E": fs.Found(True, [], ["l.rs"], frozen=[])}
+        bad = fs.frozen_differences(results, {("E", "g/main.rs"), ("F", "x.rs")})
+        self.assertIn(f"E g/main.rs is in {fs.FROZEN} but is not a frozen generator at its main", bad)
+        self.assertIn(f"F x.rs is in {fs.FROZEN} but is not a frozen generator at its main", bad)
+        self.assertEqual(len(bad), 2)
+
+    def test_check_fails_on_a_stale_declaration_and_passes_on_a_live_one(self):
+        root = Path(tempfile.mkdtemp(prefix="fold-frozen-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / ".github").mkdir()
+        (root / fs.CONSUMERS).write_text("ALICE-A\n", encoding="utf-8")
+        (root / fs.MOVERS).write_text("# none\n", encoding="utf-8")
+        (root / fs.FROZEN).write_text("ALICE-E g/main.rs\n", encoding="utf-8")
+        real = (fs.list_repos, fs.scan)
+        self.addCleanup(lambda: (setattr(fs, "list_repos", real[0]), setattr(fs, "scan", real[1])))
+        fs.list_repos = lambda owner: [fs.Repo("ALICE-A", "a"), fs.Repo("ALICE-E", "e")]
+        for frozen, code in ((["g/main.rs"], 0), ([], 1)):
+            found = {"ALICE-A": fs.Found(True, ["s.rs"], []), "ALICE-E": fs.Found(True, [], [], frozen=frozen)}
+            fs.scan = lambda repos, cache, found=found: (found, len(found), 0, [])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(fs.main(["check", "--root", str(root)]), code, frozen)
+
+    def test_the_frozen_list_survives_the_cache(self):
+        c = Path(tempfile.mkdtemp(prefix="fold-frozen-cache-")) / "c.json"
+        self.addCleanup(shutil.rmtree, c.parent, True)
+        f = fs.Found(True, [], [], frozen=["g/main.rs"])
+        fs.scan([fs.Repo("E", "e")], c, sha_of=lambda u: "s", scanner=lambda url, sha, work: f)
+        again, *_ = fs.scan([fs.Repo("E", "e")], c, sha_of=lambda u: "s",
+                            scanner=lambda url, sha, work: self.fail("fetched again"))
+        self.assertEqual(again["E"].frozen, ["g/main.rs"])
 
 
 class Compare(unittest.TestCase):

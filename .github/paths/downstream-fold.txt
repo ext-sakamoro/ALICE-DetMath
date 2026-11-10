@@ -10,6 +10,7 @@ rust-toolchain.toml
 .github/fold-consumers.txt
 .github/fold-wave.toml
 .github/fold-movers.txt
+.github/fold-frozen.txt
 scripts/fold_check.py
 scripts/test_fold_check.py
 scripts/fold_scan.py

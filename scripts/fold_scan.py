@@ -17,6 +17,12 @@ which can be another one; a repository without main is named on its own line):
        moves   another use of `alice_det_math::SEMANTICS_ID`: a move changes an identifier the
                crate derives from it, without failing its compile
 
+       frozen  a mover inside a crate whose own manifest pins every alice-det-math requirement to one
+               release (`=x.y.z`): a generator of fixtures for that release, which resolves no other det-math
+               and so cannot move with it; it counts as frozen only when .github/fold-frozen.txt
+               declares it (`<repository> <path>`), and as a mover otherwise; a declared one the scan does
+               not find is a difference
+
 `check` compares the result with .github/fold-consumers.txt (the breakers) and
 .github/fold-movers.txt (the others) and fails on any difference, and when no repository was
 scanned. A repository the token cannot list (a private one, with the workflow's token) is not
@@ -50,6 +56,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "alice-det-math"
 CONSUMERS = ".github/fold-consumers.txt"
 MOVERS = ".github/fold-movers.txt"
+FROZEN = ".github/fold-frozen.txt"
 SKIP_DIRS = {"tests", "examples", "benches", "fuzz", "target"}
 TABLE_PANIC_RE = re.compile(r"has no row in [A-Z0-9_]*_BY_DET_MATH")
 ASSERT_RE = re.compile(r"const\s+_\s*:\s*\(\)\s*=\s*assert!\(")
@@ -77,6 +84,7 @@ class Found:
     breaks: list[str] = field(default_factory=list)   # files
     moves: list[str] = field(default_factory=list)
     defines_det_math: bool = False
+    frozen: list[str] = field(default_factory=list)   # movers inside a crate that pins one det-math release
 
 
 def git(args: list[str], cwd: Path | None = None) -> str:
@@ -112,17 +120,29 @@ def main_sha(url: str) -> str | None:
     return out[0]
 
 
-def depends_on_det_math(doc: dict) -> bool:
+def det_math_specs(doc: dict) -> list:
     tables = [doc.get(t) for t in DEP_TABLES] + [(doc.get("workspace") or {}).get("dependencies")]
     for spec in (doc.get("target") or {}).values():
         if isinstance(spec, dict):
             tables += [spec.get(t) for t in DEP_TABLES]
+    out = []
     for t in tables:
         if isinstance(t, dict):
             for key, spec in t.items():
                 if (spec.get("package", key) if isinstance(spec, dict) else key) == PACKAGE:
-                    return True
-    return False
+                    out.append(spec)
+    return out
+
+
+def pins_exactly(doc: dict) -> bool:
+    """every alice-det-math requirement of this manifest is one exact release (`=x.y.z`)"""
+    specs = det_math_specs(doc)
+    vers = [s if isinstance(s, str) else (s.get("version") if isinstance(s, dict) else None) for s in specs]
+    return bool(vers) and all(isinstance(v, str) and re.fullmatch(r"=\s*\d+\.\d+\.\d+", v.strip()) for v in vers)
+
+
+def depends_on_det_math(doc: dict) -> bool:
+    return bool(det_math_specs(doc))
 
 
 def classify(path: str, text: str) -> str | None:
@@ -145,6 +165,7 @@ def scan_repo(url: str, sha: str, work: Path) -> Found:
     git(["sparse-checkout", "set", "--no-cone", "/**/Cargo.toml", "/Cargo.toml"], cwd=d)
     git(["-c", "advice.detachedHead=false", "checkout", "-q", sha], cwd=d)
     found = Found()
+    exact_dirs: list[Path] = []   # crates whose own manifest pins alice-det-math exactly
     for m in d.rglob("Cargo.toml"):
         if SKIP_DIRS & set(m.relative_to(d).parts):
             continue
@@ -156,6 +177,8 @@ def scan_repo(url: str, sha: str, work: Path) -> Found:
             return Found(defines_det_math=True)   # the crate itself: its source defines what the others use
         if depends_on_det_math(doc):
             found.depends = True
+            if pins_exactly(doc):
+                exact_dirs.append(m.parent)
     if not found.depends:
         return found
     git(["sparse-checkout", "set", "--no-cone", "/**/Cargo.toml", "/Cargo.toml", "/**/*.rs", "/*.rs"], cwd=d)
@@ -163,11 +186,18 @@ def scan_repo(url: str, sha: str, work: Path) -> Found:
         rel = f.relative_to(d)
         if SKIP_DIRS & set(rel.parts):
             continue
-        kind = classify(str(rel), f.read_text(encoding="utf-8", errors="replace"))
+        text = f.read_text(encoding="utf-8", errors="replace")
+        kind = classify(str(rel), text)
         if kind == "breaks":
             found.breaks.append(str(rel))
         elif kind == "moves":
-            found.moves.append(str(rel))
+            # the nearest manifest above the file decides its crate
+            owner = max((x for x in exact_dirs if f.is_relative_to(x)), key=lambda x: len(x.parts), default=None)
+            nearest = next((p for p in f.parents if (p / "Cargo.toml").is_file()), None)
+            if owner is not None and nearest == owner:
+                found.frozen.append(str(rel))
+            else:
+                found.moves.append(str(rel))
     return found
 
 
@@ -190,7 +220,8 @@ def scan(repos: list[Repo], cache_path: Path | None,
             return r.name, None, None, False
         c = cache.get(r.name)
         if c and c.get("sha") == sha and c.get("rules") == RULES:
-            return r.name, sha, Found(c["depends"], c["breaks"], c["moves"], c.get("defines_det_math", False)), False
+            return r.name, sha, Found(c["depends"], c["breaks"], c["moves"], c.get("defines_det_math", False),
+                                      c.get("frozen", [])), False
         with tempfile.TemporaryDirectory(prefix="fold-scan-") as t:
             return r.name, sha, scanner(r.url, sha, Path(t)), True
 
@@ -203,7 +234,7 @@ def scan(repos: list[Repo], cache_path: Path | None,
             results[name] = f
             fetched += new
             cache[name] = {"sha": sha, "rules": RULES, "depends": f.depends, "breaks": f.breaks, "moves": f.moves,
-                           "defines_det_math": f.defines_det_math}
+                           "defines_det_math": f.defines_det_math, "frozen": f.frozen}
     if cache_path:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache, indent=0, sort_keys=True), encoding="utf-8")
@@ -218,9 +249,30 @@ def read_list(path: Path) -> list[str]:
         raise InputError(f"{path}: {e}") from None
 
 
-def report(results: dict[str, Found], scanned: int, fetched: int, owner: str, no_main: list[str]) -> tuple[list[str], list[str]]:
+def read_frozen(path: Path) -> set[tuple[str, str]]:
+    """the declared frozen generators, `<repository> <path>` per line; an absent file declares none"""
+    if not path.is_file():
+        return set()
+    out = set()
+    for ln in read_list(path):
+        parts = ln.split()
+        if len(parts) != 2:
+            raise InputError(f"{path}: `{ln}` is not `<repository> <path>`")
+        out.add((parts[0], parts[1]))
+    return out
+
+
+def frozen_differences(results: dict[str, Found], declared: set[tuple[str, str]]) -> list[str]:
+    found = {(n, p) for n, f in results.items() for p in f.frozen}
+    return [f"{n} {p} is in {FROZEN} but is not a frozen generator at its main" for n, p in sorted(declared - found)]
+
+
+def report(results: dict[str, Found], scanned: int, fetched: int, owner: str, no_main: list[str],
+           frozen_declared: set[tuple[str, str]] | None = None) -> tuple[list[str], list[str]]:
+    declared = frozen_declared or set()
+    undeclared = {n: [p for p in f.frozen if (n, p) not in declared] for n, f in results.items()}
     breaks = sorted(n for n, f in results.items() if f.breaks)
-    moves = sorted(n for n, f in results.items() if f.moves and not f.breaks)
+    moves = sorted(n for n, f in results.items() if (f.moves or undeclared[n]) and not f.breaks)
     users = sum(1 for f in results.values() if f.depends)
     print(f"fold scan: {scanned} repositories of {owner} scanned at main "
           f"({fetched} fetched, {scanned - fetched} from the cache); {users} depend on {PACKAGE}")
@@ -231,7 +283,11 @@ def report(results: dict[str, Found], scanned: int, fetched: int, owner: str, no
     for n in breaks:
         print(f"fold scan: breaks {n}: {', '.join(results[n].breaks)}")
     for n in moves:
-        print(f"fold scan: moves  {n}: {', '.join(results[n].moves)}")
+        print(f"fold scan: moves  {n}: {', '.join(results[n].moves + undeclared[n])}")
+    for n in sorted(results):
+        kept = [p for p in results[n].frozen if (n, p) in declared]
+        if kept:
+            print(f"fold scan: frozen {n}: {', '.join(kept)} (declared in {FROZEN}, not counted as a mover)")
     print(f"fold scan: private repositories of {owner} are not scanned (public ones only, a gap not a result)")
     return breaks, moves
 
@@ -261,14 +317,15 @@ def main(argv: list[str]) -> int:
         results, scanned, fetched, no_main = scan(repos, a.cache)
         if scanned == 0:
             raise InputError("0 repositories scanned")
-        breaks, moves = report(results, scanned, fetched, a.owner, no_main)
+        declared = read_frozen(a.root / FROZEN)
+        breaks, moves = report(results, scanned, fetched, a.owner, no_main, frozen_declared=declared)
         if a.cmd == "print":
             return 0
         want_b, want_m = read_list(a.root / CONSUMERS), read_list(a.root / MOVERS)
     except InputError as e:
         print(f"fold scan: {e}", file=sys.stderr)
         return 2
-    bad = compare(breaks, moves, want_b, want_m)
+    bad = compare(breaks, moves, want_b, want_m) + frozen_differences(results, declared)
     for b in bad:
         print(f"fold scan: {b}")
     print(f"fold scan: {len(want_b)} + {len(want_m)} listed, {len(breaks)} + {len(moves)} found, {len(bad)} difference(s)")

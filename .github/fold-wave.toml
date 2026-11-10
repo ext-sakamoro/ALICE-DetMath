@@ -6,6 +6,7 @@
 [consumers]
 ALICE-Analytics = "main"
 ALICE-DB = "main"
+ALICE-Edge = "main"
 ALICE-Ephemeris = "main"
 ALICE-Font = "main"
 ALICE-Kinematics = "main"

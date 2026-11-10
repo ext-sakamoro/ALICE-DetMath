@@ -1,0 +1,4 @@
+# the fixture generators that pin alice-det-math to one release (`=x.y.z` in their own manifest), so a
+# det-math move cannot reach them: scripts/fold_scan.py reports each as frozen and does not count it as a
+# mover; one the scan does not find (no exact pin, or gone) is a difference. `<repository> <path>`
+ALICE-Edge scripts/gen_db_fixture/src/main.rs

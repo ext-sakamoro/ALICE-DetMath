@@ -18,6 +18,7 @@ on:
     paths:
       - '.github/fold-consumers.txt'
       - '.github/fold-movers.txt'
+      - '.github/fold-frozen.txt'
       - 'scripts/fold_scan.py'
       - 'scripts/test_fold_scan.py'
       - 'scripts/changed_paths.py'
