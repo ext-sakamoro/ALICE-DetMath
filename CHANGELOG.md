@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI: `.github/fold-consumers.txt` と `.github/fold-wave.toml` に ALICE-Space を足した (Space の Law の識別子が関数ごとの pin を畳むようになり、`fold_scan.py` が落ちる側に数える 一覧 13 crate)
 - `function-paths.toml` の `[consts]`: `consts` の各定数と、その定数を法則に使う関数の pin (`consts::SIN_P` = `cos` / `sin` / `sin_cos` など) source から導く: 関数の本体か、そこから呼ぶ `single` の関数の本体が定数の名前を使えば読む (comment・文字列・method は数えない) どの公開関数も読まない定数は試験が止める JIT や shader で同じ法則を定数から出力する crate は、使う定数からこれらの pin を畳む pin と `SEMANTICS_ID` は動かない
 - `assert_function_pins(pins)`: crate が記録した関数ごとの識別子の表を今の `function_pin` と比べる const fn `const _: () = alice_det_math::assert_function_pins(PINS);` で、呼ぶ関数が動くと compile が止まる 空の表も止まる
 - CI: `scripts/workflow_pipefail.py` (試験 `scripts/test_workflow_pipefail.py`、他の repo と同じ中身) が pipe する `run` step が pipefail で走るかを全 workflow で確かめる `law-readme-block.yml` の該当 step は `shell: bash` にした
