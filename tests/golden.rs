@@ -583,7 +583,10 @@ fn want(name: &str) -> &'static str {
 /// The grid pins of the functions added after `SEMANTICS_ID` was cut (`alice_det_math::ADDED_FUNCTIONS`), recorded
 /// like [`GOLDEN`] but not folded into `SEMANTICS_ID`: each feeds only its own [`alice_det_math::FUNCTION_PINS`]
 /// entry.
-const GOLDEN_ADDED: &[(&str, &str)] = &[];
+const GOLDEN_ADDED: &[(&str, &str)] = &[(
+    "powi64",
+    "9747e5e0d95eeec39b90372a9c7ac8476f4db2c2b1afbb98559511825a41aa09",
+)];
 
 #[test]
 fn scalar_outputs_match_recorded_hashes() {
@@ -804,6 +807,13 @@ fn scalar_outputs_match_recorded_hashes() {
         &hash64(&g, |x| powf64(x.abs(), x * 1.0e-2)),
         want("powf64"),
     );
+    check(
+        "powi64",
+        &hash64(&g, |x| {
+            powi64(x, (digest_bits::pattern64(x) % 31) as i32 - 15)
+        }),
+        want("powi64"),
+    );
     check("round64", &hash64(&g, round64), want("round64"));
     check("sqrt64", &hash64(&g, sqrt64), want("sqrt64"));
     check(
@@ -888,11 +898,14 @@ fn every_function_at_the_ieee_specials_matches_the_recorded_hash() {
     assert_eq!(names.len(), 63, "functions hashed at the specials");
 }
 
-/// The specials cover exactly the functions [`GOLDEN`] pins by name, so a
+/// The specials (the frozen sweep and the added one together) cover exactly the public numeric functions, so a
 /// function added to the crate (which must get a pin) must be added there too.
 #[test]
 fn the_specials_cover_every_public_numeric_function() {
-    let (_, names) = specials_hash(alice_det_math::sin);
+    let names: Vec<&str> = per_function_specials(alice_det_math::sin)
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect();
     let mut covered: Vec<&str> = names.clone();
     covered.sort_unstable();
     covered.dedup();
@@ -907,7 +920,7 @@ fn the_specials_cover_every_public_numeric_function() {
         .map(|s| s.pin())
         .collect();
     wanted.sort_unstable();
-    assert_eq!(wanted.len(), 63);
+    assert_eq!(wanted.len(), 64);
     assert_eq!(covered, wanted, "the specials miss or add a function");
 }
 
@@ -1189,6 +1202,10 @@ const FUNCTION_SPECIALS: &[(&str, &str)] = &[
         "3e6d8d7b0bb4c3bf8544806a3887314039741545c0efb7da1255debf40c63a44",
     ),
     (
+        "powi64",
+        "ad948b239c913614fb85e547f8dc3fc3502692b26ff07d3d7f0a33ed0cfe5dd5",
+    ),
+    (
         "round",
         "cf302f52634a7ee5d3aa647d524d7da966c4c34c47c373da14b8f621cf3e7851",
     ),
@@ -1368,7 +1385,7 @@ fn every_function_at_the_specials_matches_its_own_recorded_hash() {
     let got = per_function_specials(alice_det_math::sin);
     assert_eq!(
         got.len(),
-        63,
+        64,
         "functions hashed at the specials, one by one"
     );
     if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
@@ -1405,7 +1422,7 @@ fn the_function_pins_are_the_recorded_pins_folded() {
         }
         return;
     }
-    assert_eq!(want.len(), 63, "compared nothing");
+    assert_eq!(want.len(), 64, "compared nothing");
     let src: Vec<(&str, [u8; 32])> = alice_det_math::FUNCTION_PINS.to_vec();
     assert_eq!(
         src, want,
@@ -2382,7 +2399,7 @@ fn semantics_id_covers_every_public_numeric_function() {
     let (simd, scalar): (Vec<Surface>, Vec<Surface>) = public_numeric_surface()
         .into_iter()
         .partition(|s| s.module.starts_with("simd"));
-    // 63 = 15 `double` (11 of its own + 4 from its private `trig`)
+    // 64 = 16 `double` (12 of its own, powi64 added after SEMANTICS_ID was cut, + 4 from its private `trig`)
     //    + 2 `erf` (erf / erf64)
     //    + 15 `ops` (round / round64 / sqrt / sqrt64 / max / min / max64 / min64 / clamp64 /
     //      argmax / argmin, and `Select`'s greatest / least / offer / into_inner)
@@ -2392,7 +2409,7 @@ fn semantics_id_covers_every_public_numeric_function() {
     // same commit.
     assert_eq!(
         scalar.len(),
-        63,
+        64,
         "public numeric surface: {:?}",
         ids(&scalar)
     );

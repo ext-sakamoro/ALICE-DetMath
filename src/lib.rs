@@ -184,7 +184,7 @@ pub mod consts {
 
 pub use double::{
     acos64, asin64, atan2_64, atan64, cos64, exp64, hypot64, ln64, log10_64, log2_64, powf64,
-    sin64, sin_cos64, tan64, tanh64,
+    powi64, sin64, sin_cos64, tan64, tanh64,
 };
 pub use erf::{erf, erf64};
 pub use ops::{

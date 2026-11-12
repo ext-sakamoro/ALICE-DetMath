@@ -528,6 +528,40 @@ pub fn powf64(x: f64, y: f64) -> f64 {
     pow::pow(x, y)
 }
 
+/// Deterministic integer power of an `f64` by repeated squaring (`n` may be negative), the same law as
+/// [`crate::powi`] for `f32`.
+///
+/// Unlike `f64::powi`, which lowers to a compiler-rt routine, the multiplication order is fixed here: for `n < 0`
+/// the base is `1 / x` first; then, from the lowest bit of `|n|` up, the accumulator is multiplied by the current
+/// base where the bit is set, and the base is squared before the next bit. `n == 0` is `1` for every `x` (NaN
+/// included, as `pow(x, 0)`); otherwise a NaN `x` is the canonical NaN. Added after `SEMANTICS_ID` was cut
+/// (`ADDED_FUNCTIONS`): a crate that calls it folds its own [`crate::FUNCTION_PINS`] entry.
+#[inline]
+#[must_use]
+pub fn powi64(x: f64, n: i32) -> f64 {
+    if n == 0 {
+        return 1.0;
+    }
+    if x.is_nan() {
+        // canonical NaN: propagating the input payload through the
+        // multiplications below is platform-dependent
+        return f64::NAN;
+    }
+    let mut base = if n < 0 { 1.0 / x } else { x };
+    let mut e = n.unsigned_abs();
+    let mut acc = 1.0f64;
+    while e > 0 {
+        if e & 1 == 1 {
+            acc *= base;
+        }
+        e >>= 1;
+        if e > 0 {
+            base *= base;
+        }
+    }
+    acc
+}
+
 /// Knuth's two-sum: `a + b = s + e` exactly, `s = fl(a + b)`
 #[inline(always)]
 fn two_sum64(a: f64, b: f64) -> (f64, f64) {

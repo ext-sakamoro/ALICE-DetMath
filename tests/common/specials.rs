@@ -107,8 +107,15 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
 
 /// The functions added after `SEMANTICS_ID` was cut (`alice_det_math::ADDED_FUNCTIONS`): their own pins hash these
 /// outputs, the aggregate `specials` pin does not, so adding one leaves `SEMANTICS_ID` where it was.
-#[allow(unused_variables, clippy::needless_pass_by_ref_mut)]
-pub fn visit_added(s: &mut impl Sink) {}
+pub fn visit_added(s: &mut impl Sink) {
+    use alice_det_math::*;
+    s.name("powi64");
+    for x in SPECIALS64 {
+        for n in [-3, -2, -1, 0, 1, 2, 3, i32::MIN, i32::MAX] {
+            s.v64(powi64(x, n));
+        }
+    }
+}
 
 /// The functions `SEMANTICS_ID` is cut with (`alice_det_math::SEMANTICS_ID_FUNCTIONS`), the sweep the aggregate
 /// `specials` pin hashes.
