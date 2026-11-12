@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `SEMANTICS_ID_FUNCTIONS` と `ADDED_FUNCTIONS`: `SEMANTICS_ID` を切った時の関数 (63) を固定の一覧にし、その後に足す関数を別の一覧にした `SEMANTICS_ID` の fold は固定の一覧の grid の pin と集約の specials の pin だけを読む (`tests/golden.rs` の `GOLDEN` と `visit_frozen`)、後から足す関数は自分の `FUNCTION_PINS` の entry (`GOLDEN_ADDED` と `visit_added`) だけで固定する ⇒ 関数を足しても `SEMANTICS_ID` は動かず、固定の一覧の関数を変えると今までどおり動き、足した関数を変えるとその関数の pin だけが動く (0.6 の設計の記述「足した関数は識別子を動かさない」を `SEMANTICS_ID` 自身にも当てはめる) この commit で `SEMANTICS_ID` は 1 bit も変わらない (記録済みの値の試験が通る) 試験: 2 つの一覧が `FUNCTION_PINS` を分け、各 sweep がその一覧だけを訪れる / 今の `SEMANTICS_ID` は固定の一覧の fold / 固定の関数を変えると動き、足した関数は自分の pin だけを動かす
+  - 利用側への注意: `SEMANTICS_ID` は `ADDED_FUNCTIONS` の関数を覆わない `ADDED_FUNCTIONS` の関数を呼ぶ crate は、その関数の `FUNCTION_PINS` の entry を自分の識別子に畳む (関数ごとの pin と `assert_function_pins`) 必要がある `SEMANTICS_ID` だけで算術を名乗る crate は、足した関数の変更を見落とす (これを機械で止める検査は ALICE-Law の fold の検査に足す)
 - CI: `.github/fold-consumers.txt` と `.github/fold-wave.toml` に ALICE-Space を足した (Space の Law の識別子が関数ごとの pin を畳むようになり、`fold_scan.py` が落ちる側に数える 一覧 13 crate)
 - `function-paths.toml` の `[consts]`: `consts` の各定数と、その定数を法則に使う関数の pin (`consts::SIN_P` = `cos` / `sin` / `sin_cos` など) source から導く: 関数の本体か、そこから呼ぶ `single` の関数の本体が定数の名前を使えば読む (comment・文字列・method は数えない) どの公開関数も読まない定数は試験が止める JIT や shader で同じ法則を定数から出力する crate は、使う定数からこれらの pin を畳む pin と `SEMANTICS_ID` は動かない
 - `assert_function_pins(pins)`: crate が記録した関数ごとの識別子の表を今の `function_pin` と比べる const fn `const _: () = alice_det_math::assert_function_pins(PINS);` で、呼ぶ関数が動くと compile が止まる 空の表も止まる

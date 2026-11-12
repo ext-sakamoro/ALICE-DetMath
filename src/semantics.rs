@@ -251,6 +251,87 @@ const fn bytes_eq(a: &[u8; 32], b: &[u8; 32]) -> bool {
     true
 }
 
+/// The functions [`SEMANTICS_ID`] is cut with, frozen.
+///
+/// Its fold reads the grid pins and the aggregate specials pin
+/// of exactly these (`tests/golden.rs`: `GOLDEN` and the specials sweep `visit_frozen`). A function added to this
+/// crate later is not in this list, so adding one leaves [`SEMANTICS_ID`] where it was; changing one of these
+/// still moves it. The list only changes with a deliberate new cut of [`SEMANTICS_ID`].
+pub const SEMANTICS_ID_FUNCTIONS: &[&str] = &[
+    "acos",
+    "acos64",
+    "argmax",
+    "argmin",
+    "asin",
+    "asin64",
+    "atan",
+    "atan2",
+    "atan2_64",
+    "atan64",
+    "cbrt",
+    "clamp",
+    "clamp64",
+    "cos",
+    "cos64",
+    "erf",
+    "erf64",
+    "exp",
+    "exp64",
+    "hypot",
+    "hypot64",
+    "lerp",
+    "ln",
+    "ln64",
+    "log10",
+    "log10_64",
+    "log2",
+    "log2_64",
+    "max",
+    "max64",
+    "metric_axis_extent",
+    "metric_euclidean_radius",
+    "metric_lipschitz",
+    "metric_minimum",
+    "metric_new",
+    "metric_norm",
+    "metric_normalised",
+    "metric_weights",
+    "min",
+    "min64",
+    "norm_l1",
+    "norm_l2",
+    "norm_linf",
+    "ops_greatest",
+    "ops_into_inner",
+    "ops_least",
+    "ops_offer",
+    "powf",
+    "powf64",
+    "powi",
+    "round",
+    "round64",
+    "sin",
+    "sin64",
+    "sin_cos",
+    "sin_cos64",
+    "smoothstep",
+    "sqrt",
+    "sqrt64",
+    "tan",
+    "tan64",
+    "tanh",
+    "tanh64",
+];
+
+/// The functions added after [`SEMANTICS_ID`] was cut.
+///
+/// [`SEMANTICS_ID`] does not cover them: each is pinned only by
+/// its own entry in [`FUNCTION_PINS`], and a change to one moves that entry alone. A crate that calls one of these
+/// must fold its [`FUNCTION_PINS`] entry into its own identifier (per-function pins, `assert_function_pins`); a crate
+/// that names its arithmetic by [`SEMANTICS_ID`] alone would not see a change to it. Disjoint from
+/// [`SEMANTICS_ID_FUNCTIONS`]; the two together are exactly the names of [`FUNCTION_PINS`] (`tests/golden.rs`).
+pub const ADDED_FUNCTIONS: &[&str] = &[];
+
 /// Each public numeric function's own identifier, by name, sorted.
 ///
 /// The names are those of `tests/golden.rs`'s pins. A function's identifier is `SHA256` over its name (four big-endian length bytes, then

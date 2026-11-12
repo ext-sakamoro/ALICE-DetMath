@@ -574,10 +574,16 @@ const GOLDEN: &[(&str, &str)] = &[
 fn want(name: &str) -> &'static str {
     GOLDEN
         .iter()
+        .chain(GOLDEN_ADDED)
         .find(|(n, _)| *n == name)
         .map(|(_, h)| *h)
         .expect("golden entry")
 }
+
+/// The grid pins of the functions added after `SEMANTICS_ID` was cut (`alice_det_math::ADDED_FUNCTIONS`), recorded
+/// like [`GOLDEN`] but not folded into `SEMANTICS_ID`: each feeds only its own [`alice_det_math::FUNCTION_PINS`]
+/// entry.
+const GOLDEN_ADDED: &[(&str, &str)] = &[];
 
 #[test]
 fn scalar_outputs_match_recorded_hashes() {
@@ -869,7 +875,7 @@ fn specials_hash(sin: fn(f32) -> f32) -> (String, Vec<&'static str>) {
         h: Sha256::new(),
         names: Vec::new(),
     };
-    common::specials::visit(&mut s, sin);
+    common::specials::visit_frozen(&mut s, sin);
     (format!("{:x}", s.h.finalize()), s.names)
 }
 
@@ -1242,9 +1248,15 @@ const FUNCTION_SPECIALS: &[(&str, &str)] = &[
 fn function_pin_of(name: &str, specials: &str) -> [u8; 32] {
     let mut grids = vec![want(name)];
     let dense = format!("{name}_dense");
-    if let Some((_, h)) = GOLDEN.iter().find(|(n, _)| *n == dense) {
+    if let Some((_, h)) = GOLDEN.iter().chain(GOLDEN_ADDED).find(|(n, _)| *n == dense) {
         grids.push(h);
     }
+    pin_from(name, &grids, specials)
+}
+
+/// The function identifier's fold itself (see [`function_pin_of`]), from the name, its grid pins and its specials
+/// hash.
+fn pin_from(name: &str, grids: &[&str], specials: &str) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(u32::try_from(name.len()).unwrap().to_be_bytes());
     h.update(name.as_bytes());
@@ -1254,6 +1266,101 @@ fn function_pin_of(name: &str, specials: &str) -> [u8; 32] {
     }
     h.update(hex32(specials).expect("a recorded specials hash"));
     h.finalize().into()
+}
+
+/// The frozen cut and the added functions partition [`alice_det_math::FUNCTION_PINS`], and each sweep visits
+/// exactly its list: the aggregate `specials` pin (folded into `SEMANTICS_ID`) hashes the frozen sweep only.
+#[test]
+fn the_frozen_cut_and_the_added_functions_partition_the_function_pins() {
+    let frozen = alice_det_math::SEMANTICS_ID_FUNCTIONS;
+    let added = alice_det_math::ADDED_FUNCTIONS;
+    assert_eq!(frozen.len(), 63, "the frozen cut of SEMANTICS_ID");
+    assert!(
+        frozen.iter().all(|n| !added.contains(n)),
+        "a function is both frozen and added"
+    );
+    let mut both: Vec<&str> = frozen.iter().chain(added).copied().collect();
+    both.sort_unstable();
+    let pins: Vec<&str> = alice_det_math::FUNCTION_PINS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    assert_eq!(
+        both, pins,
+        "FUNCTION_PINS is the frozen cut and the added functions"
+    );
+    let (_, mut swept) = specials_hash(alice_det_math::sin);
+    swept.sort_unstable();
+    let mut want: Vec<&str> = frozen.to_vec();
+    want.sort_unstable();
+    assert_eq!(
+        swept, want,
+        "the aggregate specials pin sweeps exactly the frozen cut"
+    );
+    let mut s = HashSink {
+        h: Sha256::new(),
+        names: Vec::new(),
+    };
+    common::specials::visit_added(&mut s);
+    s.names.sort_unstable();
+    let mut want: Vec<&str> = added.to_vec();
+    want.sort_unstable();
+    assert_eq!(
+        s.names, want,
+        "the added sweep visits exactly the added functions"
+    );
+    // the grid pins: the frozen table holds no added function, the added table no frozen one
+    let base = |n: &str| n.trim_end_matches("_dense").to_string();
+    for (n, _) in GOLDEN {
+        assert!(
+            EXTRA_PINS.contains(n) || frozen.contains(&base(n).as_str()),
+            "GOLDEN pins `{n}`, which is not in the frozen cut"
+        );
+    }
+    for (n, _) in GOLDEN_ADDED {
+        assert!(
+            added.contains(&base(n).as_str()),
+            "GOLDEN_ADDED pins `{n}`, which is not an added function"
+        );
+    }
+}
+
+/// `SEMANTICS_ID` is today's fold over the frozen cut, and an added function does not reach it; a changed frozen
+/// function moves it; a changed added function moves only its own pin.
+#[test]
+fn an_added_function_leaves_semantics_id_and_a_frozen_one_moves_it() {
+    let id = fold_semantics_id(GOLDEN).expect("the golden table folds");
+    assert_eq!(
+        id,
+        alice_det_math::SEMANTICS_ID,
+        "today's SEMANTICS_ID is the fold over the frozen cut"
+    );
+    // a made-up added function, at two different behaviours: its own pin moves, SEMANTICS_ID does not
+    let a = "1".repeat(64);
+    let b = "2".repeat(64);
+    let grid = "3".repeat(64);
+    assert_ne!(
+        pin_from("made_up64", &[&grid], &a),
+        pin_from("made_up64", &[&grid], &b)
+    );
+    assert_eq!(
+        fold_semantics_id(GOLDEN).unwrap(),
+        id,
+        "an added function is not in the fold"
+    );
+    // a changed frozen function (one grid pin) moves SEMANTICS_ID
+    let mut changed: Vec<(&str, &str)> = GOLDEN.to_vec();
+    let flipped = "0".repeat(64);
+    let i = changed
+        .iter()
+        .position(|(n, _)| *n == "sin")
+        .expect("sin is frozen");
+    changed[i].1 = &flipped;
+    assert_ne!(
+        fold_semantics_id(&changed).unwrap(),
+        id,
+        "a changed frozen function moves SEMANTICS_ID"
+    );
 }
 
 #[test]
@@ -2311,14 +2418,18 @@ fn semantics_id_covers_every_public_numeric_function() {
             ids(&scalar)
         );
     }
-    let pinned: Vec<&str> = GOLDEN.iter().map(|(n, _)| *n).collect();
-    assert_eq!(pinned.len(), 67, "golden pins: {pinned:?}");
+    let pinned: Vec<&str> = GOLDEN.iter().chain(GOLDEN_ADDED).map(|(n, _)| *n).collect();
+    assert_eq!(
+        GOLDEN.len(),
+        67,
+        "golden pins (the frozen cut of SEMANTICS_ID)"
+    );
     let wanted: Vec<String> = scalar.iter().map(Surface::pin).collect();
     for s in &scalar {
         assert!(
             pinned.contains(&s.pin().as_str()),
-            "`{}` is public but has no entry in GOLDEN under `{}`, so a \
-             change to it would not move SEMANTICS_ID",
+            "`{}` is public but has no entry in GOLDEN or GOLDEN_ADDED under `{}`, so a \
+             change to it would move no pin",
             s.id(),
             s.pin()
         );

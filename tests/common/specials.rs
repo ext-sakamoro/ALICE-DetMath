@@ -101,6 +101,18 @@ fn d2(s: &mut impl Sink, name: &'static str, f: impl Fn(f64, f64) -> f64) {
 /// in (`sin_under_test`, a name the glob import below cannot shadow) so a
 /// test can substitute a broken one and see the result move.
 pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
+    visit_frozen(s, sin_under_test);
+    visit_added(s);
+}
+
+/// The functions added after `SEMANTICS_ID` was cut (`alice_det_math::ADDED_FUNCTIONS`): their own pins hash these
+/// outputs, the aggregate `specials` pin does not, so adding one leaves `SEMANTICS_ID` where it was.
+#[allow(unused_variables, clippy::needless_pass_by_ref_mut)]
+pub fn visit_added(s: &mut impl Sink) {}
+
+/// The functions `SEMANTICS_ID` is cut with (`alice_det_math::SEMANTICS_ID_FUNCTIONS`), the sweep the aggregate
+/// `specials` pin hashes.
+pub fn visit_frozen(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
     use alice_det_math::*;
     let weights = |a: f32, b: f32, c: f32| MetricWeights::new(a.abs(), b.abs(), c.abs());
     f1(s, "sin", sin_under_test);
