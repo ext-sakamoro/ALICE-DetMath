@@ -149,7 +149,9 @@ reference_repo = "ALICE-Crypto"
 
 [G12]
 status = "pass"
-evidence = [".github/workflows/public-text.yml", "scripts/public_text.sh", ".github/public-text-pin", "scripts/test_public_text.py", "scripts/preflight.sh"]
+evidence = [".github/workflows/public-text.yml", "scripts/public_text.sh", ".github/public-text-pin", "scripts/test_public_text.py", "scripts/preflight.sh",
+    "the public text check runs in CI: `.github/workflows/public-text.yml#- name: Public text (tree at HEAD, then the pushed commits)` (scripts/public_text.sh, ALICE-Law's checker at .github/public-text-pin) after its tests `.github/workflows/public-text.yml#- name: Tests of scripts/public_text.sh (no network)`",
+]
 mutant = "add one of the refused internal words to a tracked document -> the public-text step fails"
 since = ""
 note = "the public-text.yml job runs scripts/public_text.sh, which fetches ALICE-Law's own scripts/public_text_check.py at the revision .github/public-text-pin names (rev 779fa443f95bc0caca5ca2d5bdb9156051fd6143) and refuses it unless its SHA-256 matches the pin (e439fdd7495e45486b67d57d227f828426b703c0224b8a00d2e8a1c2f1e66594) -- so a crate's own checker does not count, it is ALICE-Law's byte-identical file. It checks the tree at HEAD and the pushed commit range and fails when it compared nothing; scripts/test_public_text.py runs first as the checker's own test, and the whole thing is mirrored in scripts/preflight.sh. (measure_conformance.py reports G12 'not found' for this crate because it greps the literal public_text_check in the workflow text; this workflow invokes it through scripts/public_text.sh, the same shape as the rest of the chain.)"
@@ -176,6 +178,7 @@ evidence = [
     ".github/workflows/ci.yml docs-lint job (ubuntu, macOS, Windows): the static guard and both test files",
     ".github/workflows/ci.yml build-flags job (ubuntu, macOS): the dynamic check for the default, all-features and no-default feature sets in the release profile, in a job of its own so the simd-paths RUSTFLAGS never reach it",
     "tests/float_environment.rs round_to_nearest_even and subnormals_are_not_flushed (byte-identical to ALICE-DB's; ci.yml test job on the five OS, debug and release, through scripts/run_tests.sh float_environment=2, which fails when fewer than both tests passed)",
+    "where each half runs: the static guard `.github/workflows/ci.yml#python scripts/build_config_guard.py`, the dynamic check `.github/workflows/ci.yml#- name: Effective rustc flags (default, all features, no default features)`, and the float environment `.github/workflows/ci.yml#- name: Test (float environment, debug and release)`",
 ]
 mutant = "measured 2026-10-16, each reverted: `RUSTFLAGS: \"-C target-cpu=native\"` added to ci.yml's env makes scripts/build_config_guard.py exit 1 with `.github/workflows/ci.yml:<line>: target-cpu-native: target-cpu=native` (the checker prints the line of the added env entry; the number is elided here; the two allowed lines stay allowed); RUSTFLAGS=$'-C target-cpu=nat\\x69ve' makes scripts/build_flags_check.py exit 1 with `alice_det_math: target-cpu-native: target-cpu=native`; setting FPCR.RMode to round-toward-plus-infinity fails round_to_nearest_even and setting FPCR.FZ (flush-to-zero) fails subnormals_are_not_flushed (aarch64, macOS; the mutant build used --cap-lints=warn because this crate forbids unsafe code); `#[ignore]` on subnormals_are_not_flushed alone makes the run_tests.sh float_environment=2 step exit 1 (1 passed, needs at least 2) in debug and release"
 since = ""
