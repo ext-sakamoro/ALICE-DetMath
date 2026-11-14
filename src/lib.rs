@@ -73,6 +73,7 @@
 //! | [`hypot64`] | every pair | ≤ 1 ulp of correctly rounded, measured max 1 over 5251 rows of an independent mpmath reference at 400 bits and 262501 of a larger sweep, 0.750 ulp from the true value (0.735 on the committed rows); `x² + y²` as an exact double-double, the root corrected once by Newton; exact on Pythagorean triples at every power-of-two scale, no overflow or underflow |
 //! | [`powf64`] | every finite pair | ≤ 1 ulp of correctly rounded, measured max 1 over 6987 pairs of an independent 2400-bit reference covering `x` next to 1 with `\|y\|` up to 1e18, negative bases, the overflow edge and subnormal results (fdlibm `e_pow.c`, FreeBSD msun); IEEE 754 `pow` special cases |
 //! | [`round`] / [`round64`] / [`sqrt`] / [`sqrt64`] | all | exact (bit-identical to `f32::round` / `f32::sqrt`, except that every NaN is the canonical one) |
+//! | [`floor64`] | all | exact (bit-identical to `f64::floor`, except that every NaN is the canonical one); added after [`SEMANTICS_ID`] was cut, so a caller folds its [`FUNCTION_PINS`] entry |
 //!
 //! The reduction subtracts `k·π/2` in four `f32` pieces, the third formed
 //! exactly with Dekker's two-product (no fused multiply-add, so every target
@@ -188,7 +189,7 @@ pub use double::{
 };
 pub use erf::{erf, erf64};
 pub use ops::{
-    argmax, argmin, clamp64, max, max64, min, min64, round, round64, sqrt, sqrt64, Select,
+    argmax, argmin, clamp64, floor64, max, max64, min, min64, round, round64, sqrt, sqrt64, Select,
 };
 pub use single::{
     acos, asin, atan, atan2, cbrt, cos, exp, hypot, ln, log10, log2, powf, powi, sin, sin_cos, tan,

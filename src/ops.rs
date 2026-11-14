@@ -90,6 +90,41 @@ pub fn round64(x: f64) -> f64 {
     }
 }
 
+/// `f64::floor` — the largest integer not above `x`, exact (musl `floor`).
+///
+/// `±0`, `±∞` and every value from `2^52` up are returned unchanged; a NaN is the canonical NaN.
+/// A negative non-integer above `-1` gives `-1`, a positive one below `1` gives `+0`.
+#[inline]
+#[must_use]
+pub fn floor64(x: f64) -> f64 {
+    const TOINT: f64 = 4_503_599_627_370_496.0; // 2^52
+    let bits = x.to_bits();
+    let e = (bits >> 52) & 0x7ff;
+    // from 2^52 up every value is an integer; ±∞ and NaN have the top exponent
+    if e >= 0x3ff + 52 {
+        return if x.is_nan() { f64::NAN } else { x };
+    }
+    if x == 0.0 {
+        return x;
+    }
+    let neg = bits >> 63 != 0;
+    if e < 0x3ff {
+        // 0 < |x| < 1
+        return if neg { -1.0 } else { 0.0 };
+    }
+    // y = (x rounded to the nearest integer) - x, exact: below 2^52 adding and removing 2^52 rounds to an integer
+    let y = if neg {
+        x - TOINT + TOINT - x
+    } else {
+        x + TOINT - TOINT - x
+    };
+    if y > 0.0 {
+        x + y - 1.0
+    } else {
+        x + y
+    }
+}
+
 /// `f32::sqrt`, correctly rounded; canonical NaN for negative / NaN input.
 #[inline]
 #[must_use]

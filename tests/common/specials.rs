@@ -109,6 +109,10 @@ pub fn visit(s: &mut impl Sink, sin_under_test: fn(f32) -> f32) {
 /// outputs, the aggregate `specials` pin does not, so adding one leaves `SEMANTICS_ID` where it was.
 pub fn visit_added(s: &mut impl Sink) {
     use alice_det_math::*;
+    s.name("floor64");
+    for x in SPECIALS64 {
+        s.v64(floor64(x));
+    }
     s.name("powi64");
     for x in SPECIALS64 {
         for n in [-3, -2, -1, 0, 1, 2, 3, i32::MIN, i32::MAX] {

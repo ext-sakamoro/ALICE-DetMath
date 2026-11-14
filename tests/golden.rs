@@ -583,10 +583,16 @@ fn want(name: &str) -> &'static str {
 /// The grid pins of the functions added after `SEMANTICS_ID` was cut (`alice_det_math::ADDED_FUNCTIONS`), recorded
 /// like [`GOLDEN`] but not folded into `SEMANTICS_ID`: each feeds only its own [`alice_det_math::FUNCTION_PINS`]
 /// entry.
-const GOLDEN_ADDED: &[(&str, &str)] = &[(
-    "powi64",
-    "9747e5e0d95eeec39b90372a9c7ac8476f4db2c2b1afbb98559511825a41aa09",
-)];
+const GOLDEN_ADDED: &[(&str, &str)] = &[
+    (
+        "floor64",
+        "9a849711937b9667538585394d42353f08d5ee6033c78ea41c93f9603f935fe5",
+    ),
+    (
+        "powi64",
+        "9747e5e0d95eeec39b90372a9c7ac8476f4db2c2b1afbb98559511825a41aa09",
+    ),
+];
 
 #[test]
 fn scalar_outputs_match_recorded_hashes() {
@@ -814,6 +820,7 @@ fn scalar_outputs_match_recorded_hashes() {
         }),
         want("powi64"),
     );
+    check("floor64", &hash64(&g, floor64), want("floor64"));
     check("round64", &hash64(&g, round64), want("round64"));
     check("sqrt64", &hash64(&g, sqrt64), want("sqrt64"));
     check(
@@ -920,7 +927,7 @@ fn the_specials_cover_every_public_numeric_function() {
         .map(|s| s.pin())
         .collect();
     wanted.sort_unstable();
-    assert_eq!(wanted.len(), 64);
+    assert_eq!(wanted.len(), 65);
     assert_eq!(covered, wanted, "the specials miss or add a function");
 }
 
@@ -1076,6 +1083,10 @@ const FUNCTION_SPECIALS: &[(&str, &str)] = &[
     (
         "exp64",
         "ed123bb7e886bc779b1aa1f581c2eed8c74e679ba5c561669ab39f2f52ba75fc",
+    ),
+    (
+        "floor64",
+        "3c1c321ef25450f116fb229b32311e14eda7058e34f576396eaeac8b6140d101",
     ),
     (
         "hypot",
@@ -1385,7 +1396,7 @@ fn every_function_at_the_specials_matches_its_own_recorded_hash() {
     let got = per_function_specials(alice_det_math::sin);
     assert_eq!(
         got.len(),
-        64,
+        65,
         "functions hashed at the specials, one by one"
     );
     if std::env::var_os("DET_MATH_PRINT_GOLDEN").is_some() {
@@ -1422,7 +1433,7 @@ fn the_function_pins_are_the_recorded_pins_folded() {
         }
         return;
     }
-    assert_eq!(want.len(), 64, "compared nothing");
+    assert_eq!(want.len(), 65, "compared nothing");
     let src: Vec<(&str, [u8; 32])> = alice_det_math::FUNCTION_PINS.to_vec();
     assert_eq!(
         src, want,
@@ -2399,17 +2410,17 @@ fn semantics_id_covers_every_public_numeric_function() {
     let (simd, scalar): (Vec<Surface>, Vec<Surface>) = public_numeric_surface()
         .into_iter()
         .partition(|s| s.module.starts_with("simd"));
-    // 64 = 16 `double` (12 of its own, powi64 added after SEMANTICS_ID was cut, + 4 from its private `trig`)
+    // 65 = 16 `double` (12 of its own, powi64 added after SEMANTICS_ID was cut, + 4 from its private `trig`)
     //    + 2 `erf` (erf / erf64)
-    //    + 15 `ops` (round / round64 / sqrt / sqrt64 / max / min / max64 / min64 / clamp64 /
-    //      argmax / argmin, and `Select`'s greatest / least / offer / into_inner)
+    //    + 16 `ops` (round / round64 / floor64 (added after SEMANTICS_ID was cut) / sqrt / sqrt64 / max / min /
+    //      max64 / min64 / clamp64 / argmax / argmin, and `Select`'s greatest / least / offer / into_inner)
     //    + 17 `single`
     //    + 14 `metric` (6 free functions + 8 methods on `MetricWeights`).
     // Adding one means adding its golden pin and raising this number in the
     // same commit.
     assert_eq!(
         scalar.len(),
-        64,
+        65,
         "public numeric surface: {:?}",
         ids(&scalar)
     );
