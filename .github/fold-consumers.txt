@@ -4,6 +4,7 @@
 # builds each against a commit that moves SEMANTICS_ID (.github/workflows/downstream-fold.yml)
 # scripts/fold_scan.py derives this list from every public repository's main and fails when it differs
 ALICE-Analytics
+ALICE-CDN
 ALICE-DB
 ALICE-Edge
 ALICE-Ephemeris

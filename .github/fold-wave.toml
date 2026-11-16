@@ -5,6 +5,7 @@
 # Every listed crate needs an entry. After the wave branches land, the entries go back to "main".
 [consumers]
 ALICE-Analytics = "main"
+ALICE-CDN = "main"
 ALICE-DB = "main"
 ALICE-Edge = "main"
 ALICE-Ephemeris = "main"
