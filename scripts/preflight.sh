@@ -186,7 +186,7 @@ python3 scripts/test_run_tests.py
 
 step "ci.yml / docs-lint: changed_paths の試験と pattern の突合"
 python3 scripts/test_changed_paths.py
-python3 scripts/test_exhaustive_count.py
+python3 scripts/test_exhaustive_count.py && python3 scripts/test_exhaustive_ulp_count.py
 python3 scripts/test_shared_files.py
 scripts/shared_files.sh
 scripts/g11_table.sh
@@ -306,7 +306,7 @@ scripts/run_tests.sh float_environment=2 -- cargo test --test float_environment
 scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_environment
 
 step "ci.yml / test: Test (release, default features)"
-scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7,contraction_goldens=1 -- cargo test --release
+scripts/run_tests.sh signed_zero=4,exact_cancellation=2,golden,dense_golden=7,contraction_goldens=1,exhaustive_ulp_f32=3 -- cargo test --release
 
 step "ci.yml / test: Test (release, docs.rs feature set)"
 ( export ALL_FEATURES="std,simd"; scripts/run_tests.sh signed_zero=4,exact_cancellation=2,simd_parity -- cargo test --release --features "$ALL_FEATURES" )

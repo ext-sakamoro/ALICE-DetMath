@@ -15,6 +15,9 @@ tests/exhaustive_f32.digests
 tests/support/digest_bits.rs
 scripts/exhaustive_count.py
 scripts/test_exhaustive_count.py
+tests/exhaustive_ulp_f32.rs
+scripts/exhaustive_ulp_count.py
+scripts/test_exhaustive_ulp_count.py
 scripts/run_tests.sh
 scripts/changed_paths.py
 .github/workflows/exhaustive-f32.yml

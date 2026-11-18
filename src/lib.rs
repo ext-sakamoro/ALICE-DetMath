@@ -59,7 +59,7 @@
 //! | [`hypot`] | finite | ≤ 1 ulp of `sqrt(x² + y²)` |
 //! | [`powf`] | `x ∈ [1e-3, 1e3]`, `\|y\| ≤ 8` | ≤ 1 ulp (evaluated in `f64`, rounded once) |
 //! | [`atan`] / [`atan2`] | `\|x\| ≤ 1e4`, all quadrants | ≤ 1 ulp (fdlibm `s_atanf` / `e_atan2f`, single precision) |
-//! | [`asin`] / [`acos`] | `[-1, 1]` | ≤ 1 ulp (fdlibm in `f64`, rounded once) |
+//! | [`asin`] / [`acos`] | every `f32` of `[-1, 1]` | ≤ 1 ulp (fdlibm in `f64`, rounded once), measured max 1 against the correctly rounded value on all 2 130 706 434 inputs, 0 on all but 6 per function (`tests/exhaustive_ulp_f32.rs`) |
 //! | [`tan`] | `\|x\| ≤ 100` | ≤ 1 ulp (fdlibm `k_sin`/`k_cos` in `f64`) |
 //! | [`tanh`] | finite | ≤ 1 ulp (`exp64` based, `x` below 2^-14) |
 //! | [`sin64`] / [`cos64`] / [`sin_cos64`] | every finite `f64` (Cody–Waite below `2^20·π/2`, Payne–Hanek above) | ≤ 1 ulp of correctly rounded, measured max 1 over 6234 points of an independent 2400-bit reference (musl `sin.c` / `cos.c`) |

@@ -1,7 +1,8 @@
 name: Exhaustive f32
 
 # ALICE-Law G4: the 12 unary f32 functions at all 2^32 inputs, pinned bit for bit
-# (tests/exhaustive_f32.rs). The dense goldens in ci.yml sample about 2^21 points per
+# (tests/exhaustive_f32.rs), and the accuracy of asin / acos at every input of [-1, 1]
+# (tests/exhaustive_ulp_f32.rs). The dense goldens in ci.yml sample about 2^21 points per
 # function and miss a change of one rounding that moves only a few outputs; this sweep
 # sees every output. It runs natively on each architecture (code generation differs),
 # when a path that can change an output changed, and weekly
@@ -24,6 +25,9 @@ on:
       - 'tests/support/digest_bits.rs'
       - 'scripts/exhaustive_count.py'
       - 'scripts/test_exhaustive_count.py'
+      - 'tests/exhaustive_ulp_f32.rs'
+      - 'scripts/exhaustive_ulp_count.py'
+      - 'scripts/test_exhaustive_ulp_count.py'
       - 'scripts/run_tests.sh'
       - 'scripts/changed_paths.py'
       - '.github/workflows/exhaustive-f32.yml'
@@ -97,7 +101,7 @@ jobs:
         with:
           key: exhaustive-f32
       - name: Count check tests
-        run: python3 scripts/test_exhaustive_count.py
+        run: python3 scripts/test_exhaustive_count.py && python3 scripts/test_exhaustive_ulp_count.py
       # shell: bash runs with -o pipefail, so a failing test fails the step through tee
       # (the default shell is bash -e without pipefail: the status would be tee's)
       - name: Sweep (release, --ignored)
@@ -113,6 +117,20 @@ jobs:
       - name: Count and digest per function against the pins
         if: ${{ !cancelled() }}
         run: python3 scripts/exhaustive_count.py exhaustive.log tests/exhaustive_f32.digests
+      # the accuracy of asin / acos at every f32 of [-1, 1] against the correctly rounded value
+      # (tests/exhaustive_ulp_f32.rs): the measurement behind their line of the accuracy table
+      - name: Accuracy sweep, asin / acos (release, --ignored)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: >-
+          set -o pipefail;
+          scripts/run_tests.sh exhaustive_ulp_f32=2 --
+          cargo test --locked --release --test exhaustive_ulp_f32 -- --ignored --nocapture
+          2>&1 | tee exhaustive_ulp.log
+      # independent of the tests' asserts: one line per function, every input, within the bound
+      - name: Accuracy per function against the stated bound
+        if: ${{ !cancelled() }}
+        run: python3 scripts/exhaustive_ulp_count.py exhaustive_ulp.log
 
   # red when the changes job said run and a heavy job was skipped, cancelled or failed
   gate:

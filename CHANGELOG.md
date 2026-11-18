@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 試験: `f32` の `asin` / `acos` の誤差を `[-1, 1]` の全 `f32` 入力 (2 130 706 434 個) で、正しく丸めた値からの格子の段数として測る (`tests/exhaustive_ulp_f32.rs`、`#[ignore]`、`exhaustive-f32.yml` が `--ignored` で走らせ、`scripts/exhaustive_ulp_count.py` が関数ごとの行・入力数・上界を試験とは別に確かめる) 基準は platform の `f64` の値を 1 回丸めたもので、丸めの中間点の近くの入力は両隣と比べて大きい方を取る 精度表の「≤ 1 ulp」は標本 40 万点の測定だったのを全数の測定にした (2026-11-18 aarch64 macOS: 両関数とも 6 入力を除いて 0、最大 1、その 6 入力はすべて中間点の近く) 比較が誤差を見ることは 2 段ずらした出力で確かめる
 - `floor64(x: f64)`: f64 の床関数を厳密に (musl `floor` と同じ法則、2^52 を足して引いて最も近い整数に丸め、上に丸まった時だけ 1 引く) `±0` は符号ごと、`±∞` と 2^52 以上はそのまま、NaN は正準の NaN、-1 < x < 0 は -1、0 < x < 1 は +0 no_std で `f64::floor` を呼べない crate のため `powi64` と同じく `ADDED_FUNCTIONS` の関数: 自分の `FUNCTION_PINS` の entry だけで固定し、`SEMANTICS_ID` は動かない (記録済みの値の試験が通る) 呼ぶ crate はその entry を畳む `function-paths.toml` に `floor64` / `ops::floor64` 試験 (`tests/floor64_oracle.rs`): 定義 (整数・x 以下・次の整数は x より上) を bits で、`f64::floor` を境界と全指数の 2^20 値と各整数の両隣で突き合わせる、方針の決まらない値 (符号つきの 0・無限大・各種 NaN) を bits で固定 変異 10 件のうち 9 件が red、残る 1 件 (|x| < 1 の早期 return の境界を 0.5 に下げる) は一般の経路も [0.5, 1) で正しく、等価
 - CI: 他の crate の `PREVIOUS_*_SEMANTICS_IDS` は一覧全体としてだけ使える (`contains` / `len` / `is_empty`、全体を回す iterator や for、引数として丸ごと渡す) とし、添字・slice のパターン・`.first` / `next` / `take` などを拒む `scripts/upstream_previous_ids_check.py` と試験を足した (ALICE-Edge と同じ中身の共有 file) 上流は major で一覧を空にする 走査した .rs が 0 件なら失敗 (ci.yml と preflight)
 
