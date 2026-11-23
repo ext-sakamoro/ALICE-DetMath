@@ -260,16 +260,16 @@ crate この crate は ALICE の中核の継ぎ目にあたる 符号付き距�
 [ALICE-Zip](https://github.com/ext-sakamoro/ALICE-Zip) はこの crate に依存して
 いない 生成器は現在 `libm` を使っている
 
-<!-- law-integration:begin law=e95f330762ad16b2be96d0cce3ebd320dffc460e -->
+<!-- law-integration:begin law=01ed6777a6493cad178c24045978449150497306 -->
 ## ALICE-Law との統合
 
-ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `e95f330762ad` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
+ALICE-Law の `scripts/gen-law-readme-block.py` が ALICE-Law `01ed6777a649` とこの repository の `alice-law-conformance.toml` から生成する 手で編集しない
 
 | | |
 |---|---|
-| release train | alice-det-math 0.5.1 (published)、Law への依存: あり |
-| 算術 | main branch の alice-det-math 0.6.1、算術の識別子 `6fc214e924c53557f33775df51f1f8dfe2f246d67a9e493d6fb5837d999022f2` (release train の alice-det-math は 0.5.1 で、測った版と違う) この crate が alice-det-math |
-| end to end 検査 | 対象 (`alice-det-math` 0.6、main branch から)、値の digest `66b99010e871b2bc099ad5a4dd0f7c34cc5d6731f1c2a0459c0dd58284b081d7`、aarch64 と x86_64 で同じ |
+| release train | alice-det-math 0.6.1 (main 8a46fde1e289)、Law への依存: あり |
+| 算術 | main branch の alice-det-math 0.6.1、算術の識別子 `6fc214e924c53557f33775df51f1f8dfe2f246d67a9e493d6fb5837d999022f2` この crate が alice-det-math |
+| end to end 検査 | 対象 (`alice-det-math` 0.6、main branch から)、値の digest `d1a37d5f3bf2590657f8507277f1661ea9f7ea27bb0b492e7952add280f2a414`、aarch64 と x86_64 で同じ |
 
 ### 適合 (G1-G14)
 
