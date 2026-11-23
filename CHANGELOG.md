@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/run_tests.sh` (+ `scripts/test_run_tests.py`、ALICE-DB / ALICE-Analytics / ALICE-Edge / ALICE-Zip と同一): 名前を挙げた test binary の通過件数が足りなければ失敗する (`name=N` で最低件数を指定) (ignore や cfg で消えた test が空の成功にならない) docs-lint job で script 自身の試験も実行
 
 ### Changed
+- CI (ALICE-Law G11): `.github/shared-files-pin` と `.github/g11-table-pin` を ALICE-Law 01ed6777 に進め、共有の写しを表が移行先とする各持ち主の main の bytes にした: `scripts/id_move_check.py` と試験、`scripts/fneg_fma_ir_check.py` と試験、`scripts/test_shared_files.py` (ALICE-Analytics)、`.github/workflows/public-text.yml` / `scripts/public_text.sh` / `scripts/test_public_text.py` (ALICE-Audit) README の ALICE-Law block を同じ rev で作り直した
 - CI (fold scan): 自分の manifest で alice-det-math を 1 つの release (`=x.y.z`) に固定する crate の中で識別子を使う file は、`.github/fold-frozen.txt` が宣言していれば凍結した generator として表に出し、動くものとは数えない (宣言の無いものは動くもの、宣言したのに見つからないものは差) ALICE-Edge の `scripts/gen_db_fixture` (alice-det-math 0.4.0 の fixture を書く) を宣言し、関数ごとの pin を持つ ALICE-Edge を fold-consumers に移した
 - CI (共有の写し): `scripts/id_move_check.py` と試験、`scripts/entropy_guard.py` と試験を ALICE-Law 99dd3df4 が計画した ALICE-Analytics の bytes にした (entropy_guard の許可は repo ごとの `scripts/entropy_guard.toml`、この repo は許可 0 件なので file を置かない)
 - CI (ALICE-Law G11 (c)): `.github/shared-files-pin` と `.github/g11-table-pin` を ALICE-Law 99dd3df4 (release_baseline / test_id_move_check / entropy_guard の目標をこの版の bytes に付け替えた表) に上げ、README の ALICE-Law の節をその版で生成し直した
